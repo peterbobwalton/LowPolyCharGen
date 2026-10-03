@@ -57,7 +57,7 @@ def build():
     for i, entry in enumerate(LINEUP):
         mesh, clip, speed, crouch, weapon, line1, line2 = entry[:7]
         grime = entry[7] if len(entry) > 7 else -1.0
-        loc = origin + fwd * 700 + right * ((i - (len(LINEUP) - 1) / 2.0) * 150)
+        loc = origin + fwd * 700 + right * ((i - (len(LINEUP) - 1) / 2.0) * 140)
         loc.z = ground
         actor = eas.spawn_actor_from_class(unreal.LpcgDisplaySoldier, loc, unreal.Rotator(0, 0, yaw + 180))
         actor.set_actor_label("LPCG_%02d_%s" % (i, line1.replace(" ", "_")))

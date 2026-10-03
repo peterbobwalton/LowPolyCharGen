@@ -13,11 +13,11 @@ pack is licensed Marketplace content and the template content ships with the eng
 | `ALpcgGameMode` | Default pawn = `ALpcgSoldierCharacter`; the project's and the map's game mode. |
 | `ALpcgDisplaySoldier` | Lineup actor: loops a clip or the C++ locomotion blend at a fixed speed, animates in the editor viewport. |
 
-Characters are shown at `CharacterScale` = 1.2 (20% bigger than the pack's, so they suit the
-weapons). The scale lives on the mesh component, not in the FBX: the pack's animations key every
-bone's transform including the Biped root's scale, so a size baked into the mesh would be undone.
-Weapons are counter-scaled to keep their true size, and the locomotion blend divides the ground
-speed by the scale so the bigger stride does not slide.
+`CharacterScale` (default 1.0, the packs' size) scales a character in the world. It lives on the
+mesh component, not in the FBX: the pack's animations key every bone's transform including the
+Biped root's scale, so a size baked into the mesh would be undone. Weapons scale with the character
+(the packs' proportions), and the locomotion blend divides the ground speed by the scale so a
+bigger or smaller stride does not slide.
 
 **No foot sliding.** Each gait clip carries the speed its planted foot moves at, measured in the
 editor (walk 111, run 369, sprint 478, crouch walk 107 cm/s; the pack's Root_Motion versions

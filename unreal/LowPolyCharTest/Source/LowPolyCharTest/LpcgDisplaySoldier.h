@@ -40,7 +40,7 @@ public:
 
 	/** Size relative to the pack's characters; the weapon scales with it. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Display", meta = (ClampMin = "0.5", ClampMax = "2.0"))
-	float CharacterScale = 1.2f;
+	float CharacterScale = 1.0f;
 
 	/** Grime layer amount (0 clean .. 1 filthy); below 0 keeps the material instance's own value. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Display", meta = (ClampMin = "-1.0", ClampMax = "1.0"))

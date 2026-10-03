@@ -46,7 +46,7 @@ public:
 	 * mesh, so it is applied to the mesh component). The weapon scales with it, keeping the packs' proportions.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Soldier", meta = (ClampMin = "0.5", ClampMax = "2.0"))
-	float CharacterScale = 1.2f;
+	float CharacterScale = 1.0f;
 
 	/**
 	 * Normal and sprint world speeds. 0 = take them from the clips (run and sprint speed x CharacterScale),
