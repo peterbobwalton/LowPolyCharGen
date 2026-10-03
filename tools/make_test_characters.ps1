@@ -1,4 +1,4 @@
-# Exports the LowPolyCharTest lineup characters to out\characters (FBX, clean texture, grime layer, spec JSON).
+# Exports the LowPolyCharTest lineup characters to out\characters (FBX, clean texture, grime layer, _Spec.json).
 # Then, in the LowPolyCharTest editor's Python console:
 #   py "C:/source/Claude/LowPolyCharGen/tools/lpct_refresh.py"
 param([string] $OutDir = (Join-Path (Split-Path $PSScriptRoot -Parent) "out\characters"))

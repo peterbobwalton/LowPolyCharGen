@@ -74,12 +74,19 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Locomotion")
 	float CrouchAlpha = 0.f;
 
-	/** Loads the pack's infantry idle/walk/run/sprint and crouch loops into any set that is still empty. */
-	void UseDefaultInfantrySets();
+	/**
+	 * Fills the sets with the pack's infantry idle/walk/run/sprint and crouch loops. Call it from an actor's
+	 * constructor: the clips are found with ConstructorHelpers, so the owner's CDO references them and
+	 * they get cooked (a runtime LoadObject by path would leave them out of packaged builds).
+	 */
+	static void FindDefaultInfantrySets(FLpcgLocomotionSet& OutStanding, FLpcgLocomotionSet& OutCrouching);
+
+	/** Reads the pawn's ground speed and stance (game thread; the proxy calls it before each update). */
+	void UpdateLocomotionState(float DeltaSeconds);
 
 protected:
+	/** Takes the sets (and, for display actors, the fixed speed and stance) from the owning actor. */
 	virtual void NativeInitializeAnimation() override;
-	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
 	virtual FAnimInstanceProxy* CreateAnimInstanceProxy() override;
 	virtual void DestroyAnimInstanceProxy(FAnimInstanceProxy* InProxy) override;
 };

@@ -5,11 +5,13 @@
 Imports every character exported to LowPolyCharGen/out/characters onto the Toon Soldiers skeleton
 and rebuilds the showcase lineup in Lvl_ThirdPerson (saved). Nothing else is touched.
 """
-import os, sys
+import importlib, os, sys
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, TOOLS)
+if TOOLS not in sys.path:
+    sys.path.insert(0, TOOLS)
 import import_unreal
+importlib.reload(import_unreal)   # the editor's Python session keeps modules between runs
 
 import_unreal.main([os.path.join(TOOLS, "..", "out", "characters"), "/Game/LowPolyCharGen/Characters"])
 LPCG_INTERACTIVE = True

@@ -5,55 +5,64 @@
 #include "AnimationRuntime.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/Pawn.h"
+#include "LpcgDisplaySoldier.h"
+#include "LpcgSoldierCharacter.h"
+#include "UObject/ConstructorHelpers.h"
 
 namespace
 {
-	const TCHAR* const AnimRoot = TEXT("/Game/Toon_Soldiers_Armies/Animations/Infantry/");
-
-	UAnimSequence* LoadClip(const FString& RelativePath)
-	{
-		const FString Name = FPaths::GetBaseFilename(RelativePath);
-		return LoadObject<UAnimSequence>(nullptr, *FString::Printf(TEXT("%s%s.%s"), AnimRoot, *RelativePath, *Name));
-	}
-
 	/** Below this fraction of the slowest gait the clip slows down no further; its weight fades out instead. */
 	constexpr float MinPlayRate = 0.5f;
 	/** Above the fastest gait the clip speeds up, but no further than this. */
 	constexpr float MaxPlayRate = 1.4f;
+
+	UAnimSequence* FindClip(const TCHAR* Path)
+	{
+		ConstructorHelpers::FObjectFinder<UAnimSequence> Finder(Path);
+		return Finder.Object;
+	}
 }
 
-void ULpcgLocomotionAnimInstance::UseDefaultInfantrySets()
+void ULpcgLocomotionAnimInstance::FindDefaultInfantrySets(FLpcgLocomotionSet& OutStanding, FLpcgLocomotionSet& OutCrouching)
 {
 	// Speeds are how fast each in-place clip's planted foot travels backwards, measured in the editor
 	// (the pack's Root_Motion versions under-travel and slide by the difference: run 302 vs 369).
-	if (!Standing.IsValid())
-	{
-		Standing.Idle = LoadClip(TEXT("infantry_combat_idle"));
-		Standing.Gaits = {
-			{ LoadClip(TEXT("Movement/infantry_combat_walk")), 111.5f },
-			{ LoadClip(TEXT("Movement/infantry_combat_run")), 369.f },
-			{ LoadClip(TEXT("Movement/infantry_sprint")), 478.f },
-		};
-	}
-	if (!Crouching.IsValid())
-	{
-		Crouching.Idle = LoadClip(TEXT("Crouch/infantry_crouch_idle"));
-		Crouching.Gaits = { { LoadClip(TEXT("Crouch/infantry_crouch_walk")), 107.f } };
-	}
-	Standing.Gaits.RemoveAll([](const FLpcgGait& G) { return G.Clip == nullptr || G.Speed <= 0.f; });
-	Crouching.Gaits.RemoveAll([](const FLpcgGait& G) { return G.Clip == nullptr || G.Speed <= 0.f; });
+	static UAnimSequence* const Idle = FindClip(TEXT("/Game/Toon_Soldiers_Armies/Animations/Infantry/infantry_combat_idle.infantry_combat_idle"));
+	static UAnimSequence* const Walk = FindClip(TEXT("/Game/Toon_Soldiers_Armies/Animations/Infantry/Movement/infantry_combat_walk.infantry_combat_walk"));
+	static UAnimSequence* const Run = FindClip(TEXT("/Game/Toon_Soldiers_Armies/Animations/Infantry/Movement/infantry_combat_run.infantry_combat_run"));
+	static UAnimSequence* const Sprint = FindClip(TEXT("/Game/Toon_Soldiers_Armies/Animations/Infantry/Movement/infantry_sprint.infantry_sprint"));
+	static UAnimSequence* const CrouchIdle = FindClip(TEXT("/Game/Toon_Soldiers_Armies/Animations/Infantry/Crouch/infantry_crouch_idle.infantry_crouch_idle"));
+	static UAnimSequence* const CrouchWalk = FindClip(TEXT("/Game/Toon_Soldiers_Armies/Animations/Infantry/Crouch/infantry_crouch_walk.infantry_crouch_walk"));
+
+	OutStanding.Idle = Idle;
+	OutStanding.Gaits = { { Walk, 111.5f }, { Run, 369.f }, { Sprint, 478.f } };
+	OutCrouching.Idle = CrouchIdle;
+	OutCrouching.Gaits = { { CrouchWalk, 107.f } };
+	OutStanding.Gaits.RemoveAll([](const FLpcgGait& G) { return G.Clip == nullptr || G.Speed <= 0.f; });
+	OutCrouching.Gaits.RemoveAll([](const FLpcgGait& G) { return G.Clip == nullptr || G.Speed <= 0.f; });
 }
 
 void ULpcgLocomotionAnimInstance::NativeInitializeAnimation()
 {
 	Super::NativeInitializeAnimation();
-	UseDefaultInfantrySets();
+
+	// Re-read from the owner whenever the instance is (re)created, so nothing set on it earlier is lost.
+	if (const ALpcgSoldierCharacter* Soldier = Cast<ALpcgSoldierCharacter>(GetOwningActor()))
+	{
+		Standing = Soldier->Standing;
+		Crouching = Soldier->Crouching;
+	}
+	else if (const ALpcgDisplaySoldier* Display = Cast<ALpcgDisplaySoldier>(GetOwningActor()))
+	{
+		Standing = Display->Standing;
+		Crouching = Display->Crouching;
+		SpeedOverride = Display->LocomotionSpeed;
+		bCrouchOverride = Display->bCrouched;
+	}
 }
 
-void ULpcgLocomotionAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
+void ULpcgLocomotionAnimInstance::UpdateLocomotionState(float DeltaSeconds)
 {
-	Super::NativeUpdateAnimation(DeltaSeconds);
-
 	bool bCrouched = bCrouchOverride;
 	if (SpeedOverride >= 0.f)
 	{
@@ -94,7 +103,9 @@ void ULpcgLocomotionAnimInstance::DestroyAnimInstanceProxy(FAnimInstanceProxy* I
 void FLpcgLocomotionProxy::PreUpdate(UAnimInstance* InAnimInstance, float DeltaSeconds)
 {
 	FAnimInstanceProxy::PreUpdate(InAnimInstance, DeltaSeconds);
-	const ULpcgLocomotionAnimInstance* Instance = CastChecked<ULpcgLocomotionAnimInstance>(InAnimInstance);
+	// Game thread: refresh this frame's speed and stance before copying (NativeUpdateAnimation runs after PreUpdate).
+	ULpcgLocomotionAnimInstance* Instance = CastChecked<ULpcgLocomotionAnimInstance>(InAnimInstance);
+	Instance->UpdateLocomotionState(DeltaSeconds);
 	Standing = Instance->Standing;
 	Crouching = Instance->Crouching;
 	Speed = Instance->Speed;

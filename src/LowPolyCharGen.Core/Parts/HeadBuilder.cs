@@ -158,7 +158,8 @@ internal static class HeadBuilder
     /// <summary>Hair, hats and eyewear (built after the body; these are not welded to the skull).</summary>
     public static void BuildExtras(BuildContext c)
     {
-        if (c.Spec.FacialHair == FacialHair.BushyBeard) BuildBeard(c);
+        // A face cover hides the beard; its mesh would poke through the knit or stand over the shemagh.
+        if (c.Spec.FacialHair == FacialHair.BushyBeard && c.Spec.FaceCover == FaceCover.None) BuildBeard(c);
         BuildHair(c);
         BuildHat(c);
         BuildEyewear(c);

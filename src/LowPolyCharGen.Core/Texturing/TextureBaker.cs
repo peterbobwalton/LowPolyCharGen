@@ -106,17 +106,21 @@ public static class TextureBaker
         var filled = new bool[size * size];
         var scale = (float)size / MeshData.AtlasSize;
 
-        Parallel.For(0, mesh.Faces.Length, f =>
+        // Texels inside triangles first, in parallel (charts don't overlap, so faces never share one);
+        // then the margins round each triangle, on one thread, filling only what is still empty.
+        void RasteriseFace(int f, bool margins)
         {
             var face = mesh.Faces[f];
             var chart = mesh.Charts[face.Chart];
             var chartSize = new Vector2(chart.Width, chart.Height);
             var v = face.Vertices;
             for (var i = 1; i + 1 < v.Length; i++)
-                Rasterise(face, chart, chartSize, f, 0, i, i + 1);
-        });
+                Rasterise(face, chart, chartSize, f, 0, i, i + 1, margins);
+        }
+        Parallel.For(0, mesh.Faces.Length, f => RasteriseFace(f, false));
+        for (var f = 0; f < mesh.Faces.Length; f++) RasteriseFace(f, true);
 
-        void Rasterise(Face face, UvChart chart, Vector2 chartSize, int f, int i0, int i1, int i2)
+        void Rasterise(Face face, UvChart chart, Vector2 chartSize, int f, int i0, int i1, int i2, bool margins)
         {
             // Triangle corners in pixels.
             Vector2 Pixel(int i) => (new Vector2(chart.X, chart.Y) + face.ChartUv[i] * chart.Scale) * scale;
@@ -154,7 +158,8 @@ public static class TextureBaker
                     var inside = wa >= 0 && wb >= 0 && wc >= 0;
                     var index = y * size + x;
                     // Texels in the margin only fill gaps; they never overwrite a texel inside a triangle.
-                    if (!inside && filled[index]) continue;
+                    if (inside == margins) continue;          // this pass does the other kind of texel
+                    if (margins && filled[index]) continue;   // margins only fill gaps
 
                     var position = pa * wa + pb * wb + pc * wc;
                     var normal = n[i0] * wa + n[i1] * wb + n[i2] * wc;

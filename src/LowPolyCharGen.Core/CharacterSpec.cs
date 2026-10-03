@@ -138,7 +138,14 @@ public sealed class CharacterSpec : INotifyPropertyChanged
                 BootsColor = c.Boots; AccentColor = c.Accent;
                 if (value == Edition.Civilian) Civvies();
                 else if (value == Edition.Militia) Irregulars();
-                else if (Camouflage == Camouflage.None) Camouflage = Camouflage.Woodland;
+                else
+                {
+                    // A uniform: camo on everything, and nothing left over from militia dress.
+                    if (Camouflage == Camouflage.None) Camouflage = Camouflage.Woodland;
+                    CamoCoverage = CamoCoverage.All;
+                    if (Legs == LegsStyle.Thobe) Legs = LegsStyle.Cargo;
+                    if (Hat is HatStyle.Keffiyeh or HatStyle.Turban) Hat = HatStyle.Helmet;
+                }
             }
         }
     }
@@ -147,6 +154,8 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     private void Civvies()
     {
         Camouflage = Camouflage.None;
+        CamoCoverage = CamoCoverage.All;
+        FaceCover = FaceCover.None;
         Vest = VestStyle.None;
         Footwear = Footwear.Trainers;
         Gloves = KneePads = ElbowPads = false;
@@ -300,6 +309,10 @@ public sealed class CharacterSpec : INotifyPropertyChanged
         };
         spec.FacialHair = spec.Gender == Gender.Male && Chance(0.4) ? Pick<FacialHair>() : FacialHair.None;
         if (spec.Gender == Gender.Male && spec.Legs == LegsStyle.Skirt) spec.Legs = LegsStyle.Trousers;
+        // Traditional dress is the militia randomiser's call (and never a camo-printed robe).
+        if (spec.Legs == LegsStyle.Thobe) spec.Legs = LegsStyle.Trousers;
+        if (spec.Hat is HatStyle.Keffiyeh or HatStyle.Turban) spec.Hat = HatStyle.None;
+        if (spec.FacialHair == FacialHair.BushyBeard && spec.FaceCover != FaceCover.None) spec.FacialHair = FacialHair.Beard;
         spec.Footwear = Chance(0.25) ? Footwear.Trainers : Footwear.Boots;
         return spec;
     }
@@ -318,6 +331,7 @@ public sealed class CharacterSpec : INotifyPropertyChanged
         spec.Torso = Of(TorsoStyle.TShirt, TorsoStyle.TShirt, TorsoStyle.TankTop, TorsoStyle.LongSleeve, TorsoStyle.Hoodie, TorsoStyle.Jacket, TorsoStyle.CheckShirt);
         spec.Legs = Of(LegsStyle.Cargo, LegsStyle.Cargo, LegsStyle.Trousers, LegsStyle.Jeans);
         spec.FaceCover = Of(FaceCover.Balaclava, FaceCover.Shemagh, FaceCover.Shemagh, FaceCover.None);
+        if (spec.FacialHair == FacialHair.BushyBeard) spec.FacialHair = FacialHair.Beard;
         spec.Hat = spec.FaceCover == FaceCover.Balaclava ? (Chance(0.3) ? HatStyle.Helmet : HatStyle.None)
                  : Chance(0.5) ? HatStyle.None : Of(HatStyle.Beanie, HatStyle.Cap, HatStyle.Beret, HatStyle.Helmet);
         spec.Vest = Of(VestStyle.ChestRig, VestStyle.ChestRig, VestStyle.PlateCarrier, VestStyle.None);
@@ -336,7 +350,8 @@ public sealed class CharacterSpec : INotifyPropertyChanged
         spec.GearColor = Tone(MilitiaTops);
         spec.AccentColor = Tone(MilitiaWraps);
         spec.BootsColor = Rgb.FromHex(Of("#2A2622", "#1C1C1E", "#4A3A2A"));
-        if (spec.Gender == Gender.Male && spec.FaceCover != FaceCover.Balaclava && Chance(0.55)) spec.FacialHair = FacialHair.BushyBeard;
+        if (spec.Gender == Gender.Male && spec.FaceCover == FaceCover.None && Chance(0.55)) spec.FacialHair = FacialHair.BushyBeard;
+        if (spec.FaceCover == FaceCover.Balaclava) spec.FacialHair = FacialHair.None;
         if (spec.Gender == Gender.Male && Chance(0.35))
         {
             // Traditional dress: an ankle-length thobe under the webbing, keffiyeh or turban.
@@ -345,7 +360,7 @@ public sealed class CharacterSpec : INotifyPropertyChanged
             spec.Camouflage = Camouflage.None;
             spec.Belt = BeltStyle.None;
             spec.Hat = Of(HatStyle.Keffiyeh, HatStyle.Keffiyeh, HatStyle.Turban);
-            if (spec.FaceCover == FaceCover.Balaclava) spec.FaceCover = FaceCover.None;
+            spec.FaceCover = FaceCover.None;   // the beard shows
             spec.ShirtColor = Rgb.FromHex(Of("#E8E4DA", "#D8CDB0", "#B9AE96", "#8E8A80", "#6A6A5A", "#4A4A40"));
             spec.HatColor = Rgb.FromHex(Of("#1E1E20", "#3A3428", "#E8E4DA", "#5A4A3A"));
             spec.AccentColor = Rgb.FromHex(Of("#7A2A26", "#1E1E20", "#1E1E20"));

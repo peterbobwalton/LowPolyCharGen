@@ -28,31 +28,40 @@ ALpcgDisplaySoldier::ALpcgDisplaySoldier()
 	NameText->SetupAttachment(RootComponent);
 	NameText->SetHorizontalAlignment(EHTA_Center);
 	NameText->SetWorldSize(14.f);
+
+	ULpcgLocomotionAnimInstance::FindDefaultInfantrySets(Standing, Crouching);
 }
 
 void ALpcgDisplaySoldier::Refresh()
 {
 	if (Body->GetSkeletalMeshAsset() != Mesh)
 	{
+		Body->EmptyOverrideMaterials();   // a grime instance made for the previous mesh would carry its material
 		Body->SetSkeletalMesh(Mesh);
 	}
 
 	if (Animation)
 	{
-		Body->SetAnimationMode(EAnimationMode::AnimationSingleNode);
-		Body->AnimationData.AnimToPlay = Animation;
-		Body->AnimationData.bSavedLooping = true;
-		Body->AnimationData.bSavedPlaying = true;
-		Body->AnimationData.SavedPlayRate = 1.f;
-		Body->PlayAnimation(Animation, true);
+		// Only (re)start when the clip changes, so editing other properties doesn't reset every soldier.
+		if (Body->GetAnimationMode() != EAnimationMode::AnimationSingleNode || Body->AnimationData.AnimToPlay != Animation)
+		{
+			Body->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+			Body->AnimationData.AnimToPlay = Animation;
+			Body->AnimationData.bSavedLooping = true;
+			Body->AnimationData.bSavedPlaying = true;
+			Body->AnimationData.SavedPlayRate = 1.f;
+			Body->PlayAnimation(Animation, true);
+		}
 	}
 	else
 	{
 		Body->SetAnimationMode(EAnimationMode::AnimationBlueprint);
 		Body->SetAnimInstanceClass(ULpcgLocomotionAnimInstance::StaticClass());
+		// The instance reads speed, stance and clips from this actor when it initialises; push them for the live one too.
 		if (ULpcgLocomotionAnimInstance* Anim = Cast<ULpcgLocomotionAnimInstance>(Body->GetAnimInstance()))
 		{
-			Anim->UseDefaultInfantrySets();
+			Anim->Standing = Standing;
+			Anim->Crouching = Crouching;
 			Anim->SpeedOverride = LocomotionSpeed;
 			Anim->bCrouchOverride = bCrouched;
 		}
@@ -75,6 +84,10 @@ void ALpcgDisplaySoldier::Refresh()
 		{
 			Material->SetScalarParameterValue(TEXT("GrimeAmount"), Grime);
 		}
+	}
+	else if (Body->GetNumOverrideMaterials() > 0)
+	{
+		Body->EmptyOverrideMaterials();   // back to the material instance's own grime amount
 	}
 }
 

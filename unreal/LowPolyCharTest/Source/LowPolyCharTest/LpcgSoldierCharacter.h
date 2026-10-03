@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "LpcgLocomotionAnimInstance.h"
 #include "LpcgSoldierCharacter.generated.h"
 
 class UCameraComponent;
@@ -66,6 +67,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Soldier")
 	void SetGrime(float Amount);
 
+	/** Locomotion clips (defaults: the pack's infantry set), handed to the native anim instance. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Locomotion")
+	FLpcgLocomotionSet Standing;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Locomotion")
+	FLpcgLocomotionSet Crouching;
+
 	UPROPERTY(EditAnywhere, Category = "Input")
 	TObjectPtr<UInputMappingContext> DefaultMappingContext;
 
@@ -87,6 +95,9 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	virtual void OnConstruction(const FTransform& Transform) override;
+	virtual void PostInitializeComponents() override;
+	virtual void OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
+	virtual void OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	virtual void NotifyControllerChanged() override;
 
@@ -97,14 +108,21 @@ private:
 	void StopSprint();
 	void ToggleCrouch();
 	void ApplyCharacterScale();
+	void ApplyMoveSpeed();
 
-	/** Sprint and crouch, which the template has no assets for (built in the constructor). */
-	UPROPERTY()
+	bool bWantsSprint = false;
+
+	/**
+	 * Sprint and crouch, which the template has no assets for. Built per instance in PostInitializeComponents:
+	 * as default subobjects the instance's mapping context would be copied from the CDO's and keep
+	 * pointing at the CDO's actions, so the bindings would never fire.
+	 */
+	UPROPERTY(Transient)
 	TObjectPtr<UInputMappingContext> CodeMappingContext;
 
-	UPROPERTY()
+	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> SprintAction;
 
-	UPROPERTY()
+	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> CrouchAction;
 };

@@ -75,15 +75,7 @@ ALpcgSoldierCharacter::ALpcgSoldierCharacter()
 	MouseLookAction = IaMouseLook.Object;
 	JumpAction = IaJump.Object;
 
-	// Sprint and crouch have no template assets, so they are built here once, as subobjects.
-	SprintAction = CreateDefaultSubobject<UInputAction>(TEXT("IA_Sprint"));
-	CrouchAction = CreateDefaultSubobject<UInputAction>(TEXT("IA_Crouch"));
-	CodeMappingContext = CreateDefaultSubobject<UInputMappingContext>(TEXT("IMC_LpcgSoldier"));
-	CodeMappingContext->MapKey(SprintAction, EKeys::LeftShift);
-	CodeMappingContext->MapKey(SprintAction, EKeys::Gamepad_LeftThumbstick);
-	CodeMappingContext->MapKey(CrouchAction, EKeys::C);
-	CodeMappingContext->MapKey(CrouchAction, EKeys::LeftControl);
-	CodeMappingContext->MapKey(CrouchAction, EKeys::Gamepad_FaceButton_Right);
+	ULpcgLocomotionAnimInstance::FindDefaultInfantrySets(Standing, Crouching);
 
 	ApplyCharacterScale();
 }
@@ -96,6 +88,22 @@ void ALpcgSoldierCharacter::ApplyCharacterScale()
 	GetCharacterMovement()->SetCrouchedHalfHeight(58.f * S);
 	GetMesh()->SetRelativeLocation(FVector(0.f, 0.f, -90.f * S));
 	GetMesh()->SetRelativeScale3D(FVector(S));
+}
+
+void ALpcgSoldierCharacter::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+	if (!CodeMappingContext)
+	{
+		SprintAction = NewObject<UInputAction>(this, TEXT("IA_Sprint"));
+		CrouchAction = NewObject<UInputAction>(this, TEXT("IA_Crouch"));
+		CodeMappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_LpcgSoldier"));
+		CodeMappingContext->MapKey(SprintAction, EKeys::LeftShift);
+		CodeMappingContext->MapKey(SprintAction, EKeys::Gamepad_LeftThumbstick);
+		CodeMappingContext->MapKey(CrouchAction, EKeys::C);
+		CodeMappingContext->MapKey(CrouchAction, EKeys::LeftControl);
+		CodeMappingContext->MapKey(CrouchAction, EKeys::Gamepad_FaceButton_Right);
+	}
 }
 
 void ALpcgSoldierCharacter::OnConstruction(const FTransform& Transform)
@@ -124,14 +132,10 @@ void ALpcgSoldierCharacter::BeginPlay()
 	}
 	// Move at the speeds the clips were authored for, so the planted foot keeps pace with the ground.
 	UCharacterMovementComponent* Movement = GetCharacterMovement();
-	if (ULpcgLocomotionAnimInstance* Anim = Cast<ULpcgLocomotionAnimInstance>(GetMesh()->GetAnimInstance()))
-	{
-		Anim->UseDefaultInfantrySets();
-		const TArray<FLpcgGait>& Gaits = Anim->Standing.Gaits;
-		if (MoveSpeed <= 0.f && Gaits.Num()) MoveSpeed = Gaits[FMath::Min(1, Gaits.Num() - 1)].Speed * CharacterScale;
-		if (SprintSpeed <= 0.f) SprintSpeed = Anim->Standing.FastestGait() * CharacterScale;
-		if (Anim->Crouching.Gaits.Num()) Movement->MaxWalkSpeedCrouched = Anim->Crouching.SlowestGait() * CharacterScale;
-	}
+	const TArray<FLpcgGait>& Gaits = Standing.Gaits;
+	if (MoveSpeed <= 0.f && Gaits.Num()) MoveSpeed = Gaits[FMath::Min(1, Gaits.Num() - 1)].Speed * CharacterScale;
+	if (SprintSpeed <= 0.f) SprintSpeed = Standing.FastestGait() * CharacterScale;
+	if (Crouching.Gaits.Num()) Movement->MaxWalkSpeedCrouched = Crouching.SlowestGait() * CharacterScale;
 	MoveSpeed = MoveSpeed > 0.f ? MoveSpeed : 360.f;
 	SprintSpeed = FMath::Max(SprintSpeed, MoveSpeed);
 	Movement->MaxWalkSpeed = MoveSpeed;
@@ -195,12 +199,31 @@ void ALpcgSoldierCharacter::Look(const FInputActionValue& Value)
 
 void ALpcgSoldierCharacter::StartSprint()
 {
-	if (!bIsCrouched) GetCharacterMovement()->MaxWalkSpeed = SprintSpeed;
+	bWantsSprint = true;
+	ApplyMoveSpeed();
 }
 
 void ALpcgSoldierCharacter::StopSprint()
 {
-	GetCharacterMovement()->MaxWalkSpeed = MoveSpeed;
+	bWantsSprint = false;
+	ApplyMoveSpeed();
+}
+
+void ALpcgSoldierCharacter::ApplyMoveSpeed()
+{
+	GetCharacterMovement()->MaxWalkSpeed = bWantsSprint && !bIsCrouched ? SprintSpeed : MoveSpeed;
+}
+
+void ALpcgSoldierCharacter::OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
+{
+	Super::OnStartCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
+	ApplyMoveSpeed();
+}
+
+void ALpcgSoldierCharacter::OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
+{
+	Super::OnEndCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
+	ApplyMoveSpeed();   // still holding Shift: back to sprinting
 }
 
 void ALpcgSoldierCharacter::ToggleCrouch()

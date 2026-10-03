@@ -29,7 +29,7 @@ public static class FbxExporter
 
         // The texture is clean; the grime is a separate layer so it can be blended (and changed) in the material.
         var grimePath = Path.Combine(directory, Path.GetFileNameWithoutExtension(fbxPath) + "_Grime.png");
-        var specPath = Path.ChangeExtension(fbxPath, ".json");
+        var specPath = Path.Combine(directory, Path.GetFileNameWithoutExtension(fbxPath) + "_Spec.json");
         var (diffuse, grime) = Texturing.TextureBaker.BakeLayers(model, model.Spec.TextureSize);
         File.WriteAllBytes(texturePath, diffuse.EncodePng());
         File.WriteAllBytes(grimePath, grime.EncodePng());

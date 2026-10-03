@@ -165,6 +165,9 @@ static int Check()
         if (i % 3 == 0) spec.Rig = RigTarget.Mannequin;
         specs.Add(($"random{i}", spec));
     }
+    foreach (var edition in Enum.GetValues<Edition>())
+        for (var i = 0; i < 25; i++)
+            specs.Add(($"{edition}{i}", CharacterSpec.Random(rng, edition)));
 
     foreach (var (label, spec) in specs)
     {

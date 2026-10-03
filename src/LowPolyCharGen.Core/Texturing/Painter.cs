@@ -173,11 +173,12 @@ internal sealed partial class Painter
         var p = t.P;
         var patches = SmoothStep(0.48f, 0.78f, Noise.Fbm(p * 0.21f + new Vector3(9, 4, 2)));
         var specks = SmoothStep(0.62f, 0.8f, Noise.Value(p * 3.1f));
-        var mud = SmoothStep(18f + 30f * g, 4f, p.Z) * (0.6f + 0.4f * Noise.Fbm(p * 0.5f));
+        var mud = SmoothStep(36f, 4f, p.Z) * (0.6f + 0.4f * Noise.Fbm(p * 0.5f));
         var creases = 1f - t.Ao;
-        var amount = g * (0.55f * patches + 0.2f * specks + 0.5f * creases) + g * mud;
+        // Linear in g: the exported layer (g = 1) times the material's amount equals this bake.
+        var amount = g * Saturate(0.55f * patches + 0.2f * specks + 0.5f * creases + mud);
         var dirt = Mix(new Vector3(0.36f, 0.31f, 0.24f), new Vector3(0.24f, 0.19f, 0.14f), mud);
-        return (dirt * (0.85f + 0.3f * Noise.Value(p * 0.8f)), Saturate(amount) * 0.75f);
+        return (dirt * (0.85f + 0.3f * Noise.Value(p * 0.8f)), amount * 0.75f);
     }
 
     private bool CamoTop => _spec.CamoCoverage != CamoCoverage.TrousersOnly;

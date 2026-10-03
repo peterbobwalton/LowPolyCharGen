@@ -110,7 +110,7 @@ def import_character(fbx, destination, mannequin):
     if os.path.exists(grime_png):
         grime = next(iter(import_task(grime_png, destination, "T_" + base + "_Grime")), None)
     amount = 0.0
-    spec_json = os.path.join(os.path.dirname(fbx), base + ".json")
+    spec_json = os.path.join(os.path.dirname(fbx), base + "_Spec.json")
     if os.path.exists(spec_json):
         amount = float(json.load(open(spec_json, encoding="utf-8-sig")).get("Grime", 0.0))
 

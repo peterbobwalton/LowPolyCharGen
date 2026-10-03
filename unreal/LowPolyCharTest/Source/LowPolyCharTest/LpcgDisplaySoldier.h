@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "LpcgLocomotionAnimInstance.h"
 #include "LpcgDisplaySoldier.generated.h"
 
 class UAnimSequence;
@@ -37,6 +38,13 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Display")
 	bool bCrouched = false;
+
+	/** Locomotion clips for the native blend (defaults: the pack's infantry set). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Display")
+	FLpcgLocomotionSet Standing;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Display")
+	FLpcgLocomotionSet Crouching;
 
 	/** Size relative to the pack's characters; the weapon scales with it. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Display", meta = (ClampMin = "0.5", ClampMax = "2.0"))

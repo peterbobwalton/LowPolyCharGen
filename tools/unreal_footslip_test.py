@@ -124,6 +124,12 @@ def tick(dt):
             unreal.SystemLibrary.quit_editor()
     except Exception:
         log(traceback.format_exc())
-        state["step"] = "end"; state["t0"] = state["tick"]
+        if state["step"] in ("end", "quit"):
+            # Failing while finishing: stop here rather than retrying forever.
+            unreal.unregister_slate_post_tick_callback(state["handle"])
+            LOG.close()
+            unreal.SystemLibrary.quit_editor()
+        else:
+            state["step"] = "end"; state["t0"] = state["tick"]
 
 state["handle"] = unreal.register_slate_post_tick_callback(tick)
