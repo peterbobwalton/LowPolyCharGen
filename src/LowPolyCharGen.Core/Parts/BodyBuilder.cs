@@ -80,7 +80,7 @@ internal static class BodyBuilder
 
         switch (c.Spec.Torso)
         {
-            case TorsoStyle.TShirt:
+            case TorsoStyle.TShirt or TorsoStyle.Polo:
                 c.Paint.SleeveEndX = 33f;
                 Plain(0.6f, 22.5f, 33f);
                 Plain(0f, 33f, e - 3.5f, e, e + 3.5f, 57f, 67.5f, w);
@@ -91,8 +91,8 @@ internal static class BodyBuilder
                 Plain(1.3f, e + 3f, e + 6.5f);          // the roll
                 Plain(0f, e + 6.5f, 57f, 67.5f, w);
                 break;
-            case TorsoStyle.LongSleeve or TorsoStyle.Jacket:
-                var thick = c.Spec.Torso == TorsoStyle.Jacket ? 0.9f : 0.6f;
+            case TorsoStyle.LongSleeve or TorsoStyle.CheckShirt or TorsoStyle.Jacket or TorsoStyle.Hoodie:
+                var thick = c.Spec.Torso switch { TorsoStyle.Jacket => 0.9f, TorsoStyle.Hoodie => 1.0f, _ => 0.6f };
                 c.Paint.SleeveEndX = w - 2.2f;
                 Plain(thick, 22.5f, 31f, e - 3.5f, e, e + 3.5f, 57f, 67.5f);
                 Plain(thick + 0.3f, w - 2.2f);          // cuff
@@ -175,7 +175,7 @@ internal static class BodyBuilder
     {
         var weights = TorsoWeights(c);
         var zs = c.Torso.Sections.Select(s => s.Z).ToArray();
-        var jacket = c.Spec.Torso == TorsoStyle.Jacket;
+        var jacket = c.Spec.Torso is TorsoStyle.Jacket or TorsoStyle.Hoodie;
         if (jacket) c.Paint.HemZ = 93f;
 
         // The eight torso vertices around the shoulder become the first ring of the arm.

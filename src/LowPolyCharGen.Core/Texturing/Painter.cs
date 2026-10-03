@@ -135,6 +135,25 @@ internal sealed partial class Painter
         return color * (1f + 0.18f * folds + 0.05f * weave);
     }
 
+    /// <summary>Check shirt: broad darker bands and a thin pale line, both ways.</summary>
+    private static Vector3 Plaid(Vector3 color, Vector3 p)
+    {
+        var a = Fract((p.X + 0.7f * p.Y) / 7f);
+        var b = Fract(p.Z / 7f);
+        var dark = 0.5f * (Band(a, 0f, 0.36f, 0.02f) + Band(b, 0f, 0.36f, 0.02f));
+        var line = MathF.Max(Line(a - 0.62f, 0.035f, 0.01f), Line(b - 0.62f, 0.035f, 0.01f));
+        return Mix(color * (1f - 0.38f * dark), new Vector3(0.9f, 0.88f, 0.8f), 0.45f * line);
+    }
+
+    /// <summary>Denim: diagonal twill, paler where it is worn (thigh fronts, knees).</summary>
+    private static Vector3 Denim(Vector3 color, Vector3 p, float wear)
+    {
+        var twill = Line(Fract((p.Z + 0.6f * (p.X + p.Y)) / 0.42f) - 0.5f, 0.16f, 0.08f);
+        var slub = Noise.Fbm(new Vector3(p.X * 0.6f, p.Y * 0.6f, p.Z * 2.5f)) - 0.5f;
+        var c = color * (1f - 0.12f * twill + 0.10f * slub);
+        return Mix(c, c * 1.35f + new Vector3(0.05f, 0.06f, 0.08f), 0.55f * wear);
+    }
+
     private Vector3 Camouflage(Vector3 color, Vector3 p)
     {
         if (_spec.Camouflage == LowPolyCharGen.Camouflage.None) return color;

@@ -65,7 +65,7 @@ internal sealed partial class Painter
         var back = t.N.Y > 0.2f;
         var style = _spec.Torso;
 
-        var cloth = Cloth(_shirt, p, true);
+        var cloth = style == TorsoStyle.CheckShirt ? Cloth(Plaid(_shirt, p), p) : Cloth(_shirt, p, true);
         // Creases where the shirt gathers at the waist.
         cloth *= 1f + 0.06f * MathF.Sin(z * 1.6f + 7f * Noise.Fbm(p * 0.18f)) * (1f - SmoothStep(104f, 118f, z));
         var trim = _shirt * 0.74f;
@@ -87,6 +87,38 @@ internal sealed partial class Painter
                 var rim = MathF.Min(armhole - ax, ax < strapInner ? scoop - z : z > strapBase ? ax - strapInner : 99f);
                 return Mix(cloth, trim, 1f - SmoothStep(0.55f, 0.75f, rim));
             }
+            case TorsoStyle.Polo:
+            {
+                // Collar (painted on the neck) and a short buttoned placket.
+                if (front && z > 140.5f && ax < 1.4f)
+                {
+                    cloth = Cloth(_shirt * 1.05f, p) * (1f - 0.3f * Line(ax - 1.4f, 0.07f));
+                    foreach (var bz in (ReadOnlySpan<float>)[143.2f, 146.6f])
+                        cloth = Mix(cloth, new Vector3(0.88f, 0.86f, 0.8f), Disc(p.X, z - bz, 0.38f));
+                }
+                if (front && ax < 1.4f) cloth *= 1f - 0.3f * Line(z - 140.5f, 0.06f);
+                if (z > 150.5f) cloth = Cloth(_shirt * 0.92f, p);
+                break;
+            }
+            case TorsoStyle.Hoodie:
+            {
+                if (z > 149.5f) cloth = Cloth(trim, p) * (1f + 0.08f * MathF.Sin(MathF.Atan2(p.X, p.Y) * 9f));   // hood bunched round the neck
+                if (z < _c.HemZ + 3.6f)
+                    cloth = Cloth(trim, p) * (1f + 0.09f * MathF.Sin(MathF.Atan2(p.X, p.Y) * 46f));   // ribbed hem
+                if (front)
+                {
+                    // Kangaroo pocket with slanted openings, and the hood's drawstrings.
+                    var pocketTop = 117f - 0.25f * ax;
+                    if (z > 104f && z < pocketTop && ax < 9.5f - 0.35f * (z - 104f)) cloth *= 0.95f;
+                    if (ax < 6.4f) cloth *= 1f - 0.32f * Line(z - pocketTop, 0.08f);
+                    cloth *= 1f - 0.4f * Line(Segment(ax, z, 6.2f, 116.5f, 9.6f, 105f), 0.12f);
+                    if (ax < 9.5f) cloth *= 1f - 0.25f * Line(z - 104f, 0.06f);
+                    var cord = Line(ax - 2.1f - 0.04f * (149f - z), 0.18f, 0.06f) * Band(z, 136.5f, 149.5f, 0.2f);
+                    cloth = Mix(cloth, new Vector3(0.86f, 0.84f, 0.78f), cord);
+                    cloth = Mix(cloth, Steel * 0.5f, Disc(ax - 2.6f, z - 136.4f, 0.4f));   // aglets
+                }
+                break;
+            }
             case TorsoStyle.TShirt:
             {
                 // Crew neck, a little lower at the front.
@@ -95,7 +127,7 @@ internal sealed partial class Painter
                 if (z > 147f && neck < opening + 1.1f) return Cloth(trim, p) * (1f + 0.08f * MathF.Sin(neck * 14f));
                 break;
             }
-            case TorsoStyle.LongSleeve or TorsoStyle.RolledSleeves:
+            case TorsoStyle.LongSleeve or TorsoStyle.RolledSleeves or TorsoStyle.CheckShirt:
             {
                 // Open collar: a V of skin, collar wings either side, a button placket and chest pockets.
                 var v = (z - 144.5f) * 0.42f;
@@ -203,13 +235,13 @@ internal sealed partial class Painter
             return skin;
         }
 
-        var cloth = Cloth(_shirt, p, true);
+        var cloth = _spec.Torso == TorsoStyle.CheckShirt ? Cloth(Plaid(_shirt, p), p) : Cloth(_shirt, p, true);
         cloth *= 1f + 0.07f * MathF.Sin(x * 2.3f + 6f * Noise.Fbm(p * 0.2f)) * MathF.Exp(-MathF.Pow((x - _c.ElbowX) / 6f, 2));   // elbow creases
         cloth *= 1f - 0.14f * Line(x - 18.6f, 0.06f);                         // shoulder seam
 
         switch (_spec.Torso)
         {
-            case TorsoStyle.TShirt:
+            case TorsoStyle.TShirt or TorsoStyle.Polo:
                 cloth *= 1f - 0.2f * Line(x - (end - 1.3f), 0.05f);           // hem stitch
                 break;
             case TorsoStyle.RolledSleeves:
@@ -220,7 +252,7 @@ internal sealed partial class Painter
                     cloth *= 1f - 0.22f * Line(Fract((x - end) / 1.25f) - 0.5f, 0.06f, 0.03f);
                 }
                 break;
-            case TorsoStyle.LongSleeve:
+            case TorsoStyle.LongSleeve or TorsoStyle.CheckShirt:
                 if (x > end - 3.2f)
                 {
                     cloth = Cloth(_shirt * 0.84f, p, true);
@@ -228,7 +260,7 @@ internal sealed partial class Painter
                     if (t.N.Z > 0.5f) cloth = Mix(cloth, _shirt * 0.4f, Disc(x - (end - 1.6f), p.Y - _c.ArmY, 0.36f));
                 }
                 break;
-            case TorsoStyle.Jacket:
+            case TorsoStyle.Jacket or TorsoStyle.Hoodie:
                 if (x > end - 3.4f)
                     cloth = Cloth(_shirt * 0.74f, p) * (1f + 0.09f * MathF.Sin(MathF.Atan2(p.Y - _c.ArmY, p.Z - _c.ArmZ) * 30f));
                 break;
@@ -292,8 +324,26 @@ internal sealed partial class Painter
 
         if (z >= _c.TrouserEndZ)
         {
-            var cloth = Cloth(_trousers, p, true);
+            var jeans = _spec.Legs == LegsStyle.Jeans;
+            var wear = Blob(dx / 5f, (z - 70f) / 14f) * (front ? 1f : 0.3f) + 0.7f * Blob(dx / 4f, (z - _c.KneeZ) / 5f) * (front ? 1f : 0f);
+            var cloth = jeans ? Cloth(Denim(_trousers, p, wear), p) : Cloth(_trousers, p, true);
             cloth *= 1f - 0.18f * Line(dy, 0.06f) * (dx > 0f ? 1f : 0.6f);    // side seams, outside and inside
+            if (jeans)
+            {
+                var stitch = new Vector3(0.78f, 0.55f, 0.25f);
+                if (dx > 0f) cloth = Mix(cloth, stitch, 0.7f * Line(dy - 0.35f, 0.05f, 0.03f));                 // outseam topstitch
+                cloth = Mix(cloth, stitch, 0.7f * Line(z - (_c.TrouserEndZ + 1.4f), 0.05f, 0.03f));             // hem
+                if (front)
+                {
+                    cloth = Mix(cloth, stitch, 0.75f * Line(Segment(dx, z, -2.0f, 92f, 4.5f, 85f), 0.06f, 0.03f));   // front pocket
+                }
+                else
+                {
+                    var pocket = Box(dx + 0.5f, z - 84f, 3.6f, 3.8f);
+                    cloth *= 1f - 0.2f * Line(pocket, 0.06f);
+                    if (z < 87.8f) cloth = Mix(cloth, stitch, 0.7f * Line(pocket + 0.35f, 0.05f, 0.03f));         // back pocket
+                }
+            }
             // Creases behind and around the knee.
             cloth *= 1f + 0.07f * MathF.Sin(z * 1.5f + 6f * Noise.Fbm(p * 0.2f)) * MathF.Exp(-MathF.Pow((z - _c.KneeZ) / 9f, 2));
             cloth *= 1f - 0.2f * Line(z - (_c.TrouserEndZ + 1.6f), 0.05f);     // hem stitch
@@ -337,8 +387,21 @@ internal sealed partial class Painter
     }
 
     /// <summary>Boot leather with a lacing panel up the front.</summary>
+    /// <summary>The colour that stands out on a trainer: dark on a pale shoe, white on a dark one.</summary>
+    private Vector3 TrainerContrast => Vector3.Dot(_boots, new Vector3(0.3f, 0.59f, 0.11f)) > 0.6f
+        ? new Vector3(0.12f, 0.16f, 0.28f) : new Vector3(0.92f, 0.92f, 0.9f);
+
     private Vector3 Boot(in Texel t, float dx, float dy, float z, float top)
     {
+        if (_spec.Footwear == Footwear.Trainers)
+        {
+            // High-top canvas: padded collar, white laces down the front.
+            var shoe = Cloth(_boots, t.P);
+            shoe = Mix(shoe, TrainerContrast, Band(z, top - 1.4f, top + 0.1f, 0.12f));
+            if (dy < -1f && MathF.Abs(dx) < 2.2f)
+                shoe = Mix(shoe * 0.9f, new Vector3(0.92f, 0.92f, 0.9f), Line(Fract(z / 1.7f) - 0.5f, 0.14f, 0.04f));
+            return shoe;
+        }
         var color = Leather(_boots, t.P);
         color *= 1f - 0.22f * Band(z, top - 1.7f, top + 0.1f, 0.15f);            // padded collar
         color *= 1f - 0.2f * Line(z - (top - 1.7f), 0.05f);
@@ -358,6 +421,20 @@ internal sealed partial class Painter
         var z = p.Z;
         var ahead = -(p.Y - _c.Ankle.Y);                 // how far forward of the ankle
         var dx = MathF.Abs(p.X) - (_c.Ankle.X + 0.11f * ahead);
+
+        if (_spec.Footwear == Footwear.Trainers)
+        {
+            // Rubber outsole, thick white midsole, then the upper with a side stripe and laces.
+            if (z < 0.9f || t.N.Z < -0.6f) return new Vector3(0.28f, 0.28f, 0.3f);
+            if (z < 3.2f) return new Vector3(0.93f, 0.93f, 0.91f) * (1f - 0.12f * Line(z - 2.0f, 0.06f));
+            var shoe = Cloth(_boots, p);
+            shoe *= 1f + 0.08f * SmoothStep(13f, 18f, ahead);                                           // toe box
+            var stripe = Band(Fract((ahead * 0.55f + z) / 4.2f), 0.1f, 0.42f, 0.04f) * Band(ahead, -3f, 9f, 0.5f) * Band(z, 3.6f, 9f, 0.3f);
+            if (MathF.Abs(t.N.X) > 0.4f) shoe = Mix(shoe, TrainerContrast, stripe);
+            if (t.N.Z > 0.25f && ahead > -1.5f && ahead < 10.5f && MathF.Abs(dx) < 2.2f)
+                shoe = Mix(shoe * 0.9f, new Vector3(0.92f, 0.92f, 0.9f), Line(Fract(ahead / 1.7f) - 0.5f, 0.14f, 0.04f));
+            return shoe;
+        }
 
         // Sole and welt.
         if (z < 1.6f || t.N.Z < -0.6f)

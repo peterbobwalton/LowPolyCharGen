@@ -31,7 +31,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Display")
 	TObjectPtr<UAnimSequence> Animation;
 
-	/** Ground speed fed to the locomotion blend when Animation is empty (0 idle, ~170 walk, ~420 run). */
+	/** Ground speed fed to the locomotion blend when Animation is empty (0 idle, 111 walk, 369 run, 478 sprint). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Display")
 	float LocomotionSpeed = 0.f;
 

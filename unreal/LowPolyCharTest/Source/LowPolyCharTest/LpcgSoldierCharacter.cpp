@@ -27,7 +27,6 @@ ALpcgSoldierCharacter::ALpcgSoldierCharacter()
 	UCharacterMovementComponent* Movement = GetCharacterMovement();
 	Movement->bOrientRotationToMovement = true;
 	Movement->RotationRate = FRotator(0.f, 540.f, 0.f);
-	Movement->MaxWalkSpeed = WalkSpeed;
 	Movement->JumpZVelocity = 560.f;
 	Movement->AirControl = 0.35f;
 	Movement->GetNavAgentPropertiesRef().bCanCrouch = true;
@@ -94,7 +93,6 @@ void ALpcgSoldierCharacter::ApplyCharacterScale()
 	const float S = CharacterScale;
 	GetCapsuleComponent()->SetCapsuleSize(38.f * S, 90.f * S);
 	GetCharacterMovement()->SetCrouchedHalfHeight(58.f * S);
-	GetCharacterMovement()->MaxWalkSpeedCrouched = 160.f * S;
 	GetMesh()->SetRelativeLocation(FVector(0.f, 0.f, -90.f * S));
 	GetMesh()->SetRelativeScale3D(FVector(S));
 	Weapon->SetRelativeScale3D(FVector(1.f / S));
@@ -109,15 +107,23 @@ void ALpcgSoldierCharacter::OnConstruction(const FTransform& Transform)
 void ALpcgSoldierCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
 	if (Weapon && Weapon->GetAttachSocketName() != WeaponSocket)
 	{
 		Weapon->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponSocket);
 	}
+	// Move at the speeds the clips were authored for, so the planted foot keeps pace with the ground.
+	UCharacterMovementComponent* Movement = GetCharacterMovement();
 	if (ULpcgLocomotionAnimInstance* Anim = Cast<ULpcgLocomotionAnimInstance>(GetMesh()->GetAnimInstance()))
 	{
 		Anim->UseDefaultInfantrySets();
+		const TArray<FLpcgGait>& Gaits = Anim->Standing.Gaits;
+		if (MoveSpeed <= 0.f && Gaits.Num()) MoveSpeed = Gaits[FMath::Min(1, Gaits.Num() - 1)].Speed * CharacterScale;
+		if (SprintSpeed <= 0.f) SprintSpeed = Anim->Standing.FastestGait() * CharacterScale;
+		if (Anim->Crouching.Gaits.Num()) Movement->MaxWalkSpeedCrouched = Anim->Crouching.SlowestGait() * CharacterScale;
 	}
+	MoveSpeed = MoveSpeed > 0.f ? MoveSpeed : 360.f;
+	SprintSpeed = FMath::Max(SprintSpeed, MoveSpeed);
+	Movement->MaxWalkSpeed = MoveSpeed;
 }
 
 void ALpcgSoldierCharacter::NotifyControllerChanged()
@@ -183,7 +189,7 @@ void ALpcgSoldierCharacter::StartSprint()
 
 void ALpcgSoldierCharacter::StopSprint()
 {
-	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
+	GetCharacterMovement()->MaxWalkSpeed = MoveSpeed;
 }
 
 void ALpcgSoldierCharacter::ToggleCrouch()

@@ -21,7 +21,7 @@ internal static class GearBuilder
 
     /// <summary>How far worn layers push gear off the torso surface.</summary>
     private static float TorsoLayer(BuildContext c) =>
-        (c.Spec.Torso == TorsoStyle.Jacket ? 0.5f : 0f) + c.Spec.Vest switch
+        (c.Spec.Torso is TorsoStyle.Jacket or TorsoStyle.Hoodie ? 0.5f : 0f) + c.Spec.Vest switch
         {
             VestStyle.PlateCarrier => 1.5f,
             VestStyle.ChestRig => 1.1f,
@@ -81,7 +81,7 @@ internal static class GearBuilder
     {
         var mesh = c.Mesh;
         var torso = c.Torso;
-        var under = c.Spec.Torso == TorsoStyle.Jacket ? 0.5f : 0f;
+        var under = c.Spec.Torso is TorsoStyle.Jacket or TorsoStyle.Hoodie ? 0.5f : 0f;
         switch (c.Spec.Vest)
         {
             case VestStyle.ChestRig:
@@ -199,7 +199,7 @@ internal static class GearBuilder
         var hips = c.Hips;
         var weights = BodyBuilder.HipWeights(c);
         // A jacket hem or skirt waistband already sits on the hips.
-        var offset = c.Spec.Torso == TorsoStyle.Jacket ? 1.1f : c.Spec.Legs == LegsStyle.Skirt ? 0.8f : 0.15f;
+        var offset = c.Spec.Torso is TorsoStyle.Jacket or TorsoStyle.Hoodie ? 1.1f : c.Spec.Legs == LegsStyle.Skirt ? 0.8f : 0.15f;
         var zc = (c.Paint.BeltBottomZ + c.Paint.BeltTopZ) / 2;
 
         // Pouch on the belt at an angle around the waist (0 = left, 90 = back, 270 = front).

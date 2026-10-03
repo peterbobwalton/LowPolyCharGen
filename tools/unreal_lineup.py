@@ -20,15 +20,17 @@ W = PACK + "/Meshes/Weapons/"
 LINEUP = [
     (PACK + "/Meshes/Characters_Prebuilt/SK_Armies_Soldier_A", A + "Infantry/infantry_combat_idle", 0, False, "SM_m4", "Pack soldier A", "reference"),
     (DEST + "/SK_LPCG_Desert_Rifleman", None, 0, False, "SM_m4", "Desert rifleman", "C++ idle"),
-    (DEST + "/SK_LPCG_Desert_Scout", None, 170, False, "SM_scar", "Desert scout", "C++ walk"),
-    (DEST + "/SK_LPCG_Snow_Rifleman", None, 300, False, "SM_ak12", "Snow rifleman", "C++ walk-run blend"),
-    (DEST + "/SK_LPCG_Snow_Scout", None, 420, False, "SM_m249", "Snow scout", "C++ run"),
+    (DEST + "/SK_LPCG_Desert_Scout", None, 111, False, "SM_scar", "Desert scout", "C++ walk"),
+    (DEST + "/SK_LPCG_Snow_Rifleman", None, 240, False, "SM_ak12", "Snow rifleman", "C++ walk-run blend"),
+    (DEST + "/SK_LPCG_Snow_Scout", None, 369, False, "SM_m249", "Snow scout", "C++ run"),
     (DEST + "/SK_LPCG_Jungle_Rifleman", None, 0, True, "SM_g36c", "Jungle rifleman", "C++ crouch"),
-    (DEST + "/SK_LPCG_Jungle_Scout", None, 120, True, "SM_mp5", "Jungle scout", "C++ crouch walk"),
+    (DEST + "/SK_LPCG_Jungle_Scout", None, 107, True, "SM_mp5", "Jungle scout", "C++ crouch walk"),
     (DEST + "/SK_LPCG_Trooper", A + "Handgun/Guard/handgun_guard_idle", 0, False, "SM_usp", "Trooper", "handgun idle"),
     (DEST + "/SK_LPCG_Ranger", A + "RocketLauncher/Guard/rocketlauncher_guard_idle", 0, False, "SM_smaw", "Ranger", "rocket idle"),
     (DEST + "/SK_LPCG_Desert_Medic", A + "Handgun/handgun_combat_idle", 0, False, "SM_usp", "Desert medic", "female, handgun idle"),
-    (DEST + "/SK_LPCG_Jungle_Sniper", None, 170, False, "SM_m110", "Jungle sniper", "female, C++ walk"),
+    (DEST + "/SK_LPCG_Jungle_Sniper", None, 111, False, "SM_m110", "Jungle sniper", "female, C++ walk"),
+    (DEST + "/SK_LPCG_Civilian_Hoodie", None, 111, False, None, "Civilian", "hoodie, jeans, C++ walk"),
+    (DEST + "/SK_LPCG_Civilian_Tee", None, 0, False, None, "Civilian", "female, tee, jeans"),
 ]
 
 les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
@@ -57,7 +59,7 @@ def build():
         actor.set_editor_property("animation", unreal.load_asset(clip) if clip else None)
         actor.set_editor_property("locomotion_speed", float(speed))
         actor.set_editor_property("crouched", crouch)
-        actor.set_editor_property("weapon_mesh", unreal.load_asset(W + weapon))
+        actor.set_editor_property("weapon_mesh", unreal.load_asset(W + weapon) if weapon else None)
         actor.set_editor_property("label", line1 + chr(10) + line2)
         actor.refresh()
         log("placed " + line1)

@@ -4,7 +4,6 @@
 #include "Animation/AnimationPoseData.h"
 #include "AnimationRuntime.h"
 #include "GameFramework/Character.h"
-#include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Pawn.h"
 
 namespace
@@ -16,24 +15,33 @@ namespace
 		const FString Name = FPaths::GetBaseFilename(RelativePath);
 		return LoadObject<UAnimSequence>(nullptr, *FString::Printf(TEXT("%s%s.%s"), AnimRoot, *RelativePath, *Name));
 	}
+
+	/** Below this fraction of the slowest gait the clip slows down no further; its weight fades out instead. */
+	constexpr float MinPlayRate = 0.5f;
+	/** Above the fastest gait the clip speeds up, but no further than this. */
+	constexpr float MaxPlayRate = 1.4f;
 }
 
 void ULpcgLocomotionAnimInstance::UseDefaultInfantrySets()
 {
+	// Speeds are how fast each in-place clip's planted foot travels backwards, measured in the editor
+	// (the pack's Root_Motion versions under-travel and slide by the difference: run 302 vs 369).
 	if (!Standing.IsValid())
 	{
 		Standing.Idle = LoadClip(TEXT("infantry_combat_idle"));
-		Standing.Walk = LoadClip(TEXT("Movement/infantry_combat_walk"));
-		Standing.Run = LoadClip(TEXT("Movement/infantry_combat_run"));
+		Standing.Gaits = {
+			{ LoadClip(TEXT("Movement/infantry_combat_walk")), 111.5f },
+			{ LoadClip(TEXT("Movement/infantry_combat_run")), 369.f },
+			{ LoadClip(TEXT("Movement/infantry_sprint")), 478.f },
+		};
 	}
 	if (!Crouching.IsValid())
 	{
 		Crouching.Idle = LoadClip(TEXT("Crouch/infantry_crouch_idle"));
-		Crouching.Walk = LoadClip(TEXT("Crouch/infantry_crouch_walk"));
-		Crouching.Run = Crouching.Walk;
-		Crouching.WalkSpeed = 120.f;
-		Crouching.RunSpeed = 240.f;
+		Crouching.Gaits = { { LoadClip(TEXT("Crouch/infantry_crouch_walk")), 107.f } };
 	}
+	Standing.Gaits.RemoveAll([](const FLpcgGait& G) { return G.Clip == nullptr || G.Speed <= 0.f; });
+	Crouching.Gaits.RemoveAll([](const FLpcgGait& G) { return G.Clip == nullptr || G.Speed <= 0.f; });
 }
 
 void ULpcgLocomotionAnimInstance::NativeInitializeAnimation()
@@ -93,19 +101,58 @@ void FLpcgLocomotionProxy::PreUpdate(UAnimInstance* InAnimInstance, float DeltaS
 	CrouchAlpha = Instance->CrouchAlpha;
 }
 
+FLpcgLocomotionProxy::FGaitBlend FLpcgLocomotionProxy::Resolve(const FLpcgLocomotionSet& Set) const
+{
+	FGaitBlend Blend;
+	Blend.A = Set.Idle;
+	const TArray<FLpcgGait>& Gaits = Set.Gaits;
+	if (Gaits.IsEmpty())
+	{
+		return Blend;
+	}
+
+	// Slower than the slowest gait: slow its clip down to half speed, then fade it into the idle.
+	if (Speed < Gaits[0].Speed)
+	{
+		Blend.B = Gaits[0].Clip;
+		Blend.PlayRate = FMath::Max(Speed / Gaits[0].Speed, MinPlayRate);
+		Blend.Alpha = FMath::Clamp(Speed / (Gaits[0].Speed * MinPlayRate), 0.f, 1.f);
+		return Blend;
+	}
+
+	// Between two gaits: cross-fade at normal rate; the blended stride covers the blended speed.
+	Blend.bAIsIdle = false;
+	for (int32 i = 0; i + 1 < Gaits.Num(); ++i)
+	{
+		if (Speed < Gaits[i + 1].Speed)
+		{
+			Blend.A = Gaits[i].Clip;
+			Blend.B = Gaits[i + 1].Clip;
+			Blend.Alpha = (Speed - Gaits[i].Speed) / (Gaits[i + 1].Speed - Gaits[i].Speed);
+			return Blend;
+		}
+	}
+
+	// Faster than the fastest gait: speed its clip up.
+	Blend.A = Gaits.Last().Clip;
+	Blend.PlayRate = FMath::Min(Speed / Gaits.Last().Speed, MaxPlayRate);
+	return Blend;
+}
+
 void FLpcgLocomotionProxy::Update(float DeltaSeconds)
 {
 	IdleTime += DeltaSeconds;
 
-	// Advance the gait cycle at the rate of whichever clip dominates at this speed.
-	const FLpcgLocomotionSet& Set = CrouchAlpha > 0.5f ? Crouching : Standing;
-	if (Set.Walk && Set.Run)
+	// Advance the shared gait cycle by the dominant stance's clips.
+	const FGaitBlend Blend = Resolve(CrouchAlpha > 0.5f ? Crouching : Standing);
+	const UAnimSequence* From = Blend.bAIsIdle ? Blend.B : Blend.A;
+	const UAnimSequence* To = Blend.B ? Blend.B : Blend.A;
+	if (From && To)
 	{
-		const float RunWeight = FMath::Clamp((Speed - Set.WalkSpeed) / FMath::Max(Set.RunSpeed - Set.WalkSpeed, 1.f), 0.f, 1.f);
-		const float Cycle = FMath::Lerp(Set.Walk->GetPlayLength(), Set.Run->GetPlayLength(), RunWeight);
+		const float Cycle = FMath::Lerp(From->GetPlayLength(), To->GetPlayLength(), Blend.bAIsIdle ? 1.f : Blend.Alpha);
 		if (Cycle > UE_SMALL_NUMBER)
 		{
-			Phase = FMath::Fmod(Phase + DeltaSeconds / Cycle, 1.f);
+			Phase = FMath::Fmod(Phase + DeltaSeconds * Blend.PlayRate / Cycle, 1.f);
 		}
 	}
 }
@@ -119,40 +166,26 @@ void FLpcgLocomotionProxy::Sample(const UAnimSequence* Sequence, double Time, FP
 
 void FLpcgLocomotionProxy::EvaluateSet(const FLpcgLocomotionSet& Set, FPoseContext& Output) const
 {
-	// Pick the two neighbouring clips for this speed and how far we are between them.
-	const UAnimSequence* A = Set.Idle;
-	const UAnimSequence* B = Set.Walk;
-	float Alpha = Set.WalkSpeed > 0.f ? Speed / Set.WalkSpeed : 0.f;
-	bool bBothGait = false;
-	if (Alpha >= 1.f && Set.Run)
-	{
-		A = Set.Walk;
-		B = Set.Run;
-		Alpha = (Speed - Set.WalkSpeed) / FMath::Max(Set.RunSpeed - Set.WalkSpeed, 1.f);
-		bBothGait = true;
-	}
-	Alpha = FMath::Clamp(Alpha, 0.f, 1.f);
-	if (!B) Alpha = 0.f;
+	const FGaitBlend Blend = Resolve(Set);
+	auto TimeOf = [this](const UAnimSequence* Clip, bool bIdle) { return bIdle ? IdleTime : double(Phase) * Clip->GetPlayLength(); };
 
-	auto TimeFor = [&](const UAnimSequence* Clip, bool bGait) { return bGait ? double(Phase) * Clip->GetPlayLength() : IdleTime; };
-
-	if (Alpha <= KINDA_SMALL_NUMBER)
+	if (!Blend.B || Blend.Alpha <= KINDA_SMALL_NUMBER)
 	{
-		Sample(A, TimeFor(A, bBothGait), Output);
+		Sample(Blend.A, TimeOf(Blend.A, Blend.bAIsIdle), Output);
 		return;
 	}
-	if (Alpha >= 1.f - KINDA_SMALL_NUMBER)
+	if (Blend.Alpha >= 1.f - KINDA_SMALL_NUMBER)
 	{
-		Sample(B, TimeFor(B, true), Output);
+		Sample(Blend.B, TimeOf(Blend.B, false), Output);
 		return;
 	}
 
 	// Sample A straight into the output and blend B over it: one temporary pose instead of two.
-	Sample(A, TimeFor(A, bBothGait), Output);
+	Sample(Blend.A, TimeOf(Blend.A, Blend.bAIsIdle), Output);
 	FPoseContext PoseB(Output);
-	Sample(B, TimeFor(B, true), PoseB);
+	Sample(Blend.B, TimeOf(Blend.B, false), PoseB);
 	FAnimationPoseData Out(Output);
-	FAnimationRuntime::BlendTwoPosesTogetherInPlace(Out, FAnimationPoseData(PoseB), 1.f - Alpha);
+	FAnimationRuntime::BlendTwoPosesTogetherInPlace(Out, FAnimationPoseData(PoseB), 1.f - Blend.Alpha);
 }
 
 bool FLpcgLocomotionProxy::Evaluate(FPoseContext& Output)

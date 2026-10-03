@@ -10,14 +10,15 @@ public enum RigTarget { ToonSoldiers, Mannequin }
 public enum Gender { Male, Female }
 
 /// <summary>Uniform edition: a theatre palette for the clothes, gear and camouflage. Custom keeps your own colours.</summary>
-public enum Edition { Custom, Desert, Snow, Jungle }
+public enum Edition { Custom, Desert, Snow, Jungle, Civilian }
 public enum HeadShape { Standard, Square, Round, Slim, Heavy }
 public enum HairStyle { Bald, Buzz, Short, Bob, Long, Ponytail, Bun, Mohawk }
 public enum FacialHair { None, Stubble, Moustache, Goatee, Beard }
 public enum Camouflage { None, Woodland, Digital }
 public enum EarShape { Normal, Pixie, Elephant, StickOut }
-public enum TorsoStyle { TShirt, LongSleeve, RolledSleeves, TankTop, Jacket }
-public enum LegsStyle { Trousers, Cargo, Shorts, TallBoots, Skirt }
+public enum TorsoStyle { TShirt, LongSleeve, RolledSleeves, TankTop, Jacket, Hoodie, Polo, CheckShirt }
+public enum LegsStyle { Trousers, Cargo, Shorts, TallBoots, Skirt, Jeans }
+public enum Footwear { Boots, Trainers }
 public enum HatStyle { None, Helmet, Cap, Beret, Boonie, Beanie }
 public enum EyewearStyle { None, Sunglasses, Goggles }
 public enum BackpackStyle { None, Light, Rucksack, Hydration, Radio }
@@ -46,6 +47,7 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     private bool _gloves, _kneePads, _elbowPads, _scarf, _flatShaded;
     private Camouflage _camouflage = Camouflage.None;
     private Edition _edition = Edition.Custom;
+    private Footwear _footwear = Footwear.Boots;
     private int _textureSize = 2048;
     private Rgb _eyeColor = Rgb.FromHex("#5A4630");
     private Rgb _skinColor = Rgb.FromHex("#D9A274");
@@ -81,6 +83,9 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     public TorsoStyle Torso { get => _torso; set => Set(ref _torso, value); }
     public LegsStyle Legs { get => _legs; set => Set(ref _legs, value); }
     public HatStyle Hat { get => _hat; set => Set(ref _hat, value); }
+
+    /// <summary>Boots or trainers; the colour is <see cref="BootsColor"/>.</summary>
+    public Footwear Footwear { get => _footwear; set => Set(ref _footwear, value); }
     public EyewearStyle Eyewear { get => _eyewear; set => Set(ref _eyewear, value); }
     public BackpackStyle Backpack { get => _backpack; set => Set(ref _backpack, value); }
     public VestStyle Vest { get => _vest; set => Set(ref _vest, value); }
@@ -107,9 +112,24 @@ public sealed class CharacterSpec : INotifyPropertyChanged
             {
                 ShirtColor = c.Shirt; TrousersColor = c.Trousers; HatColor = c.Hat; GearColor = c.Gear;
                 BootsColor = c.Boots; AccentColor = c.Accent;
-                if (Camouflage == Camouflage.None) Camouflage = Camouflage.Woodland;
+                if (value == Edition.Civilian) Civvies();
+                else if (Camouflage == Camouflage.None) Camouflage = Camouflage.Woodland;
             }
         }
+    }
+
+    /// <summary>Swaps military kit for civilian clothes; whatever is already civilian stays as it is.</summary>
+    private void Civvies()
+    {
+        Camouflage = Camouflage.None;
+        Vest = VestStyle.None;
+        Footwear = Footwear.Trainers;
+        Gloves = KneePads = ElbowPads = false;
+        if (Hat is HatStyle.Helmet or HatStyle.Beret or HatStyle.Boonie) Hat = HatStyle.None;
+        if (Legs is LegsStyle.Cargo or LegsStyle.TallBoots) Legs = LegsStyle.Jeans;
+        if (Torso is TorsoStyle.Jacket or TorsoStyle.RolledSleeves) Torso = TorsoStyle.Hoodie;
+        if (Belt is BeltStyle.Pouches or BeltStyle.Utility) Belt = BeltStyle.Plain;
+        if (Backpack is BackpackStyle.Rucksack or BackpackStyle.Radio or BackpackStyle.Hydration) Backpack = BackpackStyle.Light;
     }
 
     /// <summary>Default colours of an edition (null for <see cref="Edition.Custom"/>).</summary>
@@ -117,6 +137,7 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     {
         Edition.Desert => (Rgb.FromHex("#B9A57B"), Rgb.FromHex("#AD9970"), Rgb.FromHex("#B4A27A"), Rgb.FromHex("#9C8660"), Rgb.FromHex("#8A6E4C"), Rgb.FromHex("#6E5638")),
         Edition.Snow => (Rgb.FromHex("#E8EAEC"), Rgb.FromHex("#E0E3E6"), Rgb.FromHex("#EEF0F1"), Rgb.FromHex("#C9CED2"), Rgb.FromHex("#3E3F42"), Rgb.FromHex("#9AA0A6")),
+        Edition.Civilian => (Rgb.FromHex("#A8433A"), Rgb.FromHex("#3E5C86"), Rgb.FromHex("#2E2E30"), Rgb.FromHex("#4A4038"), Rgb.FromHex("#E6E6E2"), Rgb.FromHex("#6A4A2A")),
         Edition.Jungle => (Rgb.FromHex("#4E5E34"), Rgb.FromHex("#46552F"), Rgb.FromHex("#4A5832"), Rgb.FromHex("#3B4430"), Rgb.FromHex("#2E2A22"), Rgb.FromHex("#4A3A28")),
         _ => null,
     };
@@ -228,6 +249,43 @@ public sealed class CharacterSpec : INotifyPropertyChanged
         };
         spec.FacialHair = spec.Gender == Gender.Male && Chance(0.4) ? Pick<FacialHair>() : FacialHair.None;
         if (spec.Gender == Gender.Male && spec.Legs == LegsStyle.Skirt) spec.Legs = LegsStyle.Trousers;
+        spec.Footwear = Chance(0.25) ? Footwear.Trainers : Footwear.Boots;
+        return spec;
+    }
+
+    private static readonly string[] CivilianTops =
+        ["#A8433A", "#D8D8D2", "#2F2F33", "#3E5F7A", "#6B8F4E", "#C9A23A", "#7A3B5A", "#4A6FA5", "#B86A3A", "#8B8F94"];
+    private static readonly string[] Denim = ["#3E5C86", "#2E4466", "#52729C", "#26272B", "#5A5F66", "#6B5A44"];
+    private static readonly string[] ShoeTones = ["#E6E6E2", "#1C1C1E", "#B03A32", "#3A4A6A", "#7A6248"];
+
+    /// <summary>A random character dressed for an edition: civilian clothes and colours, or a uniform in that edition's colours.</summary>
+    public static CharacterSpec Random(Random rng, Edition edition)
+    {
+        var spec = Random(rng);
+        if (edition != Edition.Civilian)
+        {
+            if (edition != Edition.Custom) spec.Edition = edition;
+            return spec;
+        }
+
+        T Of<T>(params T[] values) => values[rng.Next(values.Length)];
+        Rgb Tone(string[] tones) => Rgb.FromHex(tones[rng.Next(tones.Length)]);
+        spec.Edition = Edition.Civilian;
+        spec.Torso = Of(TorsoStyle.TShirt, TorsoStyle.Hoodie, TorsoStyle.Polo, TorsoStyle.CheckShirt, TorsoStyle.LongSleeve, TorsoStyle.TankTop);
+        spec.Legs = spec.Gender == Gender.Female
+            ? Of(LegsStyle.Jeans, LegsStyle.Jeans, LegsStyle.Trousers, LegsStyle.Shorts, LegsStyle.Skirt)
+            : Of(LegsStyle.Jeans, LegsStyle.Jeans, LegsStyle.Trousers, LegsStyle.Shorts);
+        spec.Hat = rng.NextDouble() < 0.6 ? HatStyle.None : Of(HatStyle.Cap, HatStyle.Beanie);
+        spec.Eyewear = rng.NextDouble() < 0.2 ? EyewearStyle.Sunglasses : EyewearStyle.None;
+        spec.Belt = Of(BeltStyle.None, BeltStyle.Plain);
+        spec.Backpack = rng.NextDouble() < 0.3 ? BackpackStyle.Light : BackpackStyle.None;
+        spec.Scarf = rng.NextDouble() < 0.1;
+        spec.Footwear = rng.NextDouble() < 0.8 ? Footwear.Trainers : Footwear.Boots;
+        spec.ShirtColor = Tone(CivilianTops);
+        spec.TrousersColor = spec.Legs == LegsStyle.Jeans ? Tone(Denim) : Tone(ClothTones);
+        spec.HatColor = Tone(CivilianTops);
+        spec.GearColor = Tone(ClothTones);
+        spec.BootsColor = spec.Footwear == Footwear.Trainers ? Tone(ShoeTones) : Tone(BootTones);
         return spec;
     }
 }

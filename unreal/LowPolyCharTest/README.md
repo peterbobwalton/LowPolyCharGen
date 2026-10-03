@@ -19,6 +19,13 @@ bone's transform including the Biped root's scale, so a size baked into the mesh
 Weapons are counter-scaled to keep their true size, and the locomotion blend divides the ground
 speed by the scale so the bigger stride does not slide.
 
+**No foot sliding.** Each gait clip carries the speed its planted foot moves at, measured in the
+editor (walk 111, run 369, sprint 478, crouch walk 107 cm/s; the pack's Root_Motion versions
+under-travel, e.g. run 302). The soldier moves at exactly those speeds times `CharacterScale`, the
+blend cross-fades between neighbouring gaits and scales the playback rate outside them.
+`tools/unreal_footslip_test.py` drives the soldier in Play-in-Editor and measures planted-foot slip;
+what is left equals the clips' own toe roll (walk ~28, run ~50 cm/s).
+
 ## Setting up the content
 
 1. Copy `Engine/Templates/TP_ThirdPersonBP/Content/*` into `Content/`, and each of

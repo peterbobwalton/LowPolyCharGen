@@ -235,10 +235,9 @@ public partial class MainWindow : Window
 
     private void OnRandomise(object sender, RoutedEventArgs e)
     {
-        var random = CharacterSpec.Random(_random);
+        var random = CharacterSpec.Random(_random, _spec.Edition);   // dressed for the chosen edition
         random.Name = _spec.Name;
         random.Rig = _spec.Rig;
-        random.Edition = _spec.Edition;   // keeps the theatre: its colours replace the random ones
         random.FlatShaded = _spec.FlatShaded;
         random.TextureSize = _spec.TextureSize;
         _spec.CopyFrom(random);

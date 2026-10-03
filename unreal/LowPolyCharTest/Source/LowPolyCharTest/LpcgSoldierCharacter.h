@@ -45,12 +45,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Soldier", meta = (ClampMin = "0.5", ClampMax = "2.0"))
 	float CharacterScale = 1.2f;
 
-	/** World speeds; the locomotion blend divides by CharacterScale, so strides stay in step. */
+	/**
+	 * Normal and sprint world speeds. 0 = take them from the clips (run and sprint speed x CharacterScale),
+	 * which is what keeps the feet planted; the locomotion blend copes with any other value too.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Soldier")
-	float WalkSpeed = 265.f;
+	float MoveSpeed = 0.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Soldier")
-	float SprintSpeed = 550.f;
+	float SprintSpeed = 0.f;
 
 	UPROPERTY(EditAnywhere, Category = "Input")
 	TObjectPtr<UInputMappingContext> DefaultMappingContext;

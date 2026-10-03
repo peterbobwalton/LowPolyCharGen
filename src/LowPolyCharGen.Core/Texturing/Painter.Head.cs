@@ -209,7 +209,7 @@ internal sealed partial class Painter
 
         switch (_spec.Torso)
         {
-            case TorsoStyle.LongSleeve:
+            case TorsoStyle.LongSleeve or TorsoStyle.CheckShirt or TorsoStyle.Polo:
             {
                 // Fold-down collar, open at the throat.
                 var open = front && ax < 1.6f + h * 0.6f;
@@ -220,6 +220,11 @@ internal sealed partial class Painter
                 }
                 break;
             }
+            case TorsoStyle.Hoodie:
+                // The hood lies in folds round the neck, open at the front.
+                if (h < 4.2f && !(front && ax < 1.4f + h * 0.5f))
+                    return Cloth(_shirt * 0.82f, p) * (1f + 0.1f * MathF.Sin(MathF.Atan2(p.X, p.Y) * 8f + h)) * (1f - 0.3f * Line(h - 4.2f, 0.15f));
+                break;
             case TorsoStyle.Jacket:
                 // Stand-up collar with the zip running into it.
                 if (h < 3.2f)
