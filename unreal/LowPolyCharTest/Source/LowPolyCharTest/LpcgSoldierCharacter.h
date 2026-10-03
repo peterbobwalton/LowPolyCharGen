@@ -34,13 +34,16 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Soldier")
 	TObjectPtr<UStaticMeshComponent> Weapon;
 
-	/** Socket (a pack bone) the weapon is attached to. */
+	/**
+	 * The packs' weapon socket on the right hand. It carries the 0.6 scale that, with the Biped's 1.8 bone
+	 * scale, brings the pack's guns to their intended size (the bare WeaponContainer bone would make them 1.8x).
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Soldier")
-	FName WeaponSocket = TEXT("WeaponContainer");
+	FName WeaponSocket = TEXT("WeaponSocket_R");
 
 	/**
 	 * Size of the character relative to the pack's (the pack's animations would undo a scale baked into the
-	 * mesh, so it is applied to the mesh component). The weapon is counter-scaled to keep its true size.
+	 * mesh, so it is applied to the mesh component). The weapon scales with it, keeping the packs' proportions.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Soldier", meta = (ClampMin = "0.5", ClampMax = "2.0"))
 	float CharacterScale = 1.2f;
@@ -54,6 +57,14 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Soldier")
 	float SprintSpeed = 0.f;
+
+	/** Grime layer amount (0 clean .. 1 filthy); below 0 keeps the material instance's own value. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Soldier", meta = (ClampMin = "-1.0", ClampMax = "1.0"))
+	float Grime = -1.f;
+
+	/** Blends the grime layer in or out at runtime (e.g. dirtier the longer the soldier is in the field). */
+	UFUNCTION(BlueprintCallable, Category = "Soldier")
+	void SetGrime(float Amount);
 
 	UPROPERTY(EditAnywhere, Category = "Input")
 	TObjectPtr<UInputMappingContext> DefaultMappingContext;

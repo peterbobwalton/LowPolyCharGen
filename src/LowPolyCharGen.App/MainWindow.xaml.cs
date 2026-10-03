@@ -283,7 +283,7 @@ public partial class MainWindow : Window
             var model = CharacterGenerator.Generate(_spec, IkBonesCheck.IsChecked == true);
             var result = FbxExporter.Export(model, dialog.FileName);
             Mouse.OverrideCursor = null;
-            StatusText.Text = $"Exported {Path.GetFileName(result.FbxPath)} and {Path.GetFileName(result.TexturePath)} to {Path.GetDirectoryName(result.FbxPath)}";
+            StatusText.Text = $"Exported {Path.GetFileName(result.FbxPath)}, {Path.GetFileName(result.TexturePath)} and the grime layer {Path.GetFileName(result.GrimePath)} to {Path.GetDirectoryName(result.FbxPath)}";
             Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{result.FbxPath}\"") { UseShellExecute = true });
         }
         catch (Exception ex)

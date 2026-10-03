@@ -5,14 +5,17 @@ using System.Numerics;
 namespace LowPolyCharGen.Texturing;
 
 /// <summary>A square RGB image, 8 bits per channel, rows top to bottom.</summary>
-public sealed class TextureImage(int size, byte[] rgb)
+public sealed class TextureImage(int size, byte[] rgb, int channels = 3)
 {
     public int Size { get; } = size;
+
+    /// <summary>Pixel data, row by row: RGB, or RGBA when <see cref="Channels"/> is 4.</summary>
     public byte[] Rgb { get; } = rgb;
+    public int Channels { get; } = channels;
 
     public byte[] EncodePng()
     {
-        var stride = Size * 3;
+        var stride = Size * Channels;
         var raw = new byte[Size * (stride + 1)];
         for (var y = 0; y < Size; y++)   // each scanline starts with filter type 0
             Buffer.BlockCopy(Rgb, y * stride, raw, y * (stride + 1) + 1, stride);
@@ -23,7 +26,7 @@ public sealed class TextureImage(int size, byte[] rgb)
         BinaryPrimitives.WriteInt32BigEndian(header, Size);
         BinaryPrimitives.WriteInt32BigEndian(header[4..], Size);
         header[8] = 8;   // bit depth
-        header[9] = 2;   // colour type: RGB
+        header[9] = (byte)(Channels == 4 ? 6 : 2);   // colour type: RGBA or RGB
         WriteChunk(ms, "IHDR", header);
         using (var data = new MemoryStream())
         {
@@ -78,7 +81,19 @@ public sealed class TextureImage(int size, byte[] rgb)
 public static class TextureBaker
 {
     /// <param name="size">Side length in pixels (at most 2048).</param>
-    public static TextureImage Bake(CharacterModel model, int size)
+    public static TextureImage Bake(CharacterModel model, int size) => BakeCore(model, size, false).Diffuse;
+
+    /// <summary>
+    /// The clean texture and the grime layer: RGB = the dirt, lit like the texture; A = its coverage at
+    /// full grime. Blend as lerp(diffuse, grime.rgb, grime.a * amount).
+    /// </summary>
+    public static (TextureImage Diffuse, TextureImage Grime) BakeLayers(CharacterModel model, int size)
+    {
+        var (diffuse, grime) = BakeCore(model, size, true);
+        return (diffuse, grime!);
+    }
+
+    private static (TextureImage Diffuse, TextureImage? Grime) BakeCore(CharacterModel model, int size, bool layered)
     {
         size = Math.Clamp(size, 64, MeshData.AtlasSize);
         var mesh = model.DesignMesh;
@@ -86,6 +101,8 @@ public static class TextureBaker
         var occlusion = AmbientOcclusion.PerCorner(mesh);
 
         var pixels = new Vector3[size * size];
+        var grimeColor = layered ? new Vector3[size * size] : null;
+        var grimeCover = layered ? new Vector3[size * size] : null;   // coverage in X, so it dilates like a colour
         var filled = new bool[size * size];
         var scale = (float)size / MeshData.AtlasSize;
 
@@ -144,7 +161,15 @@ public static class TextureBaker
                     normal = normal.LengthSquared() > 1e-10f ? Vector3.Normalize(normal) : n[i0];
                     var ao = Math.Clamp(oa * wa + ob * wb + oc * wc, 0f, 1f);
                     var uv = face.ChartUv[i0] * wa + face.ChartUv[i1] * wb + face.ChartUv[i2] * wc;
-                    pixels[index] = painter.Shade(new Texel(position, normal, ao, face.Slot, face.Detail, uv, chartSize));
+                    var texel = new Texel(position, normal, ao, face.Slot, face.Detail, uv, chartSize);
+                    if (layered)
+                    {
+                        var (clean, dirt, cover) = painter.ShadeLayers(texel);
+                        pixels[index] = clean;
+                        grimeColor![index] = dirt;
+                        grimeCover![index] = new Vector3(cover, 0, 0);
+                    }
+                    else pixels[index] = painter.Shade(texel);
                     if (inside) filled[index] = true;
                 }
         }
@@ -152,17 +177,34 @@ public static class TextureBaker
         // Texels painted only from a margin count as filled from here on.
         for (var i = 0; i < pixels.Length; i++)
             if (!filled[i] && pixels[i] != Vector3.Zero) filled[i] = true;
+        static byte B(float v) => (byte)(Math.Clamp(v, 0f, 1f) * 255f + 0.5f);
+        TextureImage? grime = null;
+        if (layered)
+        {
+            Dilate(grimeColor!, (bool[])filled.Clone(), size, 3);
+            Dilate(grimeCover!, (bool[])filled.Clone(), size, 3);
+            var rgba = new byte[size * size * 4];
+            for (var i = 0; i < pixels.Length; i++)
+            {
+                var g = grimeColor![i];
+                rgba[i * 4] = B(g.X);
+                rgba[i * 4 + 1] = B(g.Y);
+                rgba[i * 4 + 2] = B(g.Z);
+                rgba[i * 4 + 3] = B(grimeCover![i].X);
+            }
+            grime = new TextureImage(size, rgba, 4);
+        }
         Dilate(pixels, filled, size, 3);
 
         var rgb = new byte[size * size * 3];
         for (var i = 0; i < pixels.Length; i++)
         {
             var p = filled[i] ? pixels[i] : new Vector3(0.35f, 0.33f, 0.30f);
-            rgb[i * 3] = (byte)(Math.Clamp(p.X, 0f, 1f) * 255f + 0.5f);
-            rgb[i * 3 + 1] = (byte)(Math.Clamp(p.Y, 0f, 1f) * 255f + 0.5f);
-            rgb[i * 3 + 2] = (byte)(Math.Clamp(p.Z, 0f, 1f) * 255f + 0.5f);
+            rgb[i * 3] = B(p.X);
+            rgb[i * 3 + 1] = B(p.Y);
+            rgb[i * 3 + 2] = B(p.Z);
         }
-        return new TextureImage(size, rgb);
+        return (new TextureImage(size, rgb), grime);
     }
 
     /// <summary>Grows the painted area outwards so filtering and mip-mapping never pick up the background.</summary>

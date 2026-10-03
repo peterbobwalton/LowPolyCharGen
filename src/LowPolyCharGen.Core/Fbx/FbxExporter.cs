@@ -3,7 +3,9 @@ using System.Text;
 
 namespace LowPolyCharGen.Fbx;
 
-public sealed record FbxExportResult(string FbxPath, string? TexturePath);
+/// <param name="GrimePath">The grime layer (RGB dirt, A coverage), blended over the texture by the material.</param>
+/// <param name="SpecPath">The character's options as JSON (a preset; the import script reads the grime amount from it).</param>
+public sealed record FbxExportResult(string FbxPath, string? TexturePath, string? GrimePath = null, string? SpecPath = null);
 
 /// <summary>
 /// Writes a <see cref="CharacterModel"/> as a rigged, skinned FBX 7.4 file plus its painted texture.
@@ -23,8 +25,16 @@ public static class FbxExporter
         var texturePath = Path.Combine(directory, Path.GetFileNameWithoutExtension(fbxPath) + "_Diffuse.png");
 
         FbxBinaryWriter.Write(fbxPath, BuildDocument(model, fbxPath, texturePath));
-        if (writeTexture) File.WriteAllBytes(texturePath, model.BakeTexture(model.Spec.TextureSize).EncodePng());
-        return new FbxExportResult(fbxPath, writeTexture ? texturePath : null);
+        if (!writeTexture) return new FbxExportResult(fbxPath, null);
+
+        // The texture is clean; the grime is a separate layer so it can be blended (and changed) in the material.
+        var grimePath = Path.Combine(directory, Path.GetFileNameWithoutExtension(fbxPath) + "_Grime.png");
+        var specPath = Path.ChangeExtension(fbxPath, ".json");
+        var (diffuse, grime) = Texturing.TextureBaker.BakeLayers(model, model.Spec.TextureSize);
+        File.WriteAllBytes(texturePath, diffuse.EncodePng());
+        File.WriteAllBytes(grimePath, grime.EncodePng());
+        File.WriteAllText(specPath, model.Spec.ToJson());
+        return new FbxExportResult(fbxPath, texturePath, grimePath, specPath);
     }
 
     public static string SafeName(string name)

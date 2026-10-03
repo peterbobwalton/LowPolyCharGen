@@ -3,7 +3,8 @@
 Every <name>.fbx in a folder (with its <name>_Diffuse.png) becomes, under the destination folder:
   SK_<name>   skeletal mesh on the Toon Soldiers skeleton (or the UE5 mannequin's, see --mannequin)
   T_<name>    its texture
-  MI_<name>   a material instance of the pack's M_Armies_Parent using that texture
+  T_<name>_Grime  its grime layer (RGB dirt, A coverage), when exported
+  MI_<name>   a material instance of M_LPCG_Character (texture + grime layer, GrimeAmount from <name>.json)
 and the pack's physics asset is assigned, so the character drops into anything built for the pack.
 
 Run inside the editor (Tools > Execute Python Script, or the Output Log's Python console):
@@ -11,6 +12,7 @@ Run inside the editor (Tools > Execute Python Script, or the Output Log's Python
 or headless:
   UnrealEditor-Cmd.exe Project.uproject -run=pythonscript -script="import_unreal.py D:/out /Game/LowPolyCharGen"
 """
+import json
 import os
 import sys
 
@@ -20,6 +22,8 @@ PACK = "/Game/Toon_Soldiers_Armies"
 TOON_SKELETON = PACK + "/Meshes/Characters_Skeleton"
 TOON_PHYSICS = PACK + "/Meshes/Characters_PhysicsAsset"
 TOON_MATERIAL = PACK + "/Materials/M_Armies_Parent"
+LAYERED_MATERIAL_DIR = "/Game/LowPolyCharGen/Materials"
+LAYERED_MATERIAL = LAYERED_MATERIAL_DIR + "/M_LPCG_Character"
 MANNEQUIN_SKELETON = "/Game/Characters/Mannequins/Meshes/SK_Mannequin"
 
 
@@ -35,6 +39,41 @@ def import_task(filename, destination, name, options=None):
         task.options = options
     unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([task])
     return [unreal.load_asset(p) for p in task.imported_object_paths]
+
+
+def layered_material():
+    """
+    The character material: the pack's look (one texture, default lit) plus a grime layer,
+    BaseColor = lerp(Texture.rgb, GrimeTexture.rgb, GrimeTexture.a * GrimeAmount). Created once.
+    """
+    if unreal.EditorAssetLibrary.does_asset_exist(LAYERED_MATERIAL):
+        return unreal.load_asset(LAYERED_MATERIAL)
+    mel = unreal.MaterialEditingLibrary
+    mat = unreal.AssetToolsHelpers.get_asset_tools().create_asset(
+        "M_LPCG_Character", LAYERED_MATERIAL_DIR, unreal.Material, unreal.MaterialFactoryNew())
+    tex = mel.create_material_expression(mat, unreal.MaterialExpressionTextureSampleParameter2D, -700, -200)
+    tex.set_editor_property("parameter_name", "Texture")
+    tex.set_editor_property("texture", unreal.load_asset("/Engine/EngineResources/WhiteSquareTexture"))
+    grime = mel.create_material_expression(mat, unreal.MaterialExpressionTextureSampleParameter2D, -700, 100)
+    grime.set_editor_property("parameter_name", "GrimeTexture")
+    grime.set_editor_property("texture", unreal.load_asset("/Engine/EngineResources/Black"))
+    amount = mel.create_material_expression(mat, unreal.MaterialExpressionScalarParameter, -700, 400)
+    amount.set_editor_property("parameter_name", "GrimeAmount")
+    amount.set_editor_property("default_value", 0.0)
+    cover = mel.create_material_expression(mat, unreal.MaterialExpressionMultiply, -400, 250)
+    mel.connect_material_expressions(grime, "A", cover, "A")
+    mel.connect_material_expressions(amount, "", cover, "B")
+    blend = mel.create_material_expression(mat, unreal.MaterialExpressionLinearInterpolate, -200, 0)
+    mel.connect_material_expressions(tex, "RGB", blend, "A")
+    mel.connect_material_expressions(grime, "RGB", blend, "B")
+    mel.connect_material_expressions(cover, "", blend, "Alpha")
+    mel.connect_material_property(blend, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    rough = mel.create_material_expression(mat, unreal.MaterialExpressionConstant, -200, 250)
+    rough.set_editor_property("r", 0.85)
+    mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.recompile_material(mat)
+    unreal.EditorAssetLibrary.save_loaded_asset(mat)
+    return mat
 
 
 def import_character(fbx, destination, mannequin):
@@ -65,14 +104,31 @@ def import_character(fbx, destination, mannequin):
     if os.path.exists(png):
         texture = next(iter(import_task(png, destination, "T_" + base)), None)
 
+    # The grime layer and the options the character was made with (for its grime amount).
+    grime = None
+    grime_png = os.path.join(os.path.dirname(fbx), base + "_Grime.png")
+    if os.path.exists(grime_png):
+        grime = next(iter(import_task(grime_png, destination, "T_" + base + "_Grime")), None)
+    amount = 0.0
+    spec_json = os.path.join(os.path.dirname(fbx), base + ".json")
+    if os.path.exists(spec_json):
+        amount = float(json.load(open(spec_json, encoding="utf-8-sig")).get("Grime", 0.0))
+
     if not mannequin:
         tools = unreal.AssetToolsHelpers.get_asset_tools()
         mi_path = destination + "/MI_" + base
-        mi = unreal.load_asset(mi_path) if unreal.EditorAssetLibrary.does_asset_exist(mi_path) else \
-            tools.create_asset("MI_" + base, destination, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
-        unreal.MaterialEditingLibrary.set_material_instance_parent(mi, unreal.load_asset(TOON_MATERIAL))
+        if unreal.EditorAssetLibrary.does_asset_exist(mi_path):
+            mi = unreal.load_asset(mi_path)
+        else:
+            mi = tools.create_asset("MI_" + base, destination, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+        mel = unreal.MaterialEditingLibrary
+        # With a grime layer: the layered material; otherwise the pack's own.
+        mel.set_material_instance_parent(mi, layered_material() if grime is not None else unreal.load_asset(TOON_MATERIAL))
         if texture is not None:
-            unreal.MaterialEditingLibrary.set_material_instance_texture_parameter_value(mi, "Texture", texture)
+            mel.set_material_instance_texture_parameter_value(mi, "Texture", texture)
+        if grime is not None:
+            mel.set_material_instance_texture_parameter_value(mi, "GrimeTexture", grime)
+            mel.set_material_instance_scalar_parameter_value(mi, "GrimeAmount", amount)
         unreal.EditorAssetLibrary.save_loaded_asset(mi)
 
         mesh.set_editor_property("materials", [

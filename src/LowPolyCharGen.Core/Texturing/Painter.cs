@@ -52,9 +52,34 @@ internal sealed partial class Painter
             : Mix(_skin, new Vector3(0.58f, 0.32f, 0.29f), 0.42f);
     }
 
+    /// <summary>The texel's colour with the grime baked in at <see cref="CharacterSpec.Grime"/>.</summary>
     public Vector3 Shade(in Texel t)
     {
-        var color = t.Slot switch
+        var color = Base(t);
+        if (_spec.Grime > 0f && Grimeable(t))
+        {
+            var (dirt, amount) = Grime(t, _spec.Grime);
+            color = Mix(color, dirt, amount);
+        }
+        return Finish(color, t);
+    }
+
+    /// <summary>
+    /// The texel without grime, plus the grime layer at full strength: its colour (lit like the rest)
+    /// and coverage. A material blends the layer over the clean texture by coverage x grime amount.
+    /// </summary>
+    public (Vector3 Clean, Vector3 GrimeColor, float GrimeCoverage) ShadeLayers(in Texel t)
+    {
+        var color = Base(t);
+        var clean = Finish(color, t);
+        if (!Grimeable(t)) return (clean, clean, 0f);
+        var (dirt, amount) = Grime(t, 1f);
+        return (clean, Finish(dirt, t), amount);
+    }
+
+    private static bool Grimeable(in Texel t) => t.Slot is not (Slot.Lens or Slot.Dark);
+
+    private Vector3 Base(in Texel t) => t.Slot switch
         {
             Slot.Head => Head(t),
             Slot.Ear => Ear(t),
@@ -66,7 +91,10 @@ internal sealed partial class Painter
             Slot.Foot => Foot(t),
             _ => Detail(t, Material(t)),
         };
-        if (_spec.Grime > 0f && t.Slot is not (Slot.Lens or Slot.Dark)) color = Grimy(color, t);
+
+    /// <summary>Baked lighting: the toon finish on the Toon Soldiers rig, soft occlusion otherwise.</summary>
+    private Vector3 Finish(Vector3 color, in Texel t)
+    {
         if (_spec.Rig == RigTarget.ToonSoldiers) return Vector3.Clamp(ToonFinish(color, t), Vector3.Zero, Vector3.One);
 
         // Baked soft lighting: occlusion, and surfaces facing up a touch brighter than those facing down.
@@ -140,9 +168,8 @@ internal sealed partial class Painter
     /// Dirt: dust and smudges by position over everything, thicker towards the ground (mud up the
     /// boots and trouser legs) and in the creases that occlusion finds.
     /// </summary>
-    private Vector3 Grimy(Vector3 color, in Texel t)
+    private (Vector3 Dirt, float Amount) Grime(in Texel t, float g)
     {
-        var g = _spec.Grime;
         var p = t.P;
         var patches = SmoothStep(0.48f, 0.78f, Noise.Fbm(p * 0.21f + new Vector3(9, 4, 2)));
         var specks = SmoothStep(0.62f, 0.8f, Noise.Value(p * 3.1f));
@@ -150,7 +177,7 @@ internal sealed partial class Painter
         var creases = 1f - t.Ao;
         var amount = g * (0.55f * patches + 0.2f * specks + 0.5f * creases) + g * mud;
         var dirt = Mix(new Vector3(0.36f, 0.31f, 0.24f), new Vector3(0.24f, 0.19f, 0.14f), mud);
-        return Mix(color, dirt * (0.85f + 0.3f * Noise.Value(p * 0.8f)), Saturate(amount) * 0.75f);
+        return (dirt * (0.85f + 0.3f * Noise.Value(p * 0.8f)), Saturate(amount) * 0.75f);
     }
 
     private bool CamoTop => _spec.CamoCoverage != CamoCoverage.TrousersOnly;

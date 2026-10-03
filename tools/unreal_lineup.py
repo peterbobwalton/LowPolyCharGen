@@ -25,16 +25,16 @@ LINEUP = [
     (DEST + "/SK_LPCG_Snow_Scout", None, 369, False, "SM_m249", "Snow scout", "C++ run"),
     (DEST + "/SK_LPCG_Jungle_Rifleman", None, 0, True, "SM_g36c", "Jungle rifleman", "C++ crouch"),
     (DEST + "/SK_LPCG_Jungle_Scout", None, 107, True, "SM_mp5", "Jungle scout", "C++ crouch walk"),
-    (DEST + "/SK_LPCG_Desert_Weathered", None, 0, False, "SM_m4", "Desert rifleman", "grime, fatigue, stress"),
-    (DEST + "/SK_LPCG_Militia_Keffiyeh", A + "RocketLauncher/Guard/rocketlauncher_guard_idle", 0, False, "SM_smaw", "Militia", "keffiyeh, thobe, beard"),
-    (DEST + "/SK_LPCG_Militia_Turban", None, 111, False, "SM_ak12", "Militia", "turban, thobe, C++ walk"),
+    (DEST + "/SK_LPCG_Desert_Weathered", None, 0, False, "SM_m4", "Desert rifleman", "grime layer 1.0, tired, stressed", 1.0),
+    (DEST + "/SK_LPCG_Militia_Keffiyeh", A + "RocketLauncher/Guard/rocketlauncher_guard_idle", 0, False, "/Game/Toon_Soldiers_Militia/Meshes/Weapons/SM_weapon_rpg", "Militia", "keffiyeh, thobe, RPG-7"),
+    (DEST + "/SK_LPCG_Militia_Turban", None, 111, False, "/Game/Toon_Soldiers_Militia/Meshes/Weapons/SM_weapon_pkm", "Militia", "turban, thobe, PKM, C++ walk"),
     (DEST + "/SK_LPCG_Desert_Medic", A + "Handgun/handgun_combat_idle", 0, False, "SM_usp", "Desert medic", "female, handgun idle"),
     (DEST + "/SK_LPCG_Jungle_Sniper", None, 111, False, "SM_m110", "Jungle sniper", "female, C++ walk"),
     (DEST + "/SK_LPCG_Civilian_Hoodie", None, 111, False, None, "Civilian", "hoodie, jeans, C++ walk"),
     (DEST + "/SK_LPCG_Civilian_Tee", None, 0, False, None, "Civilian", "female, tee, jeans"),
-    (DEST + "/SK_LPCG_Militia_Balaclava", A + "Infantry/Guard/infantry_guard_idle", 0, False, "SM_ak12", "Militia", "balaclava"),
-    (DEST + "/SK_LPCG_Militia_Shemagh", None, 111, False, "SM_galil", "Militia", "shemagh, C++ walk"),
-    (DEST + "/SK_LPCG_Militia_Female", None, 0, False, "SM_ak12", "Militia", "female, shemagh"),
+    (DEST + "/SK_LPCG_Militia_Balaclava", A + "Infantry/Guard/infantry_guard_idle", 0, False, "/Game/Toon_Soldiers_Militia/Meshes/Weapons/SM_weapon_ak47", "Militia", "balaclava, AK-47"),
+    (DEST + "/SK_LPCG_Militia_Shemagh", None, 111, False, "/Game/Toon_Soldiers_Militia/Meshes/Weapons/SM_weapon_aksu", "Militia", "shemagh, AKSU, C++ walk"),
+    (DEST + "/SK_LPCG_Militia_Female", None, 0, False, "/Game/Toon_Soldiers_Militia/Meshes/Weapons/SM_weapon_svd", "Militia", "female, shemagh, SVD"),
 ]
 
 les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
@@ -54,7 +54,9 @@ def build():
     ground = origin.z - 90
     fwd = unreal.Vector(math.cos(math.radians(yaw)), math.sin(math.radians(yaw)), 0)
     right = unreal.Vector(-fwd.y, fwd.x, 0)
-    for i, (mesh, clip, speed, crouch, weapon, line1, line2) in enumerate(LINEUP):
+    for i, entry in enumerate(LINEUP):
+        mesh, clip, speed, crouch, weapon, line1, line2 = entry[:7]
+        grime = entry[7] if len(entry) > 7 else -1.0
         loc = origin + fwd * 700 + right * ((i - (len(LINEUP) - 1) / 2.0) * 150)
         loc.z = ground
         actor = eas.spawn_actor_from_class(unreal.LpcgDisplaySoldier, loc, unreal.Rotator(0, 0, yaw + 180))
@@ -63,7 +65,8 @@ def build():
         actor.set_editor_property("animation", unreal.load_asset(clip) if clip else None)
         actor.set_editor_property("locomotion_speed", float(speed))
         actor.set_editor_property("crouched", crouch)
-        actor.set_editor_property("weapon_mesh", unreal.load_asset(W + weapon) if weapon else None)
+        actor.set_editor_property("weapon_mesh", unreal.load_asset(weapon if weapon and weapon.startswith("/") else W + weapon) if weapon else None)
+        actor.set_editor_property("grime", float(grime))
         actor.set_editor_property("label", line1 + chr(10) + line2)
         actor.refresh()
         log("placed " + line1)

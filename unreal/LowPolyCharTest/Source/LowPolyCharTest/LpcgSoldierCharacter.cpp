@@ -16,6 +16,7 @@
 #include "InputActionValue.h"
 #include "InputMappingContext.h"
 #include "LpcgLocomotionAnimInstance.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
 
 ALpcgSoldierCharacter::ALpcgSoldierCharacter()
@@ -95,7 +96,6 @@ void ALpcgSoldierCharacter::ApplyCharacterScale()
 	GetCharacterMovement()->SetCrouchedHalfHeight(58.f * S);
 	GetMesh()->SetRelativeLocation(FVector(0.f, 0.f, -90.f * S));
 	GetMesh()->SetRelativeScale3D(FVector(S));
-	Weapon->SetRelativeScale3D(FVector(1.f / S));
 }
 
 void ALpcgSoldierCharacter::OnConstruction(const FTransform& Transform)
@@ -104,12 +104,23 @@ void ALpcgSoldierCharacter::OnConstruction(const FTransform& Transform)
 	ApplyCharacterScale();
 }
 
+void ALpcgSoldierCharacter::SetGrime(float Amount)
+{
+	Grime = FMath::Clamp(Amount, 0.f, 1.f);
+	if (UMaterialInstanceDynamic* Material = GetMesh()->CreateDynamicMaterialInstance(0))
+	{
+		Material->SetScalarParameterValue(TEXT("GrimeAmount"), Grime);
+	}
+}
+
 void ALpcgSoldierCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+	if (Grime >= 0.f) SetGrime(Grime);
+	Weapon->SetRelativeScale3D(FVector::OneVector);   // the socket carries the scale
 	if (Weapon && Weapon->GetAttachSocketName() != WeaponSocket)
 	{
-		Weapon->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponSocket);
+		Weapon->AttachToComponent(GetMesh(), FAttachmentTransformRules(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, EAttachmentRule::KeepRelative, false), WeaponSocket);
 	}
 	// Move at the speeds the clips were authored for, so the planted foot keeps pace with the ground.
 	UCharacterMovementComponent* Movement = GetCharacterMovement();

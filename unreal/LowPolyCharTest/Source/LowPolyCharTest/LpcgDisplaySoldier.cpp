@@ -7,6 +7,7 @@
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "LpcgLocomotionAnimInstance.h"
+#include "Materials/MaterialInstanceDynamic.h"
 
 ALpcgDisplaySoldier::ALpcgDisplaySoldier()
 {
@@ -58,15 +59,23 @@ void ALpcgDisplaySoldier::Refresh()
 	}
 
 	Body->SetRelativeScale3D(FVector(CharacterScale));
-	Weapon->SetRelativeScale3D(FVector(1.f / CharacterScale));
 	NameText->SetRelativeLocation(FVector(0.f, 0.f, 215.f * CharacterScale));
 
 	Weapon->SetStaticMesh(WeaponMesh);
+	Weapon->SetRelativeScale3D(FVector::OneVector);   // the socket carries the scale
 	if (Weapon->GetAttachSocketName() != WeaponSocket)
 	{
-		Weapon->AttachToComponent(Body, FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponSocket);
+		Weapon->AttachToComponent(Body, FAttachmentTransformRules(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, EAttachmentRule::KeepRelative, false), WeaponSocket);
 	}
 	NameText->SetText(Label);
+
+	if (Grime >= 0.f)
+	{
+		if (UMaterialInstanceDynamic* Material = Body->CreateDynamicMaterialInstance(0))
+		{
+			Material->SetScalarParameterValue(TEXT("GrimeAmount"), Grime);
+		}
+	}
 }
 
 void ALpcgDisplaySoldier::OnConstruction(const FTransform& Transform)

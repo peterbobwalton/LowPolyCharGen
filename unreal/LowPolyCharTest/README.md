@@ -26,6 +26,18 @@ blend cross-fades between neighbouring gaits and scales the playback rate outsid
 `tools/unreal_footslip_test.py` drives the soldier in Play-in-Editor and measures planted-foot slip;
 what is left equals the clips' own toe roll (walk ~28, run ~50 cm/s).
 
+**Weapons** go on the packs' `WeaponSocket_R` socket (right hand), which both the Armies and
+Militia skeletons define with a 0.6 scale: with the Biped's 1.8 bone scale that gives the guns
+their intended size. Attaching to the bare `WeaponContainer` bone makes every gun 1.8x too big.
+Militia use the Militia pack's own weapons (AK-47, AKSU, PKM, RPG-7, SVD, pistols...), which are
+authored for the same socket.
+
+**Grime layer.** `tools/import_unreal.py` builds `M_LPCG_Character` (once): BaseColor =
+`lerp(Texture, GrimeTexture.rgb, GrimeTexture.a * GrimeAmount)`, and gives each character a
+material instance with its grime layer and `GrimeAmount` from its exported JSON. At runtime
+`ALpcgSoldierCharacter::SetGrime(float)` (Blueprint-callable) blends it in or out through a dynamic
+material instance; `ALpcgDisplaySoldier` has a `Grime` property for the same.
+
 ## Setting up the content
 
 1. Copy `Engine/Templates/TP_ThirdPersonBP/Content/*` into `Content/`, and each of

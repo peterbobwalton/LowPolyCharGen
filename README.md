@@ -19,7 +19,10 @@ dotnet run --project src/LowPolyCharGen.App
 Requires the .NET 10 SDK on Windows. There are no NuGet dependencies.
 
 Pick the options on the left, check the result in the 3D preview and press **Export FBX…**.
-Two files are written: `<name>.fbx` and `<name>_Diffuse.png` (the texture the FBX references).
+Four files are written: `<name>.fbx`, `<name>_Diffuse.png` (the clean texture the FBX references),
+`<name>_Grime.png` (the grime layer: RGB = dirt, lit like the texture; A = its coverage at full
+grime) and `<name>.json` (the options, a preset). Blend the layer in a material as
+`lerp(Diffuse.rgb, Grime.rgb, Grime.a * amount)`; the app's preview shows it baked at the Grime slider.
 
 | Group     | Options |
 |-----------|---------|
