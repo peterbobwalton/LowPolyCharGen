@@ -31,7 +31,7 @@ internal static class BodyBuilder
         });
 
         if (c.Spec.Legs == LegsStyle.Skirt) BuildSkirt(c);
-        if (c.Spec.Scarf) BuildScarf(c);
+        if (c.Spec.Scarf || c.Spec.FaceCover == FaceCover.Shemagh) BuildScarf(c);
     }
 
     // ---- weights -------------------------------------------------------------------------
@@ -378,13 +378,13 @@ internal static class BodyBuilder
         Ring ScarfRing(float z, float r) => new(P(0, 0.4f, z), Left, Back, r, r, 2.2f);
         var top = c.ChinZ + 0.6f;
         mesh.AddLoft([ScarfRing(150.5f, n + 2.2f), ScarfRing(152.5f, n + 3.8f), ScarfRing(top - 1.5f, n + 3.6f), ScarfRing(top, n + 1.4f)],
-            BuildContext.Sides, BuildContext.FlatFront, Slot.Accent, c.Spine, Cap.Flat, Cap.Flat);
+            BuildContext.Sides, BuildContext.FlatFront, Slot.Scarf, c.Spine, Cap.Flat, Cap.Flat);
         // Loose end hanging on the chest.
         const float x = 3.8f;
         var tail = new List<Vector3> { P(x, 0.4f + n + 3.0f, 152.5f) };
         foreach (var z in new[] { 147f, 142f, 136f })
             tail.Add(new Vector3(x, c.Torso.FrontY(z, x) - 0.7f, z));
         const float root2 = 1.41421356f;
-        mesh.AddPathLoft(tail, i => ((i == 3 ? 2.0f : 2.5f) * root2, 0.55f * root2), Left, 4, MathF.PI / 4, Slot.Accent, c.Spine);
+        mesh.AddPathLoft(tail, i => ((i == 3 ? 2.0f : 2.5f) * root2, 0.55f * root2), Left, 4, MathF.PI / 4, Slot.Scarf, c.Spine);
     }
 }

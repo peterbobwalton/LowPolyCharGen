@@ -247,6 +247,8 @@ internal static class HeadBuilder
         var cropped = new ScalpEdge(0.80f, 0.63f, 0.50f, 0.30f);
         var shortCut = new ScalpEdge(0.78f, 0.60f, 0.46f, 0.26f);
 
+        if (c.Spec.FaceCover == FaceCover.Balaclava) return;   // all of it is under the knit
+
         switch (style)
         {
             case HairStyle.Bald:

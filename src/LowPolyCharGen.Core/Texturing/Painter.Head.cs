@@ -142,6 +142,27 @@ internal sealed partial class Painter
             color = Mix(color, HairStrands(p), mask * _c.ScalpHairDensity);
         }
 
+        // ---- face coverings ----
+        switch (_spec.FaceCover)
+        {
+            case LowPolyCharGen.FaceCover.Balaclava:
+            {
+                // Everything is knit except a slit across the eyes, with a rolled edge.
+                var slit = face * Band(fz, eyeZ - 1.25f, eyeZ + 1.35f, 0.12f) * (1f - SmoothStep(eyeX + 2.3f, eyeX + 2.7f, ax));
+                var knit = Knit(p) * (1f - 0.25f * Line(fz - (eyeZ - 1.25f), 0.12f) - 0.25f * Line(fz - (eyeZ + 1.35f), 0.12f));
+                color = Mix(knit, color * 0.92f, slit);
+                break;
+            }
+            case LowPolyCharGen.FaceCover.Shemagh:
+            {
+                // Wrapped over the mouth and nose, up to just under the eyes, all the way round.
+                var top = (_c.NoseTipZ - _c.ChinZ) / s + 0.2f + 0.8f * SmoothStep(60f, 120f, angle);
+                var cover = 1f - SmoothStep(top - 0.15f, top + 0.15f, fz);
+                var wrap = Shemagh(p) * (1f - 0.3f * Line(fz - top, 0.25f, 0.2f));
+                color = Mix(color, wrap, cover);
+                break;
+            }
+        }
         return color;
     }
 
@@ -188,6 +209,7 @@ internal sealed partial class Painter
         var u = Vector3.Dot(d, _c.EarUp);
         var hollowSide = Vector3.Dot(n, Vector3.Cross(_c.EarAcross, _c.EarUp)) > 0f;
 
+        if (_spec.FaceCover == LowPolyCharGen.FaceCover.Balaclava) return Knit(t.P) * (hollowSide ? 0.8f : 1f);
         var color = SkinTone(t.P) * new Vector3(1.03f, 0.94f, 0.92f);
         if (!hollowSide) return color * 0.9f;
 
@@ -206,6 +228,8 @@ internal sealed partial class Painter
         var h = p.Z - _c.NeckBaseZ;                 // height above the base of the neck
         var front = p.Y < _c.NeckCenter.Y;
         var skin = SkinTone(p);
+        if (_spec.FaceCover == LowPolyCharGen.FaceCover.Balaclava) return Knit(p);
+        if (_spec.FaceCover == LowPolyCharGen.FaceCover.Shemagh) return Shemagh(p);
 
         switch (_spec.Torso)
         {
@@ -215,7 +239,7 @@ internal sealed partial class Painter
                 var open = front && ax < 1.6f + h * 0.6f;
                 if (!open && h < 2.4f)
                 {
-                    var collar = Cloth(_shirt * 1.06f, p, true);
+                    var collar = Cloth(_shirt * 1.06f, p, CamoTop);
                     return collar * (1f - 0.3f * Line(h - 2.4f, 0.12f));
                 }
                 break;

@@ -31,6 +31,9 @@ LINEUP = [
     (DEST + "/SK_LPCG_Jungle_Sniper", None, 111, False, "SM_m110", "Jungle sniper", "female, C++ walk"),
     (DEST + "/SK_LPCG_Civilian_Hoodie", None, 111, False, None, "Civilian", "hoodie, jeans, C++ walk"),
     (DEST + "/SK_LPCG_Civilian_Tee", None, 0, False, None, "Civilian", "female, tee, jeans"),
+    (DEST + "/SK_LPCG_Militia_Balaclava", A + "Infantry/Guard/infantry_guard_idle", 0, False, "SM_ak12", "Militia", "balaclava"),
+    (DEST + "/SK_LPCG_Militia_Shemagh", None, 111, False, "SM_galil", "Militia", "shemagh, C++ walk"),
+    (DEST + "/SK_LPCG_Militia_Female", None, 0, False, "SM_ak12", "Militia", "female, shemagh"),
 ]
 
 les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
@@ -51,7 +54,7 @@ def build():
     fwd = unreal.Vector(math.cos(math.radians(yaw)), math.sin(math.radians(yaw)), 0)
     right = unreal.Vector(-fwd.y, fwd.x, 0)
     for i, (mesh, clip, speed, crouch, weapon, line1, line2) in enumerate(LINEUP):
-        loc = origin + fwd * 700 + right * ((i - (len(LINEUP) - 1) / 2.0) * 175)
+        loc = origin + fwd * 700 + right * ((i - (len(LINEUP) - 1) / 2.0) * 160)
         loc.z = ground
         actor = eas.spawn_actor_from_class(unreal.LpcgDisplaySoldier, loc, unreal.Rotator(0, 0, yaw + 180))
         actor.set_actor_label("LPCG_%02d_%s" % (i, line1.replace(" ", "_")))

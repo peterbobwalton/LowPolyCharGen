@@ -16,6 +16,7 @@ public enum Slot : byte
     Shirt, ShirtTrim, Trousers, TrousersTrim,
     Boots, Accent, Gear, GearTrim,
     Belt, Hat, HatTrim, Metal,
+    Scarf,
 }
 
 /// <summary>Extra detail the painter draws on a primitive, in the primitive's own UV space.</summary>

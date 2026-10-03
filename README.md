@@ -23,8 +23,8 @@ Two files are written: `<name>.fbx` and `<name>_Diffuse.png` (the texture the FB
 
 | Group     | Options |
 |-----------|---------|
-| Character | name, rig (Toon Soldiers or UE5 mannequin), edition (desert, snow, jungle, civilian), gender, build (slim to heavy), skin tone |
-| Head      | face shape (standard, square, round, slim, heavy), size, ears (normal, pixie, elephant, stick out), eye colour, hair (8 styles), facial hair (stubble, moustache, goatee, beard), hair colour |
+| Character | name, rig (Toon Soldiers or UE5 mannequin), edition (desert, snow, jungle, civilian, militia), gender, build (slim to heavy), skin tone |
+| Head      | face cover (balaclava, shemagh); face shape (standard, square, round, slim, heavy), size, ears (normal, pixie, elephant, stick out), eye colour, hair (8 styles), facial hair (stubble, moustache, goatee, beard), hair colour |
 | Torso     | T-shirt, long sleeve, rolled sleeves, tank top, jacket, hoodie, polo, check shirt; colour; camouflage (woodland, digital) |
 | Legs      | trousers, cargo, shorts, tall boots, skirt, jeans; boots or trainers; trouser and boot colours |
 | Add-ons   | hat (helmet, cap, beret, boonie, beanie), eyewear, backpack (light, rucksack, hydration, radio), vest (chest rig, plate carrier), belt (plain, pouches, utility with holster), gloves, scarf, knee and elbow pads; hat, gear and accent colours |
@@ -77,7 +77,11 @@ near-black). Picking one sets the clothing, hat, gear, boot and accent colours a
 camouflage on (all still editable) and gives the camouflage that theatre's colours; `Custom` keeps
 your own colours. On the command line: `--set Edition=Snow`. `Civilian` instead swaps military kit
 for civvies (no camo or vest, jeans, trainers, a hoodie instead of a jacket) and Randomise then
-picks civilian outfits and colours.
+picks civilian outfits and colours. `Militia` (styled on the Toon Soldiers Militia pack) dresses irregular
+forces: camouflage on the trousers only (`CamoCoverage`) in urban greys, a shemagh face wrap,
+surplus chest rigs and boots; Randomise then mixes dark civvies, balaclavas or shemaghs, beanies,
+berets and old helmets. `FaceCover` = Balaclava (knit, eye slit, no hair) or Shemagh (wrapped over
+the nose and mouth, with a matching scarf) works with any edition; its colour is `AccentColor`.
 
 The texture gets the pack's hand-painted finish on this rig: deeper baked occlusion, a strong top
 light, broad brush-like value patches and muted warm colours.

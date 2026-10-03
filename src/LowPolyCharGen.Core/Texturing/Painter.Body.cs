@@ -44,7 +44,7 @@ internal sealed partial class Painter
         // Belt loops in the trouser cloth.
         var around = MathF.Atan2(p.X, -(p.Y - _c.NeckCenter.Y)) * 180f / MathF.PI;               // 0 at the front
         if (Line(Fract((around + 22f) / 45f) - 0.5f, 0.045f, 0.01f) > 0.5f && ax > 3f)
-            color = Cloth(_trousers * 0.82f, p, true);
+            color = Cloth(_trousers * 0.82f, p, CamoBottom);
         if (front)
         {
             // Buckle: a steel frame with the belt showing through.
@@ -65,7 +65,7 @@ internal sealed partial class Painter
         var back = t.N.Y > 0.2f;
         var style = _spec.Torso;
 
-        var cloth = style == TorsoStyle.CheckShirt ? Cloth(Plaid(_shirt, p), p) : Cloth(_shirt, p, true);
+        var cloth = style == TorsoStyle.CheckShirt ? Cloth(Plaid(_shirt, p), p) : Cloth(_shirt, p, CamoTop);
         // Creases where the shirt gathers at the waist.
         cloth *= 1f + 0.06f * MathF.Sin(z * 1.6f + 7f * Noise.Fbm(p * 0.18f)) * (1f - SmoothStep(104f, 118f, z));
         var trim = _shirt * 0.74f;
@@ -183,7 +183,7 @@ internal sealed partial class Painter
         var top = _c.HemZ;
 
         if (_c.SkirtWorn) return Cloth(_trousers * 0.6f, p);
-        var cloth = Cloth(_trousers, p, true);
+        var cloth = Cloth(_trousers, p, CamoBottom);
 
         if (!BeltWorn && z > top - 3.2f)
         {
@@ -235,7 +235,7 @@ internal sealed partial class Painter
             return skin;
         }
 
-        var cloth = _spec.Torso == TorsoStyle.CheckShirt ? Cloth(Plaid(_shirt, p), p) : Cloth(_shirt, p, true);
+        var cloth = _spec.Torso == TorsoStyle.CheckShirt ? Cloth(Plaid(_shirt, p), p) : Cloth(_shirt, p, CamoTop);
         cloth *= 1f + 0.07f * MathF.Sin(x * 2.3f + 6f * Noise.Fbm(p * 0.2f)) * MathF.Exp(-MathF.Pow((x - _c.ElbowX) / 6f, 2));   // elbow creases
         cloth *= 1f - 0.14f * Line(x - 18.6f, 0.06f);                         // shoulder seam
 
@@ -255,7 +255,7 @@ internal sealed partial class Painter
             case TorsoStyle.LongSleeve or TorsoStyle.CheckShirt:
                 if (x > end - 3.2f)
                 {
-                    cloth = Cloth(_shirt * 0.84f, p, true);
+                    cloth = Cloth(_shirt * 0.84f, p, CamoTop);
                     cloth *= 1f - 0.28f * Line(x - (end - 3.2f), 0.06f);
                     if (t.N.Z > 0.5f) cloth = Mix(cloth, _shirt * 0.4f, Disc(x - (end - 1.6f), p.Y - _c.ArmY, 0.36f));
                 }
@@ -326,7 +326,7 @@ internal sealed partial class Painter
         {
             var jeans = _spec.Legs == LegsStyle.Jeans;
             var wear = Blob(dx / 5f, (z - 70f) / 14f) * (front ? 1f : 0.3f) + 0.7f * Blob(dx / 4f, (z - _c.KneeZ) / 5f) * (front ? 1f : 0f);
-            var cloth = jeans ? Cloth(Denim(_trousers, p, wear), p) : Cloth(_trousers, p, true);
+            var cloth = jeans ? Cloth(Denim(_trousers, p, wear), p) : Cloth(_trousers, p, CamoBottom);
             cloth *= 1f - 0.18f * Line(dy, 0.06f) * (dx > 0f ? 1f : 0.6f);    // side seams, outside and inside
             if (jeans)
             {

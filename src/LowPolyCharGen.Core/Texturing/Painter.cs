@@ -135,6 +135,28 @@ internal sealed partial class Painter
         return color * (1f + 0.18f * folds + 0.05f * weave);
     }
 
+    private bool CamoTop => _spec.CamoCoverage != CamoCoverage.TrousersOnly;
+    private bool CamoBottom => _spec.CamoCoverage != CamoCoverage.TopOnly;
+
+    /// <summary>Knitted balaclava: the accent colour with vertical ribs.</summary>
+    private Vector3 Knit(Vector3 p)
+    {
+        var rib = MathF.Sin(MathF.Atan2(p.X, p.Y - _c.HeadCenter.Y) * 34f);
+        return Cloth(_accent * 1.15f + new Vector3(0.03f), p) * (1f + 0.07f * rib);
+    }
+
+    /// <summary>Shemagh: sand cotton with a lattice of small diamonds in the accent colour, softly folded.</summary>
+    private Vector3 Shemagh(Vector3 p)
+    {
+        var u = p.X / 1.15f + p.Z / 1.15f;
+        var v = p.X / 1.15f - p.Z / 1.15f + 0.7f * p.Y / 1.15f;
+        var lattice = MathF.Max(Line(Fract(u) - 0.5f, 0.07f, 0.03f), Line(Fract(v) - 0.5f, 0.07f, 0.03f));
+        var dot = Disc(Fract(u) - 0.5f, Fract(v) - 0.5f, 0.16f, 0.04f);
+        var cloth = Mix(new Vector3(0.84f, 0.80f, 0.69f), _accent, 0.85f * MathF.Max(lattice, dot));
+        var folds = Noise.Fbm(new Vector3(p.X * 0.35f, p.Y * 0.35f, p.Z * 0.9f)) - 0.5f;
+        return cloth * (1f + 0.22f * folds);
+    }
+
     /// <summary>Check shirt: broad darker bands and a thin pale line, both ways.</summary>
     private static Vector3 Plaid(Vector3 color, Vector3 p)
     {
@@ -167,6 +189,9 @@ internal sealed partial class Painter
                 break;
             case Edition.Snow:     // white ground with pale and mid grey
                 light = new Vector3(0.96f, 0.96f, 0.97f); brown = new Vector3(0.77f, 0.79f, 0.81f); dark = new Vector3(0.56f, 0.59f, 0.62f);
+                break;
+            case Edition.Militia:  // urban greys
+                light = new Vector3(0.62f, 0.63f, 0.64f); brown = new Vector3(0.36f, 0.37f, 0.39f); dark = new Vector3(0.16f, 0.16f, 0.17f);
                 break;
             case Edition.Jungle:   // greens with brown and near-black
                 light = new Vector3(0.44f, 0.50f, 0.27f); brown = new Vector3(0.35f, 0.27f, 0.18f); dark = new Vector3(0.13f, 0.15f, 0.11f);
@@ -221,18 +246,19 @@ internal sealed partial class Painter
                 var streak = Line(Fract((t.Uv.X + t.Uv.Y) / MathF.Max(1f, t.Size.X + t.Size.Y) * 2.4f) - 0.4f, 0.09f, 0.04f);
                 return new Vector3(0.06f, 0.07f, 0.09f) + new Vector3(0.16f, 0.18f, 0.2f) * streak;
             }
-            case Slot.Shirt: return Cloth(_shirt, p, true);
+            case Slot.Shirt: return Cloth(_shirt, p, CamoTop);
             case Slot.ShirtTrim: return Cloth(_shirt * 0.78f, p);
-            case Slot.Trousers: return Cloth(_trousers, p, true);
+            case Slot.Trousers: return Cloth(_trousers, p, CamoBottom);
             case Slot.TrousersTrim: return Cloth(_trousers * 0.8f, p);
             case Slot.Boots: return Leather(_boots, p);
             case Slot.Accent: return Cloth(_accent, p);
             case Slot.Gear: return Cloth(_gear, p);
             case Slot.GearTrim: return Cloth(_gear * 0.74f, p);
             case Slot.Belt: return Leather(_accent * 0.8f, p);
-            case Slot.Hat: return Cloth(_hat, p, true);
+            case Slot.Hat: return Cloth(_hat, p, CamoTop);
             case Slot.HatTrim: return Cloth(_hat * 0.72f, p);
             case Slot.Metal: return Steel * (0.8f + 0.25f * t.N.Z);
+            case Slot.Scarf: return _spec.FaceCover == FaceCover.Shemagh || _spec.Edition == Edition.Militia ? Shemagh(p) : Cloth(_accent, p);
             default: return new Vector3(1, 0, 1);
         }
     }

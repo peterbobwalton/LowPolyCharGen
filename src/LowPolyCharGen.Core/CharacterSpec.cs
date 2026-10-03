@@ -10,7 +10,11 @@ public enum RigTarget { ToonSoldiers, Mannequin }
 public enum Gender { Male, Female }
 
 /// <summary>Uniform edition: a theatre palette for the clothes, gear and camouflage. Custom keeps your own colours.</summary>
-public enum Edition { Custom, Desert, Snow, Jungle, Civilian }
+public enum Edition { Custom, Desert, Snow, Jungle, Civilian, Militia }
+/// <summary>Face covering: a knitted balaclava with an eye slit, or a shemagh wrapped over the lower face.</summary>
+public enum FaceCover { None, Balaclava, Shemagh }
+/// <summary>Which garments the camouflage is printed on (militia often wear camo trousers with a plain top).</summary>
+public enum CamoCoverage { All, TrousersOnly, TopOnly }
 public enum HeadShape { Standard, Square, Round, Slim, Heavy }
 public enum HairStyle { Bald, Buzz, Short, Bob, Long, Ponytail, Bun, Mohawk }
 public enum FacialHair { None, Stubble, Moustache, Goatee, Beard }
@@ -48,6 +52,8 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     private Camouflage _camouflage = Camouflage.None;
     private Edition _edition = Edition.Custom;
     private Footwear _footwear = Footwear.Boots;
+    private FaceCover _faceCover = FaceCover.None;
+    private CamoCoverage _camoCoverage = CamoCoverage.All;
     private int _textureSize = 2048;
     private Rgb _eyeColor = Rgb.FromHex("#5A4630");
     private Rgb _skinColor = Rgb.FromHex("#D9A274");
@@ -84,6 +90,12 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     public LegsStyle Legs { get => _legs; set => Set(ref _legs, value); }
     public HatStyle Hat { get => _hat; set => Set(ref _hat, value); }
 
+    /// <summary>Balaclava or shemagh over the face; their colour (the shemagh's pattern) is <see cref="AccentColor"/>.</summary>
+    public FaceCover FaceCover { get => _faceCover; set => Set(ref _faceCover, value); }
+
+    /// <summary>Which garments <see cref="Camouflage"/> is printed on.</summary>
+    public CamoCoverage CamoCoverage { get => _camoCoverage; set => Set(ref _camoCoverage, value); }
+
     /// <summary>Boots or trainers; the colour is <see cref="BootsColor"/>.</summary>
     public Footwear Footwear { get => _footwear; set => Set(ref _footwear, value); }
     public EyewearStyle Eyewear { get => _eyewear; set => Set(ref _eyewear, value); }
@@ -113,6 +125,7 @@ public sealed class CharacterSpec : INotifyPropertyChanged
                 ShirtColor = c.Shirt; TrousersColor = c.Trousers; HatColor = c.Hat; GearColor = c.Gear;
                 BootsColor = c.Boots; AccentColor = c.Accent;
                 if (value == Edition.Civilian) Civvies();
+                else if (value == Edition.Militia) Irregulars();
                 else if (Camouflage == Camouflage.None) Camouflage = Camouflage.Woodland;
             }
         }
@@ -132,11 +145,23 @@ public sealed class CharacterSpec : INotifyPropertyChanged
         if (Backpack is BackpackStyle.Rucksack or BackpackStyle.Radio or BackpackStyle.Hydration) Backpack = BackpackStyle.Light;
     }
 
+    /// <summary>Irregular forces: camo trousers under a plain top, a face covering, surplus webbing, boots.</summary>
+    private void Irregulars()
+    {
+        if (Camouflage == Camouflage.None) Camouflage = Camouflage.Woodland;
+        CamoCoverage = CamoCoverage.TrousersOnly;
+        if (FaceCover == FaceCover.None) FaceCover = FaceCover.Shemagh;
+        if (Vest == VestStyle.None) Vest = VestStyle.ChestRig;
+        if (Hat is HatStyle.Boonie) Hat = HatStyle.None;
+        Footwear = Footwear.Boots;
+    }
+
     /// <summary>Default colours of an edition (null for <see cref="Edition.Custom"/>).</summary>
     public static (Rgb Shirt, Rgb Trousers, Rgb Hat, Rgb Gear, Rgb Boots, Rgb Accent)? EditionColors(Edition edition) => edition switch
     {
         Edition.Desert => (Rgb.FromHex("#B9A57B"), Rgb.FromHex("#AD9970"), Rgb.FromHex("#B4A27A"), Rgb.FromHex("#9C8660"), Rgb.FromHex("#8A6E4C"), Rgb.FromHex("#6E5638")),
         Edition.Snow => (Rgb.FromHex("#E8EAEC"), Rgb.FromHex("#E0E3E6"), Rgb.FromHex("#EEF0F1"), Rgb.FromHex("#C9CED2"), Rgb.FromHex("#3E3F42"), Rgb.FromHex("#9AA0A6")),
+        Edition.Militia => (Rgb.FromHex("#2E2F33"), Rgb.FromHex("#6A6D70"), Rgb.FromHex("#1F2023"), Rgb.FromHex("#3A3A34"), Rgb.FromHex("#2A2622"), Rgb.FromHex("#1E1E20")),
         Edition.Civilian => (Rgb.FromHex("#A8433A"), Rgb.FromHex("#3E5C86"), Rgb.FromHex("#2E2E30"), Rgb.FromHex("#4A4038"), Rgb.FromHex("#E6E6E2"), Rgb.FromHex("#6A4A2A")),
         Edition.Jungle => (Rgb.FromHex("#4E5E34"), Rgb.FromHex("#46552F"), Rgb.FromHex("#4A5832"), Rgb.FromHex("#3B4430"), Rgb.FromHex("#2E2A22"), Rgb.FromHex("#4A3A28")),
         _ => null,
@@ -253,6 +278,42 @@ public sealed class CharacterSpec : INotifyPropertyChanged
         return spec;
     }
 
+    private static readonly string[] MilitiaTops = ["#2E2F33", "#1F2023", "#4A4A44", "#3B4434", "#5A4A3A", "#3E4A5A", "#6B6B66", "#7A6A4E"];
+    private static readonly string[] MilitiaBottoms = ["#6A6D70", "#4E5A3A", "#5E5A3E", "#2E4466", "#26272B", "#6B5A44"];
+    private static readonly string[] MilitiaWraps = ["#1E1E20", "#1E1E20", "#7A2A26", "#3A3428"];
+
+    /// <summary>Insurgents: mismatched dark civvies and surplus kit, faces mostly covered.</summary>
+    private static CharacterSpec RandomMilitia(Random rng, CharacterSpec spec)
+    {
+        T Of<T>(params T[] values) => values[rng.Next(values.Length)];
+        Rgb Tone(string[] tones) => Rgb.FromHex(tones[rng.Next(tones.Length)]);
+        bool Chance(double p) => rng.NextDouble() < p;
+        spec.Edition = Edition.Militia;
+        spec.Torso = Of(TorsoStyle.TShirt, TorsoStyle.TShirt, TorsoStyle.TankTop, TorsoStyle.LongSleeve, TorsoStyle.Hoodie, TorsoStyle.Jacket, TorsoStyle.CheckShirt);
+        spec.Legs = Of(LegsStyle.Cargo, LegsStyle.Cargo, LegsStyle.Trousers, LegsStyle.Jeans);
+        spec.FaceCover = Of(FaceCover.Balaclava, FaceCover.Shemagh, FaceCover.Shemagh, FaceCover.None);
+        spec.Hat = spec.FaceCover == FaceCover.Balaclava ? (Chance(0.3) ? HatStyle.Helmet : HatStyle.None)
+                 : Chance(0.5) ? HatStyle.None : Of(HatStyle.Beanie, HatStyle.Cap, HatStyle.Beret, HatStyle.Helmet);
+        spec.Vest = Of(VestStyle.ChestRig, VestStyle.ChestRig, VestStyle.PlateCarrier, VestStyle.None);
+        spec.Belt = Of(BeltStyle.Plain, BeltStyle.Pouches, BeltStyle.Utility);
+        spec.Backpack = Chance(0.3) ? Of(BackpackStyle.Light, BackpackStyle.Rucksack) : BackpackStyle.None;
+        spec.Eyewear = Chance(0.25) ? EyewearStyle.Sunglasses : EyewearStyle.None;
+        spec.Gloves = Chance(0.4);
+        spec.KneePads = spec.ElbowPads = false;
+        spec.Scarf = spec.FaceCover != FaceCover.Balaclava && Chance(0.4);
+        spec.Footwear = Chance(0.2) ? Footwear.Trainers : Footwear.Boots;
+        spec.Camouflage = spec.Legs == LegsStyle.Jeans ? Camouflage.None : Of(Camouflage.Woodland, Camouflage.Digital, Camouflage.None);
+        spec.CamoCoverage = Chance(0.8) ? CamoCoverage.TrousersOnly : CamoCoverage.All;
+        spec.ShirtColor = Tone(MilitiaTops);
+        spec.TrousersColor = Tone(MilitiaBottoms);
+        spec.HatColor = Tone(MilitiaTops);
+        spec.GearColor = Tone(MilitiaTops);
+        spec.AccentColor = Tone(MilitiaWraps);
+        spec.BootsColor = Rgb.FromHex(Of("#2A2622", "#1C1C1E", "#4A3A2A"));
+        if (spec.Gender == Gender.Female && spec.FaceCover == FaceCover.None) spec.FaceCover = FaceCover.Shemagh;
+        return spec;
+    }
+
     private static readonly string[] CivilianTops =
         ["#A8433A", "#D8D8D2", "#2F2F33", "#3E5F7A", "#6B8F4E", "#C9A23A", "#7A3B5A", "#4A6FA5", "#B86A3A", "#8B8F94"];
     private static readonly string[] Denim = ["#3E5C86", "#2E4466", "#52729C", "#26272B", "#5A5F66", "#6B5A44"];
@@ -262,6 +323,8 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     public static CharacterSpec Random(Random rng, Edition edition)
     {
         var spec = Random(rng);
+        if (edition == Edition.Militia)
+            return RandomMilitia(rng, spec);
         if (edition != Edition.Civilian)
         {
             if (edition != Edition.Custom) spec.Edition = edition;
