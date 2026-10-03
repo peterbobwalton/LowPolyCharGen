@@ -1,0 +1,30 @@
+# LowPolyCharTest
+
+UE 5.8 C++ test project for LowPolyCharGen characters on the Toon Soldiers skeleton. Only the code,
+config and project file are in git; the content is assembled locally because the Toon Soldiers
+pack is licensed Marketplace content and the template content ships with the engine.
+
+## C++ (Source/LowPolyCharTest)
+
+| Class | What it does |
+|---|---|
+| `ULpcgLocomotionAnimInstance` | Native locomotion: idle/walk/run blend by ground speed plus a standing/crouched blend, evaluated in the anim proxy (no Animation Blueprint, no anim graph). Walk and run share a gait phase. |
+| `ALpcgSoldierCharacter` | Playable third-person soldier: generated mesh, weapon in the pack's `WeaponContainer` socket, template input (WASD/mouse/Space) plus code-made Sprint (Shift) and Crouch (C/Ctrl). |
+| `ALpcgGameMode` | Default pawn = `ALpcgSoldierCharacter`; the project's and the map's game mode. |
+| `ALpcgDisplaySoldier` | Lineup actor: loops a clip or the C++ locomotion blend at a fixed speed, animates in the editor viewport. |
+
+## Setting up the content
+
+1. Copy `Engine/Templates/TP_ThirdPersonBP/Content/*` into `Content/`, and each of
+   `Engine/Templates/TemplateResources/High/{LevelPrototyping,Characters,Input}/Content/*` into
+   `Content/<PackName>/` (they must keep their mount folder, e.g. `Content/Input/Actions`).
+2. Copy `Toon_Soldiers_Armies` into `Content/` (from a project that owns it, e.g. UxVTest1).
+3. Optional: copy the `UnrealMcpBridge` plugin into `Plugins/` and add it to the `.uproject`.
+4. Generate project files, build `LowPolyCharTest` (Development Editor) in Visual Studio.
+5. Export characters with LowPolyCharGen and import them with
+   `../../tools/import_unreal.py <folder> /Game/LowPolyCharGen/Characters`.
+6. `../../tools/unreal_lineup.py` places the showcase lineup and checks Play-in-Editor.
+
+If another project's editor has Live Coding running, Unreal Build Tool refuses to build any project
+on the same engine; add `-NoHotReloadFromIDE` to the NMake build command lines in
+`Intermediate/ProjectFiles/LowPolyCharTest.vcxproj` (it is lost when project files are regenerated).

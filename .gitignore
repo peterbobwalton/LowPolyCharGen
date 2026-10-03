@@ -1,0 +1,18 @@
+bin/
+obj/
+publish/
+.vs/
+out/
+__pycache__/
+*.user
+
+# Unreal test project: only Source, Config and the .uproject are tracked
+unreal/*/Binaries/
+unreal/*/Intermediate/
+unreal/*/Saved/
+unreal/*/DerivedDataCache/
+unreal/*/Content/
+unreal/*/Plugins/
+unreal/*/*.sln
+unreal/*/*.slnx
+unreal/*/.vs/

@@ -1,0 +1,88 @@
+<Application x:Class="LowPolyCharGen.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:LowPolyCharGen.App">
+    <Application.Resources>
+        <local:EnumNameConverter x:Key="EnumName" />
+
+        <SolidColorBrush x:Key="PanelBrush" Color="#F4F5F7" />
+        <SolidColorBrush x:Key="CardBrush" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="CardBorderBrush" Color="#DDE0E5" />
+        <SolidColorBrush x:Key="MutedTextBrush" Color="#5F6875" />
+        <SolidColorBrush x:Key="AccentBrush" Color="#2F6FDE" />
+
+        <!-- A titled group of option rows. -->
+        <Style x:Key="Card" TargetType="HeaderedContentControl">
+            <Setter Property="Margin" Value="0,0,0,10" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="HeaderedContentControl">
+                        <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource CardBorderBrush}"
+                                BorderThickness="1" CornerRadius="6" Padding="12,9,12,8">
+                            <StackPanel>
+                                <TextBlock Text="{TemplateBinding Header}" FontWeight="SemiBold" FontSize="11"
+                                           Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,7" />
+                                <ContentPresenter />
+                            </StackPanel>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- One option: label on the left, editor on the right. -->
+        <Style x:Key="Row" TargetType="HeaderedContentControl">
+            <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="HeaderedContentControl">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="92" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{TemplateBinding Header}" VerticalAlignment="Center" />
+                            <ContentPresenter Grid.Column="1" VerticalAlignment="Center" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Combo box that shows enum values as words. -->
+        <Style x:Key="EnumCombo" TargetType="ComboBox">
+            <Setter Property="Height" Value="24" />
+            <Setter Property="ItemTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Converter={StaticResource EnumName}}" />
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome" Background="{StaticResource AccentBrush}" CornerRadius="4" Padding="12,0">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="#3D7DEC" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="#255BBB" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Application.Resources>
+</Application>

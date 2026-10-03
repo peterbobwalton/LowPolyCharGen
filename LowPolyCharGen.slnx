@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="README.md" />
+    <File Path="Directory.Build.props" />
+  </Folder>
+  <Project Path="src/LowPolyCharGen.Core/LowPolyCharGen.Core.csproj" />
+  <Project Path="src/LowPolyCharGen.App/LowPolyCharGen.App.csproj" />
+  <Project Path="src/LowPolyCharGen.Cli/LowPolyCharGen.Cli.csproj" />
+</Solution>

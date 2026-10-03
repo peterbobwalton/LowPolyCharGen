@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>LowPolyCharGen.App</RootNamespace>
+    <AssemblyName>LowPolyCharGen</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LowPolyCharGen.Core\LowPolyCharGen.Core.csproj" />
+  </ItemGroup>
+
+</Project>
