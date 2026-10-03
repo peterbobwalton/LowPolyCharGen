@@ -56,6 +56,9 @@
                                 <Slider Minimum="0" Maximum="1" Value="{Binding Build}" LargeChange="0.1" SmallChange="0.05"
                                         ToolTip="Slim to heavy" />
                             </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource Row}" Header="Grime" ToolTip="Dirt and dust on skin, clothes and kit; mud up the legs">
+                                <Slider Minimum="0" Maximum="1" Value="{Binding Grime}" LargeChange="0.1" SmallChange="0.05" />
+                            </HeaderedContentControl>
                             <HeaderedContentControl Style="{StaticResource Row}" Header="Skin" Margin="0">
                                 <local:ColorPicker Color="{Binding SkinColor}" />
                             </HeaderedContentControl>
@@ -73,6 +76,15 @@
                             </HeaderedContentControl>
                             <HeaderedContentControl Style="{StaticResource Row}" Header="Ears">
                                 <ComboBox Style="{StaticResource EnumCombo}" ItemsSource="{local:EnumValues {x:Type core:EarShape}}" SelectedItem="{Binding Ears}" />
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource Row}" Header="Face cover" ToolTip="Balaclava or shemagh; colour = accent">
+                                <ComboBox Style="{StaticResource EnumCombo}" ItemsSource="{local:EnumValues {x:Type core:FaceCover}}" SelectedItem="{Binding FaceCover}" />
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource Row}" Header="Fatigue" ToolTip="Dark rings and bags under the eyes, red lids, sallow skin">
+                                <Slider Minimum="0" Maximum="1" Value="{Binding Fatigue}" LargeChange="0.1" SmallChange="0.05" />
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource Row}" Header="Stress" ToolTip="Furrowed brow, forehead lines, deep folds, sweat">
+                                <Slider Minimum="0" Maximum="1" Value="{Binding Stress}" LargeChange="0.1" SmallChange="0.05" />
                             </HeaderedContentControl>
                             <HeaderedContentControl Style="{StaticResource Row}" Header="Eye colour">
                                 <local:ColorPicker Color="{Binding EyeColor}" />
@@ -97,8 +109,11 @@
                             <HeaderedContentControl Style="{StaticResource Row}" Header="Colour">
                                 <local:ColorPicker Color="{Binding ShirtColor}" />
                             </HeaderedContentControl>
-                            <HeaderedContentControl Style="{StaticResource Row}" Header="Camouflage" Margin="0" ToolTip="Printed on the shirt, trousers and hat">
+                            <HeaderedContentControl Style="{StaticResource Row}" Header="Camouflage" ToolTip="Printed on the shirt, trousers and hat">
                                 <ComboBox Style="{StaticResource EnumCombo}" ItemsSource="{local:EnumValues {x:Type core:Camouflage}}" SelectedItem="{Binding Camouflage}" />
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource Row}" Header="Camo on" Margin="0" ToolTip="Which garments carry the camouflage">
+                                <ComboBox Style="{StaticResource EnumCombo}" ItemsSource="{local:EnumValues {x:Type core:CamoCoverage}}" SelectedItem="{Binding CamoCoverage}" />
                             </HeaderedContentControl>
                         </StackPanel>
                     </HeaderedContentControl>
@@ -110,6 +125,9 @@
                             </HeaderedContentControl>
                             <HeaderedContentControl Style="{StaticResource Row}" Header="Colour">
                                 <local:ColorPicker Color="{Binding TrousersColor}" />
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource Row}" Header="Footwear">
+                                <ComboBox Style="{StaticResource EnumCombo}" ItemsSource="{local:EnumValues {x:Type core:Footwear}}" SelectedItem="{Binding Footwear}" />
                             </HeaderedContentControl>
                             <HeaderedContentControl Style="{StaticResource Row}" Header="Boots" Margin="0">
                                 <local:ColorPicker Color="{Binding BootsColor}" />

@@ -66,6 +66,7 @@ internal sealed partial class Painter
             Slot.Foot => Foot(t),
             _ => Detail(t, Material(t)),
         };
+        if (_spec.Grime > 0f && t.Slot is not (Slot.Lens or Slot.Dark)) color = Grimy(color, t);
         if (_spec.Rig == RigTarget.ToonSoldiers) return Vector3.Clamp(ToonFinish(color, t), Vector3.Zero, Vector3.One);
 
         // Baked soft lighting: occlusion, and surfaces facing up a touch brighter than those facing down.
@@ -133,6 +134,23 @@ internal sealed partial class Painter
         var folds = Noise.Fbm(new Vector3(p.X * 0.22f, p.Y * 0.22f, p.Z * 0.08f)) - 0.5f;
         var weave = Noise.Value(p * 7f) - 0.5f;
         return color * (1f + 0.18f * folds + 0.05f * weave);
+    }
+
+    /// <summary>
+    /// Dirt: dust and smudges by position over everything, thicker towards the ground (mud up the
+    /// boots and trouser legs) and in the creases that occlusion finds.
+    /// </summary>
+    private Vector3 Grimy(Vector3 color, in Texel t)
+    {
+        var g = _spec.Grime;
+        var p = t.P;
+        var patches = SmoothStep(0.48f, 0.78f, Noise.Fbm(p * 0.21f + new Vector3(9, 4, 2)));
+        var specks = SmoothStep(0.62f, 0.8f, Noise.Value(p * 3.1f));
+        var mud = SmoothStep(18f + 30f * g, 4f, p.Z) * (0.6f + 0.4f * Noise.Fbm(p * 0.5f));
+        var creases = 1f - t.Ao;
+        var amount = g * (0.55f * patches + 0.2f * specks + 0.5f * creases) + g * mud;
+        var dirt = Mix(new Vector3(0.36f, 0.31f, 0.24f), new Vector3(0.24f, 0.19f, 0.14f), mud);
+        return Mix(color, dirt * (0.85f + 0.3f * Noise.Value(p * 0.8f)), Saturate(amount) * 0.75f);
     }
 
     private bool CamoTop => _spec.CamoCoverage != CamoCoverage.TrousersOnly;
@@ -258,7 +276,7 @@ internal sealed partial class Painter
             case Slot.Hat: return Cloth(_hat, p, CamoTop);
             case Slot.HatTrim: return Cloth(_hat * 0.72f, p);
             case Slot.Metal: return Steel * (0.8f + 0.25f * t.N.Z);
-            case Slot.Scarf: return _spec.FaceCover == FaceCover.Shemagh || _spec.Edition == Edition.Militia ? Shemagh(p) : Cloth(_accent, p);
+            case Slot.Scarf: return _spec.FaceCover == FaceCover.Shemagh || _spec.Hat == HatStyle.Keffiyeh || _spec.Edition == Edition.Militia ? Shemagh(p) : Cloth(_accent, p);
             default: return new Vector3(1, 0, 1);
         }
     }

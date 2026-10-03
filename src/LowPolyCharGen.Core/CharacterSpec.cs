@@ -17,13 +17,13 @@ public enum FaceCover { None, Balaclava, Shemagh }
 public enum CamoCoverage { All, TrousersOnly, TopOnly }
 public enum HeadShape { Standard, Square, Round, Slim, Heavy }
 public enum HairStyle { Bald, Buzz, Short, Bob, Long, Ponytail, Bun, Mohawk }
-public enum FacialHair { None, Stubble, Moustache, Goatee, Beard }
+public enum FacialHair { None, Stubble, Moustache, Goatee, Beard, BushyBeard }
 public enum Camouflage { None, Woodland, Digital }
 public enum EarShape { Normal, Pixie, Elephant, StickOut }
 public enum TorsoStyle { TShirt, LongSleeve, RolledSleeves, TankTop, Jacket, Hoodie, Polo, CheckShirt }
-public enum LegsStyle { Trousers, Cargo, Shorts, TallBoots, Skirt, Jeans }
+public enum LegsStyle { Trousers, Cargo, Shorts, TallBoots, Skirt, Jeans, Thobe }
 public enum Footwear { Boots, Trainers }
-public enum HatStyle { None, Helmet, Cap, Beret, Boonie, Beanie }
+public enum HatStyle { None, Helmet, Cap, Beret, Boonie, Beanie, Keffiyeh, Turban }
 public enum EyewearStyle { None, Sunglasses, Goggles }
 public enum BackpackStyle { None, Light, Rucksack, Hydration, Radio }
 public enum VestStyle { None, ChestRig, PlateCarrier }
@@ -54,6 +54,7 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     private Footwear _footwear = Footwear.Boots;
     private FaceCover _faceCover = FaceCover.None;
     private CamoCoverage _camoCoverage = CamoCoverage.All;
+    private float _grime, _fatigue, _stress;
     private int _textureSize = 2048;
     private Rgb _eyeColor = Rgb.FromHex("#5A4630");
     private Rgb _skinColor = Rgb.FromHex("#D9A274");
@@ -93,6 +94,15 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     /// <summary>Balaclava or shemagh over the face; their colour (the shemagh's pattern) is <see cref="AccentColor"/>.</summary>
     public FaceCover FaceCover { get => _faceCover; set => Set(ref _faceCover, value); }
 
+    /// <summary>Dirt and dust on skin, clothes and kit (0 = clean, 1 = filthy, mud up the legs).</summary>
+    public float Grime { get => _grime; set => Set(ref _grime, Math.Clamp(value, 0f, 1f)); }
+
+    /// <summary>Tired face: dark rings and bags under the eyes, red lids, sallow skin, hollow cheeks (0..1).</summary>
+    public float Fatigue { get => _fatigue; set => Set(ref _fatigue, Math.Clamp(value, 0f, 1f)); }
+
+    /// <summary>Strained face: furrowed brow, forehead lines, deep nose-to-mouth folds, sweat (0..1).</summary>
+    public float Stress { get => _stress; set => Set(ref _stress, Math.Clamp(value, 0f, 1f)); }
+
     /// <summary>Which garments <see cref="Camouflage"/> is printed on.</summary>
     public CamoCoverage CamoCoverage { get => _camoCoverage; set => Set(ref _camoCoverage, value); }
 
@@ -110,8 +120,10 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     /// <summary>
     /// Uniform edition. Choosing one sets the clothing, hat, gear, boot and accent colours and a camouflage
     /// pattern (all still editable afterwards), and gives the camouflage that theatre's colours.
-    /// Declared before the colours so a saved preset's own colours win when it is loaded.
+    /// Loading a preset or copying a spec restores the value without those side effects, so the saved
+    /// colours and clothes win (see <see cref="EditionData"/> and <see cref="CopyFrom"/>).
     /// </summary>
+    [JsonIgnore]
     public Edition Edition
     {
         get => _edition;
@@ -154,6 +166,19 @@ public sealed class CharacterSpec : INotifyPropertyChanged
         if (Vest == VestStyle.None) Vest = VestStyle.ChestRig;
         if (Hat is HatStyle.Boonie) Hat = HatStyle.None;
         Footwear = Footwear.Boots;
+    }
+
+    /// <summary>The edition as stored in presets: set without dressing the character.</summary>
+    [JsonInclude, JsonPropertyName("Edition")]
+    internal Edition EditionData
+    {
+        get => _edition;
+        set
+        {
+            if (_edition == value) return;
+            _edition = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Edition)));
+        }
     }
 
     /// <summary>Default colours of an edition (null for <see cref="Edition.Custom"/>).</summary>
@@ -216,8 +241,9 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     public void CopyFrom(CharacterSpec other)
     {
         foreach (var p in typeof(CharacterSpec).GetProperties())
-            if (p is { CanRead: true, CanWrite: true })
+            if (p is { CanRead: true, CanWrite: true } && p.Name != nameof(Edition))
                 p.SetValue(this, p.GetValue(other));
+        EditionData = other.Edition;   // the copied clothes and colours already reflect it
     }
 
     // ---- randomiser ----------------------------------------------------------------------
@@ -310,7 +336,25 @@ public sealed class CharacterSpec : INotifyPropertyChanged
         spec.GearColor = Tone(MilitiaTops);
         spec.AccentColor = Tone(MilitiaWraps);
         spec.BootsColor = Rgb.FromHex(Of("#2A2622", "#1C1C1E", "#4A3A2A"));
+        if (spec.Gender == Gender.Male && spec.FaceCover != FaceCover.Balaclava && Chance(0.55)) spec.FacialHair = FacialHair.BushyBeard;
+        if (spec.Gender == Gender.Male && Chance(0.35))
+        {
+            // Traditional dress: an ankle-length thobe under the webbing, keffiyeh or turban.
+            spec.Torso = TorsoStyle.LongSleeve;
+            spec.Legs = LegsStyle.Thobe;
+            spec.Camouflage = Camouflage.None;
+            spec.Belt = BeltStyle.None;
+            spec.Hat = Of(HatStyle.Keffiyeh, HatStyle.Keffiyeh, HatStyle.Turban);
+            if (spec.FaceCover == FaceCover.Balaclava) spec.FaceCover = FaceCover.None;
+            spec.ShirtColor = Rgb.FromHex(Of("#E8E4DA", "#D8CDB0", "#B9AE96", "#8E8A80", "#6A6A5A", "#4A4A40"));
+            spec.HatColor = Rgb.FromHex(Of("#1E1E20", "#3A3428", "#E8E4DA", "#5A4A3A"));
+            spec.AccentColor = Rgb.FromHex(Of("#7A2A26", "#1E1E20", "#1E1E20"));
+            spec.FacialHair = FacialHair.BushyBeard;
+        }
         if (spec.Gender == Gender.Female && spec.FaceCover == FaceCover.None) spec.FaceCover = FaceCover.Shemagh;
+        spec.Grime = 0.25f + 0.6f * (float)rng.NextDouble();
+        spec.Fatigue = 0.2f + 0.6f * (float)rng.NextDouble();
+        spec.Stress = (float)rng.NextDouble() * 0.8f;
         return spec;
     }
 

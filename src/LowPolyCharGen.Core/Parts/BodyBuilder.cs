@@ -31,6 +31,7 @@ internal static class BodyBuilder
         });
 
         if (c.Spec.Legs == LegsStyle.Skirt) BuildSkirt(c);
+        if (c.Spec.Legs == LegsStyle.Thobe) BuildThobe(c);
         if (c.Spec.Scarf || c.Spec.FaceCover == FaceCover.Shemagh) BuildScarf(c);
     }
 
@@ -137,6 +138,13 @@ internal static class BodyBuilder
                 paint.SockTopZ = 21f;
                 clothing = z => z >= 58f ? 1.3f : z <= 16f ? 0.6f : z <= 21f ? 0.3f : 0f;
                 zs = [74f, 64f, 58f, knee + 4f, knee, knee - 4f, 36f, 22f, 16f, 12f, 7f];
+                break;
+            case LegsStyle.Thobe:
+                paint.TrouserEndZ = 200f;   // under the robe: no trouser legs
+                paint.BootTopZ = 16f;
+                paint.SkirtWorn = true;
+                clothing = z => z <= 16f ? 0.6f : 0f;
+                zs = [74f, 64f, knee + 4f, knee, knee - 4f, 36f, 22f, 16f, 12f, 7f];
                 break;
             case LegsStyle.Skirt:
                 paint.TrouserEndZ = 200f;   // no trouser legs at all
@@ -369,6 +377,20 @@ internal static class BodyBuilder
             widest.HalfWidth + grow, widest.Back + grow, widest.Front + grow, 2.3f);
         c.Mesh.AddLoft([Hem(60f, 3.0f), Hem(76f, 2.0f), c.Torso.RingAt(89f, 0.8f), c.Torso.RingAt(96f, 0.7f), c.Torso.RingAt(102.5f, 0.6f)],
             12, 0, Slot.Trousers, weights, Cap.Flat, Cap.None);
+    }
+
+    /// <summary>Ankle-length robe (thobe) from the waist down, in the shirt's cloth, flaring at the hem.</summary>
+    private static void BuildThobe(BuildContext c)
+    {
+        var thighL = c.Skin.Rigid("thigh_l");
+        var thighR = c.Skin.Rigid("thigh_r");
+        var thighs = Skinning.Blend(thighR, thighL, p => 0.5f + p.X / 10f);
+        var weights = Skinning.Blend(c.Spine, thighs, p => 0.9f * SmoothStep((97f - p.Z) / 16f));
+        var widest = c.Torso.At(89f);
+        Ring Hem(float z, float grow) => new(new Vector3(0, widest.CenterY, z), Left, Back,
+            widest.HalfWidth + grow, widest.Back + grow, widest.Front + grow, 2.3f);
+        c.Mesh.AddLoft([Hem(15f, 6.5f), Hem(35f, 5.0f), Hem(60f, 3.2f), Hem(76f, 2.0f), c.Torso.RingAt(89f, 0.9f), c.Torso.RingAt(96f, 0.8f), c.Torso.RingAt(102.5f, 0.7f)],
+            12, 0, Slot.Shirt, weights, Cap.Flat, Cap.None);
     }
 
     private static void BuildScarf(BuildContext c)

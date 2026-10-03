@@ -158,6 +158,7 @@ internal static class HeadBuilder
     /// <summary>Hair, hats and eyewear (built after the body; these are not welded to the skull).</summary>
     public static void BuildExtras(BuildContext c)
     {
+        if (c.Spec.FacialHair == FacialHair.BushyBeard) BuildBeard(c);
         BuildHair(c);
         BuildHat(c);
         BuildEyewear(c);
@@ -230,6 +231,56 @@ internal static class HeadBuilder
             mesh.AddFan(apex, grid[^1], true, slot, false);
         }
         return lowerEdge;
+    }
+
+    // ---- beard ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// A full, bushy beard: a shell over the jaw and cheeks that grows out and down to a rounded point
+    /// below the chin. Behind the ears its rings sink into the head, so only the front shows.
+    /// </summary>
+    private static void BuildBeard(BuildContext c)
+    {
+        var s = c.HeadScale;
+        const int count = 18;
+        // How far the beard stands off the face at each height (0 = top edge, 1 = chin), and how far down past the chin.
+        float[] levels = [0f, 0.3f, 0.6f, 0.85f, 1f, 1.2f, 1.45f];
+        float[] bulk = [0.3f, 1.4f, 2.2f, 2.8f, 3.0f, 2.6f, 1.2f];
+        var chinZ = c.HeadZ(0.02f);
+        var rings = new List<Vector3[]>();
+        for (var k = 0; k < levels.Length; k++)
+        {
+            var ring = new Vector3[count];
+            for (var i = 0; i < count; i++)
+            {
+                var deg = -180f + 360f * i / count;             // 0 = front
+                var side = MathF.Abs(deg);
+                var covered = side < 104f;
+                // Top edge: under the lower lip at the front, climbing to the cheekbone at the sides.
+                var topT = Lerp(0.17f, 0.42f, SmoothStep(15f, 75f, side));
+                var f = levels[k];
+                Vector3 p;
+                if (f <= 1f)
+                {
+                    var t = Lerp(topT, 0.02f, f);
+                    var off = covered ? bulk[k] * s * (1f - 0.55f * SmoothStep(60f, 104f, side)) : -1.2f;
+                    p = c.Head.Surface(c.HeadZ(t), BuildContext.HeadTheta(deg), off);
+                }
+                else
+                {
+                    // Below the chin the beard narrows to a point under the front of the jaw.
+                    var below = (f - 1f) / 0.45f;
+                    var basis = c.Head.Surface(chinZ, BuildContext.HeadTheta(deg), covered ? bulk[k] * s : -1.2f);
+                    var tip = c.Head.Surface(chinZ, BuildContext.HeadTheta(0f), 1.2f * s);
+                    p = Vector3.Lerp(basis, tip, 0.55f * below) - Up * (5.5f * s * below);
+                    if (!covered) p = Vector3.Lerp(p, tip, 0.8f);
+                }
+                ring[i] = p;
+            }
+            rings.Add(ring);
+        }
+        var tipPoint = MeshBuilder.Centroid(rings[^1]) - Up * 1.2f * s;
+        c.Mesh.AddRingStack(rings, Slot.Hair, c.HeadRigid, null, tipPoint);
     }
 
     // ---- hair ----------------------------------------------------------------------------
@@ -386,6 +437,42 @@ internal static class HeadBuilder
                 }).ToArray();
                 mesh.AddRingStack([inner, Shift(5.5f * s, 1.1f), Shift(5.5f * s, 1.6f), Shift(-0.8f, 1.0f)], Slot.Hat, head);
                 AddScalp(c, edge, offset + 0.3f, Slot.HatTrim, 0.07f);
+                break;
+            }
+            case HatStyle.Keffiyeh:
+            {
+                // Square headcloth over the head and ears, falling behind to the shoulders, held by a black agal.
+                var edge = new ScalpEdge(0.70f, 0.52f, 0.22f, 0.12f);
+                AddScalp(c, edge, 1.0f, Slot.Scarf, tuck: false);
+                var weights = Skinning.Blend(head, c.Spine, p => (c.ChinZ + 2f - p.Z) / 10f);
+                Ring Drape(float z, float inner, float outer, float halfWidth) =>
+                    new(new Vector3(0, (inner + outer) / 2, z), Left, Back, halfWidth, (outer - inner) / 2, 2.6f);
+                var topZ = c.HeadZ(0.45f);
+                var napeZ = c.HeadZ(0.12f);
+                var neckBack = c.HeadCenter.Y + 0.6f * s + c.NeckRadius;
+                c.Mesh.AddLoft(
+                    [
+                        Drape(topZ, c.Head.BackY(topZ, 0) - 7f, c.Head.BackY(topZ, 0) + 1.2f, w + 1.2f),
+                        Drape(napeZ, neckBack - 6f, c.Head.BackY(c.HeadZ(0.3f), 0) + 1.0f, w + 2.2f),
+                        Drape(148f, c.Torso.BackY(148f, 0) - 8f, c.Torso.BackY(148f, 0) + 2.0f, w + 4.0f),
+                        Drape(141f, c.Torso.BackY(141f, 0) - 4f, c.Torso.BackY(141f, 0) + 1.2f, w + 3.2f),
+                    ],
+                    BuildContext.Sides, BuildContext.FlatFront, Slot.Scarf, weights, Cap.None, Cap.Flat);
+                // Agal: two black cords round the crown.
+                AddScalp(c, new ScalpEdge(0.80f, 0.78f, 0.74f, 0.70f), 1.9f, Slot.Dark, 0.035f);
+                AddScalp(c, new ScalpEdge(0.86f, 0.84f, 0.80f, 0.76f), 1.8f, Slot.Dark, 0.03f);
+                break;
+            }
+            case HatStyle.Turban:
+            {
+                // Cloth wound round the head in thick turns, higher at the back.
+                mesh.Detail = PaintDetail.Ribbed;
+                AddScalp(c, new ScalpEdge(0.70f, 0.62f, 0.55f, 0.52f), 2.2f, Slot.Hat);
+                AddScalp(c, new ScalpEdge(0.70f, 0.62f, 0.55f, 0.52f), 3.0f, Slot.HatTrim, 0.10f);
+                AddScalp(c, new ScalpEdge(0.80f, 0.74f, 0.68f, 0.66f), 3.2f, Slot.HatTrim, 0.09f);
+                mesh.Detail = PaintDetail.None;
+                mesh.AddDome(new Vector3(0, c.HeadCenter.Y + 0.6f, c.HeadZ(0.86f)), new Vector3(w + 2.4f, d + 2.4f, 0.22f * h), 180f,
+                    10, 4, Slot.Hat, head, Quaternion.CreateFromAxisAngle(Vector3.UnitX, Deg(-8f)), 2.4f, MathF.PI / 10);
                 break;
             }
             case HatStyle.Beret:

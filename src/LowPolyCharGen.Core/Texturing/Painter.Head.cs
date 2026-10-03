@@ -142,6 +142,29 @@ internal sealed partial class Painter
             color = Mix(color, HairStrands(p), mask * _c.ScalpHairDensity);
         }
 
+        // ---- fatigue and stress ----
+        var fatigue = _spec.Fatigue * face;
+        if (fatigue > 0f)
+        {
+            var bag = Blob((ax - eyeX) / 2.1f, (fz - (eyeZ - 1.05f)) / 0.85f);
+            color *= 1f - 0.5f * fatigue * bag;                                                                    // dark rings and bags
+            color = Mix(color, new Vector3(0.62f, 0.30f, 0.30f), 0.25f * fatigue * Line(MathF.Abs(ax - eyeX) - 0.0f, 1.9f, 0.3f) * Band(fz, eyeZ - 0.55f, eyeZ + 0.75f, 0.12f));   // red lids
+            color *= 1f - 0.26f * fatigue * Blob((ax - 4.9f) / 1.6f, (fz - 6.4f) / 1.7f);                           // hollow cheeks
+            var luma = Vector3.Dot(color, new Vector3(0.3f, 0.59f, 0.11f));
+            color = Mix(color, new Vector3(luma * 1.02f, luma, luma * 0.86f), 0.22f * fatigue);                    // sallow, drained
+        }
+        var stress = _spec.Stress * face;
+        if (stress > 0f)
+        {
+            var browZ = (_c.BrowZ - _c.ChinZ) / s;
+            color *= 1f - 0.5f * stress * Line(ax - 0.55f, 0.09f, 0.08f) * Band(fz, browZ - 0.9f, browZ + 1.3f, 0.3f);     // furrows between the brows
+            var lines = Line(Fract((fz - browZ - 1.6f) / 1.05f) - 0.5f, 0.06f, 0.05f) * Band(fz, browZ + 1.4f, browZ + 4.8f, 0.4f) * (1f - SmoothStep(3.6f, 4.6f, ax));
+            color *= 1f - 0.32f * stress * lines;                                                                   // forehead lines
+            color *= 1f - 0.42f * stress * Line(Segment(ax, fz, 1.75f, 8.6f, 3.1f, mouthZ - 0.4f), 0.13f, 0.12f);   // nose-to-mouth folds
+            var sweat = SmoothStep(0.72f, 0.86f, Noise.Value(p * 2.6f)) * Band(fz, browZ + 0.8f, 19f, 1f);
+            color = Mix(color, color * 1.25f + new Vector3(0.06f), 0.5f * stress * sweat);                        // beads of sweat
+        }
+
         // ---- face coverings ----
         switch (_spec.FaceCover)
         {
@@ -193,6 +216,12 @@ internal sealed partial class Painter
                 return MathF.Max(MathF.Max(moustache, corners), chin * (1f - under) + under * throat * (1f - SmoothStep(2.2f, 2.9f, ax))) * 0.95f;
             case LowPolyCharGen.FacialHair.Beard:
                 return MathF.Max(MathF.Max(moustache, corners), jaw) * 0.96f;
+            case LowPolyCharGen.FacialHair.BushyBeard:
+            {
+                // Full and thick, up onto the cheeks; the beard mesh carries the bulk.
+                var cheeks = (1f - SmoothStep(jawTop + 2.6f, jawTop + 3.4f, fz)) * (1f - SmoothStep(98f, 106f, angle));
+                return MathF.Max(MathF.Max(moustache * 1.1f, corners), MathF.Max(jaw, cheeks));
+            }
             default:   // stubble: the beard's area, speckled and faint
                 var speckle = Noise.Value(p * 14f);
                 return MathF.Max(MathF.Max(moustache, corners), jaw) * (0.2f + 0.3f * speckle);

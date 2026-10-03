@@ -25,8 +25,9 @@ LINEUP = [
     (DEST + "/SK_LPCG_Snow_Scout", None, 369, False, "SM_m249", "Snow scout", "C++ run"),
     (DEST + "/SK_LPCG_Jungle_Rifleman", None, 0, True, "SM_g36c", "Jungle rifleman", "C++ crouch"),
     (DEST + "/SK_LPCG_Jungle_Scout", None, 107, True, "SM_mp5", "Jungle scout", "C++ crouch walk"),
-    (DEST + "/SK_LPCG_Trooper", A + "Handgun/Guard/handgun_guard_idle", 0, False, "SM_usp", "Trooper", "handgun idle"),
-    (DEST + "/SK_LPCG_Ranger", A + "RocketLauncher/Guard/rocketlauncher_guard_idle", 0, False, "SM_smaw", "Ranger", "rocket idle"),
+    (DEST + "/SK_LPCG_Desert_Weathered", None, 0, False, "SM_m4", "Desert rifleman", "grime, fatigue, stress"),
+    (DEST + "/SK_LPCG_Militia_Keffiyeh", A + "RocketLauncher/Guard/rocketlauncher_guard_idle", 0, False, "SM_smaw", "Militia", "keffiyeh, thobe, beard"),
+    (DEST + "/SK_LPCG_Militia_Turban", None, 111, False, "SM_ak12", "Militia", "turban, thobe, C++ walk"),
     (DEST + "/SK_LPCG_Desert_Medic", A + "Handgun/handgun_combat_idle", 0, False, "SM_usp", "Desert medic", "female, handgun idle"),
     (DEST + "/SK_LPCG_Jungle_Sniper", None, 111, False, "SM_m110", "Jungle sniper", "female, C++ walk"),
     (DEST + "/SK_LPCG_Civilian_Hoodie", None, 111, False, None, "Civilian", "hoodie, jeans, C++ walk"),
@@ -54,7 +55,7 @@ def build():
     fwd = unreal.Vector(math.cos(math.radians(yaw)), math.sin(math.radians(yaw)), 0)
     right = unreal.Vector(-fwd.y, fwd.x, 0)
     for i, (mesh, clip, speed, crouch, weapon, line1, line2) in enumerate(LINEUP):
-        loc = origin + fwd * 700 + right * ((i - (len(LINEUP) - 1) / 2.0) * 160)
+        loc = origin + fwd * 700 + right * ((i - (len(LINEUP) - 1) / 2.0) * 150)
         loc.z = ground
         actor = eas.spawn_actor_from_class(unreal.LpcgDisplaySoldier, loc, unreal.Rotator(0, 0, yaw + 180))
         actor.set_actor_label("LPCG_%02d_%s" % (i, line1.replace(" ", "_")))

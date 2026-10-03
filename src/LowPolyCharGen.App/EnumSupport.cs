@@ -21,6 +21,8 @@ public sealed partial class EnumNameConverter : IValueConverter
         ["APose"] = "A-pose",
         ["ToonSoldiers"] = "Toon Soldiers",
         ["Mannequin"] = "UE5 mannequin",
+        ["TrousersOnly"] = "Trousers only",
+        ["TopOnly"] = "Top only",
     };
 
     [GeneratedRegex("(?<=[a-z])(?=[A-Z])")]
