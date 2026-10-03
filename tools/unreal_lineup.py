@@ -49,7 +49,7 @@ def build():
     fwd = unreal.Vector(math.cos(math.radians(yaw)), math.sin(math.radians(yaw)), 0)
     right = unreal.Vector(-fwd.y, fwd.x, 0)
     for i, (mesh, clip, speed, crouch, weapon, line1, line2) in enumerate(LINEUP):
-        loc = origin + fwd * 700 + right * ((i - (len(LINEUP) - 1) / 2.0) * 150)
+        loc = origin + fwd * 700 + right * ((i - (len(LINEUP) - 1) / 2.0) * 175)
         loc.z = ground
         actor = eas.spawn_actor_from_class(unreal.LpcgDisplaySoldier, loc, unreal.Rotator(0, 0, yaw + 180))
         actor.set_actor_label("LPCG_%02d_%s" % (i, line1.replace(" ", "_")))

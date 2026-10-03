@@ -25,7 +25,6 @@ ALpcgDisplaySoldier::ALpcgDisplaySoldier()
 
 	NameText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("Label"));
 	NameText->SetupAttachment(RootComponent);
-	NameText->SetRelativeLocation(FVector(0.f, 0.f, 215.f));
 	NameText->SetHorizontalAlignment(EHTA_Center);
 	NameText->SetWorldSize(14.f);
 }
@@ -57,6 +56,10 @@ void ALpcgDisplaySoldier::Refresh()
 			Anim->bCrouchOverride = bCrouched;
 		}
 	}
+
+	Body->SetRelativeScale3D(FVector(CharacterScale));
+	Weapon->SetRelativeScale3D(FVector(1.f / CharacterScale));
+	NameText->SetRelativeLocation(FVector(0.f, 0.f, 215.f * CharacterScale));
 
 	Weapon->SetStaticMesh(WeaponMesh);
 	if (Weapon->GetAttachSocketName() != WeaponSocket)

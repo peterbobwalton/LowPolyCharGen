@@ -38,11 +38,19 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Soldier")
 	FName WeaponSocket = TEXT("WeaponContainer");
 
+	/**
+	 * Size of the character relative to the pack's (the pack's animations would undo a scale baked into the
+	 * mesh, so it is applied to the mesh component). The weapon is counter-scaled to keep its true size.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Soldier", meta = (ClampMin = "0.5", ClampMax = "2.0"))
+	float CharacterScale = 1.2f;
+
+	/** World speeds; the locomotion blend divides by CharacterScale, so strides stay in step. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Soldier")
-	float WalkSpeed = 220.f;
+	float WalkSpeed = 265.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Soldier")
-	float SprintSpeed = 460.f;
+	float SprintSpeed = 550.f;
 
 	UPROPERTY(EditAnywhere, Category = "Input")
 	TObjectPtr<UInputMappingContext> DefaultMappingContext;
@@ -64,6 +72,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void OnConstruction(const FTransform& Transform) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	virtual void NotifyControllerChanged() override;
 
@@ -73,6 +82,7 @@ private:
 	void StartSprint();
 	void StopSprint();
 	void ToggleCrouch();
+	void ApplyCharacterScale();
 
 	/** Sprint and crouch, which the template has no assets for (built in the constructor). */
 	UPROPERTY()

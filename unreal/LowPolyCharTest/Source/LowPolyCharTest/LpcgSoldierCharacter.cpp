@@ -20,8 +20,6 @@
 
 ALpcgSoldierCharacter::ALpcgSoldierCharacter()
 {
-	GetCapsuleComponent()->InitCapsuleSize(38.f, 90.f);
-
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
 	bUseControllerRotationRoll = false;
@@ -30,8 +28,7 @@ ALpcgSoldierCharacter::ALpcgSoldierCharacter()
 	Movement->bOrientRotationToMovement = true;
 	Movement->RotationRate = FRotator(0.f, 540.f, 0.f);
 	Movement->MaxWalkSpeed = WalkSpeed;
-	Movement->MaxWalkSpeedCrouched = 160.f;
-	Movement->JumpZVelocity = 520.f;
+	Movement->JumpZVelocity = 560.f;
 	Movement->AirControl = 0.35f;
 	Movement->GetNavAgentPropertiesRef().bCanCrouch = true;
 
@@ -41,7 +38,7 @@ ALpcgSoldierCharacter::ALpcgSoldierCharacter()
 	{
 		GetMesh()->SetSkeletalMesh(MeshAsset.Object);
 	}
-	GetMesh()->SetRelativeLocationAndRotation(FVector(0.f, 0.f, -90.f), FRotator(0.f, -90.f, 0.f));
+	GetMesh()->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
 	GetMesh()->SetAnimationMode(EAnimationMode::AnimationBlueprint);
 	GetMesh()->SetAnimInstanceClass(ULpcgLocomotionAnimInstance::StaticClass());
 
@@ -56,8 +53,8 @@ ALpcgSoldierCharacter::ALpcgSoldierCharacter()
 
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(RootComponent);
-	CameraBoom->TargetArmLength = 380.f;
-	CameraBoom->SocketOffset = FVector(0.f, 40.f, 60.f);
+	CameraBoom->TargetArmLength = 440.f;
+	CameraBoom->SocketOffset = FVector(0.f, 45.f, 75.f);
 	CameraBoom->bUsePawnControlRotation = true;
 
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
@@ -87,6 +84,26 @@ ALpcgSoldierCharacter::ALpcgSoldierCharacter()
 	CodeMappingContext->MapKey(CrouchAction, EKeys::C);
 	CodeMappingContext->MapKey(CrouchAction, EKeys::LeftControl);
 	CodeMappingContext->MapKey(CrouchAction, EKeys::Gamepad_FaceButton_Right);
+
+	ApplyCharacterScale();
+}
+
+void ALpcgSoldierCharacter::ApplyCharacterScale()
+{
+	// The pack's characters are about 180 cm tall with their feet at the mesh origin.
+	const float S = CharacterScale;
+	GetCapsuleComponent()->SetCapsuleSize(38.f * S, 90.f * S);
+	GetCharacterMovement()->SetCrouchedHalfHeight(58.f * S);
+	GetCharacterMovement()->MaxWalkSpeedCrouched = 160.f * S;
+	GetMesh()->SetRelativeLocation(FVector(0.f, 0.f, -90.f * S));
+	GetMesh()->SetRelativeScale3D(FVector(S));
+	Weapon->SetRelativeScale3D(FVector(1.f / S));
+}
+
+void ALpcgSoldierCharacter::OnConstruction(const FTransform& Transform)
+{
+	Super::OnConstruction(Transform);
+	ApplyCharacterScale();
 }
 
 void ALpcgSoldierCharacter::BeginPlay()

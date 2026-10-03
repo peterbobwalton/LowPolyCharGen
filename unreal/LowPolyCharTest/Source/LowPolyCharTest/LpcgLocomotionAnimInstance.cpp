@@ -53,7 +53,9 @@ void ULpcgLocomotionAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	}
 	else if (const APawn* Pawn = TryGetPawnOwner())
 	{
-		Speed = Pawn->GetVelocity().Size2D();
+		// The clips' speeds are for an unscaled character; a bigger one covers more ground per stride.
+		const float Scale = FMath::Max(GetSkelMeshComponent()->GetComponentScale().Z, UE_KINDA_SMALL_NUMBER);
+		Speed = Pawn->GetVelocity().Size2D() / Scale;
 		if (const ACharacter* Character = Cast<ACharacter>(Pawn))
 		{
 			bCrouched |= Character->bIsCrouched;

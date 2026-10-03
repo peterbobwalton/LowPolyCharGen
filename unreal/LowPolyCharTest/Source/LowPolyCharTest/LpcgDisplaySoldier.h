@@ -38,6 +38,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Display")
 	bool bCrouched = false;
 
+	/** Size relative to the pack's characters; the weapon is counter-scaled to keep its true size. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Display", meta = (ClampMin = "0.5", ClampMax = "2.0"))
+	float CharacterScale = 1.2f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Display")
 	TObjectPtr<UStaticMesh> WeaponMesh;
 
