@@ -27,6 +27,8 @@ LINEUP = [
     (DEST + "/SK_LPCG_Jungle_Scout", None, 120, True, "SM_mp5", "Jungle scout", "C++ crouch walk"),
     (DEST + "/SK_LPCG_Trooper", A + "Handgun/Guard/handgun_guard_idle", 0, False, "SM_usp", "Trooper", "handgun idle"),
     (DEST + "/SK_LPCG_Ranger", A + "RocketLauncher/Guard/rocketlauncher_guard_idle", 0, False, "SM_smaw", "Ranger", "rocket idle"),
+    (DEST + "/SK_LPCG_Desert_Medic", A + "Handgun/handgun_combat_idle", 0, False, "SM_usp", "Desert medic", "female, handgun idle"),
+    (DEST + "/SK_LPCG_Jungle_Sniper", None, 170, False, "SM_m110", "Jungle sniper", "female, C++ walk"),
 ]
 
 les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
@@ -47,7 +49,7 @@ def build():
     fwd = unreal.Vector(math.cos(math.radians(yaw)), math.sin(math.radians(yaw)), 0)
     right = unreal.Vector(-fwd.y, fwd.x, 0)
     for i, (mesh, clip, speed, crouch, weapon, line1, line2) in enumerate(LINEUP):
-        loc = origin + fwd * 700 + right * ((i - (len(LINEUP) - 1) / 2.0) * 170)
+        loc = origin + fwd * 700 + right * ((i - (len(LINEUP) - 1) / 2.0) * 150)
         loc.z = ground
         actor = eas.spawn_actor_from_class(unreal.LpcgDisplaySoldier, loc, unreal.Rotator(0, 0, yaw + 180))
         actor.set_actor_label("LPCG_%02d_%s" % (i, line1.replace(" ", "_")))
@@ -100,4 +102,9 @@ def tick(dt):
         log(traceback.format_exc())
         state["phase"] = "quit"; state["at"] = state["tick"]
 
-state["handle"] = unreal.register_slate_post_tick_callback(tick)
+if globals().get("LPCG_INTERACTIVE"):
+    # Run from an open editor (see lpct_refresh.py): just rebuild the lineup, no Play-in-Editor, no quitting.
+    build()
+    LOG.close()
+else:
+    state["handle"] = unreal.register_slate_post_tick_callback(tick)

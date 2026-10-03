@@ -215,25 +215,26 @@ internal sealed class BuildContext
             Sec(96f, 2.1f, 16.8f, 9.8f, 10.6f);
             Sec(102f, 2.2f, 13.6f, 9.2f, 9.0f);
             Sec(111f, 2.5f, 12.6f, 9.0f, 8.6f);
-            Sec(121f, 2.4f, 13.6f, 10.6f, 9.2f);
-            Sec(130f, 2.0f, 14.8f, 12.8f, 9.6f);
-            Sec(137.5f, 1.4f, 15.4f, 11.6f, 9.8f);
+            Sec(121f, 2.4f, 13.4f, 12.8f, 9.2f);    // under the bust
+            Sec(130f, 2.0f, 15.2f, 18.6f, 9.6f);    // bust
+            Sec(137.5f, 1.4f, 15.6f, 15.0f, 9.8f);
             Sec(143.6f, 0.8f, 15.4f, 10.0f, 9.8f);
             Sec(149.5f, 0.2f, 12.6f, 8.0f, 9.0f);
             Sec(153.2f, -0.2f, 6.4f, 5.6f, 6.4f);
         }
         else
         {
-            Sec(81.5f, 2.0f, 18.2f, 9.6f, 10.4f);
-            Sec(89f, 2.0f, 18.2f, 10.4f, 11.6f);
-            Sec(96f, 2.1f, 17.0f, 10.6f, 10.8f);
-            Sec(102f, 2.2f, 15.4f, 10.5f, 9.6f);
-            Sec(111f, 2.5f, 14.6f, 10.4f, 9.2f);
-            Sec(121f, 2.4f, 15.4f, 11.2f, 10.0f);
-            Sec(130f, 2.0f, 16.6f, 12.2f, 10.8f);
-            Sec(137.5f, 1.4f, 17.2f, 12.0f, 11.0f);
-            Sec(143.6f, 0.8f, 17.0f, 11.0f, 10.8f);
-            Sec(149.5f, 0.2f, 14.0f, 8.6f, 9.6f);
+            // Muscular: deep chest and lats over a narrow waist (the V-taper), heavy traps.
+            Sec(81.5f, 2.0f, 17.8f, 9.6f, 10.4f);
+            Sec(89f, 2.0f, 17.4f, 10.2f, 11.4f);
+            Sec(96f, 2.1f, 15.2f, 10.0f, 10.2f);
+            Sec(102f, 2.2f, 13.2f, 9.8f, 9.0f);
+            Sec(111f, 2.5f, 12.8f, 10.0f, 8.8f);    // waist
+            Sec(121f, 2.4f, 15.8f, 12.4f, 11.0f);
+            Sec(130f, 2.0f, 18.8f, 14.8f, 12.6f);   // pecs and lats
+            Sec(137.5f, 1.4f, 19.0f, 14.0f, 12.6f);
+            Sec(143.6f, 0.8f, 18.4f, 12.0f, 11.8f);
+            Sec(149.5f, 0.2f, 16.0f, 9.2f, 10.8f);  // traps
             Sec(153.2f, -0.2f, 7.2f, 6.2f, 7.2f);
         }
         return p;
@@ -249,8 +250,10 @@ internal sealed class BuildContext
             Scale = ArmScale,
         };
         // (distance along the arm, radius front/back, radius up, radius down)
-        arm.Add(16.5f, 6.3f, 6.2f, 6.2f)
-           .Add(22.5f, 5.9f, 6.0f, 5.6f)
+        // Men get rounder deltoids, which is what makes the shoulders read broad.
+        var delt = Female ? 1f : 1.25f;
+        arm.Add(16.5f, 6.3f * delt, 6.2f * delt, 6.2f)
+           .Add(22.5f, 5.9f * delt, 6.0f * delt, 5.6f)
            .Add(31f, 5.2f, 5.1f, 5.2f)
            .Add(ElbowX - 3.5f, 4.7f, 4.6f, 4.7f)
            .Add(ElbowX, 4.5f, 4.4f, 4.5f)
