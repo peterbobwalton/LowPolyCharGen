@@ -19,6 +19,9 @@ ALpcgDisplaySoldier::ALpcgDisplaySoldier()
 	Body->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
 	Body->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	Body->SetUpdateAnimationInEditor(true);
+	// Crowds: distant soldiers animate at a lower rate and off-screen ones don't evaluate a pose at all.
+	Body->bEnableUpdateRateOptimizations = true;
+	Body->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;
 
 	Weapon = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Weapon"));
 	Weapon->SetupAttachment(Body, WeaponSocket);
@@ -60,8 +63,7 @@ void ALpcgDisplaySoldier::Refresh()
 		// The instance reads speed, stance and clips from this actor when it initialises; push them for the live one too.
 		if (ULpcgLocomotionAnimInstance* Anim = Cast<ULpcgLocomotionAnimInstance>(Body->GetAnimInstance()))
 		{
-			Anim->Standing = Standing;
-			Anim->Crouching = Crouching;
+			Anim->SetSets(Standing, Crouching);
 			Anim->SpeedOverride = LocomotionSpeed;
 			Anim->bCrouchOverride = bCrouched;
 		}

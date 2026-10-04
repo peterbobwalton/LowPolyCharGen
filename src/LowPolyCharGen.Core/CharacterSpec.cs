@@ -55,7 +55,7 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     private FaceCover _faceCover = FaceCover.None;
     private CamoCoverage _camoCoverage = CamoCoverage.All;
     private float _grime, _fatigue, _stress;
-    private int _textureSize = 2048;
+    private int _textureSize = 1024;
     private Rgb _eyeColor = Rgb.FromHex("#5A4630");
     private Rgb _skinColor = Rgb.FromHex("#D9A274");
     private Rgb _hairColor = Rgb.FromHex("#4A3222");
@@ -67,7 +67,7 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     private Rgb _accentColor = Rgb.FromHex("#5C4630");
 
     /// <summary>Used for the FBX object names and the default file name.</summary>
-    public string Name { get => _name; set => Set(ref _name, value); }
+    public string Name { get => _name; set => Set(ref _name, string.IsNullOrWhiteSpace(value) ? "Character" : value); }
 
     /// <summary>
     /// ToonSoldiers: chunky toon proportions on the Toon Soldiers pack skeleton (Bip001), so the pack's

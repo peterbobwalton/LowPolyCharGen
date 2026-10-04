@@ -39,6 +39,8 @@ $blenderArgs = @("-b", "--factory-startup", "--python", "$PSScriptRoot\blender_p
 if ($Pose) { $blenderArgs += "--pose" }
 if ($Head) { $blenderArgs += "--head" }
 if ($Report) { $blenderArgs += "--report" }
+Remove-Item $Out -ErrorAction SilentlyContinue   # so the check below sees this run's sheet
 $ErrorActionPreference = "Continue"
 & $Blender @blenderArgs 2>&1 | ForEach-Object { "$_" } |
     Where-Object { $_ -match "^(===|ARMATURE|MESH|   |wrote|Traceback|.*Error)" -and $_ -notmatch "Saved:" }
+if (-not (Test-Path $Out)) { throw "Blender did not write $Out" }

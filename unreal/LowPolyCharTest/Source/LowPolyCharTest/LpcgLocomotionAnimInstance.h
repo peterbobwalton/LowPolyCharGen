@@ -81,6 +81,12 @@ public:
 	 */
 	static void FindDefaultInfantrySets(FLpcgLocomotionSet& OutStanding, FLpcgLocomotionSet& OutCrouching);
 
+	/**
+	 * Sets the clips. Gaits without a clip or speed are dropped and the rest sorted by speed, so a half-edited
+	 * set in the Details panel can't break the blend. The proxy copies the sets only when they change.
+	 */
+	void SetSets(const FLpcgLocomotionSet& InStanding, const FLpcgLocomotionSet& InCrouching);
+
 	/** Reads the pawn's ground speed and stance (game thread; the proxy calls it before each update). */
 	void UpdateLocomotionState(float DeltaSeconds);
 
@@ -89,6 +95,11 @@ protected:
 	virtual void NativeInitializeAnimation() override;
 	virtual FAnimInstanceProxy* CreateAnimInstanceProxy() override;
 	virtual void DestroyAnimInstanceProxy(FAnimInstanceProxy* InProxy) override;
+
+private:
+	friend struct FLpcgLocomotionProxy;
+	/** Bumped by SetSets; the proxy re-copies the sets when it differs from the version it holds. */
+	uint32 SetsVersion = 1;
 };
 
 /** Evaluates the locomotion blend on the animation worker thread. */
@@ -110,6 +121,8 @@ private:
 		float Alpha = 0.f;
 		float PlayRate = 1.f;
 		bool bAIsIdle = true;
+		/** Seconds per gait cycle at this speed (0 = no gait clip playing). */
+		float Cycle = 0.f;
 	};
 	FGaitBlend Resolve(const FLpcgLocomotionSet& Set) const;
 	void EvaluateSet(const FLpcgLocomotionSet& Set, FPoseContext& Output) const;
@@ -117,6 +130,7 @@ private:
 
 	FLpcgLocomotionSet Standing;
 	FLpcgLocomotionSet Crouching;
+	uint32 SetsVersion = 0;
 	float Speed = 0.f;
 	float CrouchAlpha = 0.f;
 	double IdleTime = 0.0;

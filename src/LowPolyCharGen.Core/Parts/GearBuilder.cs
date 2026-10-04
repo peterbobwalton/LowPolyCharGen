@@ -230,6 +230,12 @@ internal static class GearBuilder
             Pouch(118f, new Vector3(3.0f, 2.6f, 5.2f), Slot.Accent, 2.6f, 0.75f);   // canteen
 
             // Drop-leg holster on the right thigh, with a strap round the leg and one up to the belt.
+            // Not over a skirt or a thobe: it would be half inside the cloth.
+            if (c.Spec.Legs is LegsStyle.Skirt or LegsStyle.Thobe)
+            {
+                mesh.Detail = PaintDetail.None;
+                return;
+            }
             var leg = c.LegL;
             const float holsterZ = 76f;
             var centre = leg.Center(holsterZ);

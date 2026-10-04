@@ -31,7 +31,7 @@ grime) and `<name>.json` (the options, a preset). Blend the layer in a material 
 | Torso     | T-shirt, long sleeve, rolled sleeves, tank top, jacket, hoodie, polo, check shirt; colour; camouflage (woodland, digital) |
 | Legs      | trousers, cargo, shorts, tall boots, skirt, jeans, thobe; boots or trainers; trouser and boot colours |
 | Add-ons   | hat (helmet, cap, beret, boonie, beanie, keffiyeh, turban), eyewear, backpack (light, rucksack, hydration, radio), vest (chest rig, plate carrier), belt (plain, pouches, utility with holster), gloves, scarf, knee and elbow pads; hat, gear and accent colours |
-| Output    | texture size (512, 1024 or 2048), flat or smooth shading, IK bones on/off (mannequin rig) |
+| Output    | texture size (512, 1024 by default, or 2048), flat or smooth shading, IK bones on/off (mannequin rig) |
 
 The preview can show the skeleton and a few test poses (A-pose, relaxed, walk, action) so the skin
 weights can be judged. Poses are preview only: the export is always the T-pose bind.

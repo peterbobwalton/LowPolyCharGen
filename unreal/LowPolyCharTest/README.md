@@ -32,6 +32,12 @@ their intended size. Attaching to the bare `WeaponContainer` bone makes every gu
 Militia use the Militia pack's own weapons (AK-47, AKSU, PKM, RPG-7, SVD, pistols...), which are
 authored for the same socket.
 
+**Crowds.** Built for hundreds of soldiers on screen. Each character is one draw call (one material),
+24 bones with at most 4 weights per vertex, and 1024 textures by default. `tools/import_unreal.py` adds two
+reduced LODs (about half and a quarter of the triangles; `--lods=1` for none). Both soldier classes turn on
+update rate optimisation (distant soldiers animate at a lower rate) and only evaluate a pose when rendered.
+`CharacterScale` goes on the capsule, so crouching keeps a scaled soldier's capsule size.
+
 **Grime layer.** `tools/import_unreal.py` builds `M_LPCG_Character` (once): BaseColor =
 `lerp(Texture, GrimeTexture.rgb, GrimeTexture.a * GrimeAmount)`, and gives each character a
 material instance with its grime layer and `GrimeAmount` from its exported JSON. At runtime

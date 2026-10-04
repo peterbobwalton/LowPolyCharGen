@@ -153,13 +153,15 @@ internal sealed class BuildContext
         HeadHalfDepth = 9.6f * s;
         HeadExp = 2.2f;
         NeckRadius = (Female ? 4.8f : 5.5f) * Geo.Lerp(0.95f, 1.1f, spec.Build);
-        JawLine = [0f, 0.004f, 0.03f, 0.10f, jawCorner, 0.27f, 0.27f, 0.25f];
+        // The front of the jaw line is raised a little and kept flat across the chin, so the chin is
+        // blunt and rounded like the pack's rather than a wedge pointing down and forward.
+        JawLine = [0.08f, 0.082f, 0.095f, 0.135f, jawCorner, 0.27f, 0.27f, 0.25f];
 
         Head = new Profile();
         void Sec(float t, float halfWidth, float front, float back, float exp) =>
             Head.Add(HeadZ(t), centerFront, halfWidth * s, front * s, back * s, exp);
-        Sec(0.00f, chin, 8.3f, 4.0f, jawExp);
-        Sec(0.10f, Geo.Lerp(chin, jaw, 0.72f), 9.0f, 4.6f, jawExp);
+        Sec(0.00f, chin * 1.3f, 6.9f, 4.0f, jawExp);
+        Sec(0.10f, Geo.Lerp(chin * 1.3f, jaw, 0.72f), 8.5f, 4.6f, jawExp);
         Sec(0.20f, jaw, 9.3f, 6.2f, jawExp);
         Sec(0.33f, Geo.Lerp(jaw, cheek, 0.75f), 9.4f, 8.4f, 2.3f);
         Sec(0.42f, cheek, 9.3f, 9.2f, 2.25f);

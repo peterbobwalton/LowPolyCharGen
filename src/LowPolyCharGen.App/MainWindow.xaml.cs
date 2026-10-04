@@ -81,6 +81,8 @@ public partial class MainWindow : Window
     /// Builds the mesh and paints its texture on a worker thread, then swaps both into the preview.
     /// Changes made while a build is running start one more build when it finishes.
     /// </summary>
+    private const string BuildErrorPrefix = "Could not build the character: ";
+
     private async void RebuildModel()
     {
         if (_building)
@@ -105,17 +107,24 @@ public partial class MainWindow : Window
                 _model = model;
                 _texture = texture;
                 RefreshScene();
+                if (StatusText.Text.StartsWith(BuildErrorPrefix, StringComparison.Ordinal)) StatusText.Text = "";
             }
             while (_buildAgain);
         }
         catch (Exception ex)
         {
-            StatusText.Text = "Could not build the character: " + ex.Message;
+            StatusText.Text = BuildErrorPrefix + ex.Message;
         }
         finally
         {
             _building = false;
             BusyText.Visibility = Visibility.Collapsed;
+        }
+        // A change made while the failed build ran may well be valid: build it.
+        if (_buildAgain)
+        {
+            RebuildModel();
+            return;
         }
 
         if (_screenshotPath is { } path)

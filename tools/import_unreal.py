@@ -8,7 +8,7 @@ Every <name>.fbx in a folder (with its <name>_Diffuse.png) becomes, under the de
 and the pack's physics asset is assigned, so the character drops into anything built for the pack.
 
 Run inside the editor (Tools > Execute Python Script, or the Output Log's Python console):
-  py "C:/source/Claude/LowPolyCharGen/tools/import_unreal.py" "D:/out" [/Game/LowPolyCharGen] [--mannequin]
+  py "C:/source/Claude/LowPolyCharGen/tools/import_unreal.py" "D:/out" [/Game/LowPolyCharGen] [--mannequin] [--lods=N]
 or headless:
   UnrealEditor-Cmd.exe Project.uproject -run=pythonscript -script="import_unreal.py D:/out /Game/LowPolyCharGen"
 """
@@ -25,6 +25,7 @@ TOON_MATERIAL = PACK + "/Materials/M_Armies_Parent"
 LAYERED_MATERIAL_DIR = "/Game/LowPolyCharGen/Materials"
 LAYERED_MATERIAL = LAYERED_MATERIAL_DIR + "/M_LPCG_Character"
 MANNEQUIN_SKELETON = "/Game/Characters/Mannequins/Meshes/SK_Mannequin"
+DEFAULT_LODS = 3   # LOD0 + two reduced levels; --lods=1 imports the full mesh only
 
 
 def import_task(filename, destination, name, options=None):
@@ -84,7 +85,15 @@ def layered_material():
     return mat
 
 
-def import_character(fbx, destination, mannequin):
+def add_lods(mesh, count):
+    """
+    Lower-detail versions for crowds: Unreal's skeletal mesh reduction, each LOD half the triangles of the
+    one before (about 2,400 -> 1,200 -> 600 tris), switched by screen size.
+    """
+    unreal.get_editor_subsystem(unreal.SkeletalMeshEditorSubsystem).regenerate_lod(mesh, count, True, False)
+
+
+def import_character(fbx, destination, mannequin, lods=DEFAULT_LODS):
     base = os.path.splitext(os.path.basename(fbx))[0]
     skeleton = unreal.load_asset(MANNEQUIN_SKELETON if mannequin else TOON_SKELETON)
     if skeleton is None:
@@ -145,6 +154,8 @@ def import_character(fbx, destination, mannequin):
         physics = unreal.load_asset(TOON_PHYSICS)
         if physics is not None:
             mesh.set_editor_property("physics_asset", physics)
+        if lods > 1:
+            add_lods(mesh, lods)
         unreal.EditorAssetLibrary.save_loaded_asset(mesh)
 
     unreal.log("LPCG imported %s -> %s (skeleton %s)" % (fbx, mesh.get_path_name(), mesh.skeleton.get_path_name()))
@@ -158,9 +169,10 @@ def main(argv):
     folder = args[0]
     destination = args[1] if len(args) > 1 else "/Game/LowPolyCharGen"
     mannequin = "--mannequin" in argv
+    lods = next((int(a.split("=", 1)[1]) for a in argv if a.startswith("--lods=")), DEFAULT_LODS)
     files = sorted(os.path.join(folder, f) for f in os.listdir(folder) if f.lower().endswith(".fbx"))
     for fbx in files:
-        import_character(fbx, destination, mannequin)
+        import_character(fbx, destination, mannequin, lods)
     unreal.log("LPCG done: %d character(s)" % len(files))
 
 

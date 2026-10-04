@@ -17,7 +17,7 @@ eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 TOES = ("Bip001-L-Toe0", "Bip001-R-Toe0")
 FLOOR_Z = -10000.0
 START = unreal.Vector(0, -15000, FLOOR_Z + 120)
-PHASES = [("walk", 220), ("move", 220), ("sprint", 200), ("crouch", 220)]
+PHASES = [("walk", 220), ("blend", 220), ("move", 220), ("sprint", 200), ("crouch", 220)]
 state = {"tick": 0, "step": "start", "samples": [], "phase": 0, "t0": 0}
 
 RAW = {}
@@ -84,6 +84,8 @@ def tick(dt):
                 move = pawn.character_movement
                 if name == "walk":
                     move.set_editor_property("max_walk_speed", 111.5 * pawn.get_editor_property("character_scale"))
+                elif name == "blend":   # between walk and run: both clips blended
+                    move.set_editor_property("max_walk_speed", 240.0 * pawn.get_editor_property("character_scale"))
                 elif name == "move":
                     move.set_editor_property("max_walk_speed", pawn.get_editor_property("move_speed"))
                 elif name == "sprint":

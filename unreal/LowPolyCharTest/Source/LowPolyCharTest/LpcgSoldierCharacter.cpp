@@ -41,6 +41,9 @@ ALpcgSoldierCharacter::ALpcgSoldierCharacter()
 	GetMesh()->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
 	GetMesh()->SetAnimationMode(EAnimationMode::AnimationBlueprint);
 	GetMesh()->SetAnimInstanceClass(ULpcgLocomotionAnimInstance::StaticClass());
+	// Crowds: distant soldiers animate at a lower rate and off-screen ones don't evaluate a pose at all.
+	GetMesh()->bEnableUpdateRateOptimizations = true;
+	GetMesh()->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;
 
 	Weapon = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Weapon"));
 	Weapon->SetupAttachment(GetMesh(), WeaponSocket);
@@ -82,12 +85,15 @@ ALpcgSoldierCharacter::ALpcgSoldierCharacter()
 
 void ALpcgSoldierCharacter::ApplyCharacterScale()
 {
-	// The pack's characters are about 180 cm tall with their feet at the mesh origin.
-	const float S = CharacterScale;
-	GetCapsuleComponent()->SetCapsuleSize(38.f * S, 90.f * S);
-	GetCharacterMovement()->SetCrouchedHalfHeight(58.f * S);
-	GetMesh()->SetRelativeLocation(FVector(0.f, 0.f, -90.f * S));
-	GetMesh()->SetRelativeScale3D(FVector(S));
+	// The pack's characters are about 180 cm tall with their feet at the mesh origin. The scale goes on the
+	// capsule (the root), not the mesh: crouching restores the class default's capsule and mesh offset, which
+	// would lose a per-instance size, but it does respect the capsule's scale. The mesh inherits it, so the
+	// anim instance still sees it in the mesh's world scale.
+	GetCapsuleComponent()->SetCapsuleSize(38.f, 90.f);
+	GetCapsuleComponent()->SetRelativeScale3D(FVector(CharacterScale));
+	GetCharacterMovement()->SetCrouchedHalfHeight(58.f);
+	GetMesh()->SetRelativeLocation(FVector(0.f, 0.f, -90.f));
+	GetMesh()->SetRelativeScale3D(FVector::OneVector);
 }
 
 void ALpcgSoldierCharacter::PostInitializeComponents()
@@ -126,7 +132,7 @@ void ALpcgSoldierCharacter::BeginPlay()
 	Super::BeginPlay();
 	if (Grime >= 0.f) SetGrime(Grime);
 	Weapon->SetRelativeScale3D(FVector::OneVector);   // the socket carries the scale
-	if (Weapon && Weapon->GetAttachSocketName() != WeaponSocket)
+	if (Weapon->GetAttachSocketName() != WeaponSocket)
 	{
 		Weapon->AttachToComponent(GetMesh(), FAttachmentTransformRules(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, EAttachmentRule::KeepRelative, false), WeaponSocket);
 	}

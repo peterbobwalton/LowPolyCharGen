@@ -105,7 +105,8 @@ internal static class BodyBuilder
                 break;
         }
         var end = c.Paint.SleeveEndX;
-        var sleeve = rings.Where(r => r.T < end).Select(r => r.Clothing).DefaultIfEmpty(0f).Max();
+        // The sleeve's own cloth, from its first ring: a rolled cuff further down is thicker but is not the sleeve.
+        var sleeve = rings.Count > 0 && rings[0].T < end ? rings[0].Clothing : 0f;
         c.ArmL.Clothing = x => x < end ? sleeve : 0f;
         return rings;
     }
@@ -165,10 +166,14 @@ internal static class BodyBuilder
         c.LegL.Clothing = clothing;
         foreach (var z in zs)
         {
-            rings.Add(new LimbRing(z, clothing(z)));
-            // A hem: the garment stops here, so add the ring of what is underneath it.
+            // A hem on either side of the ring (the garment changes just above or just below it): add the
+            // ring of the other layer at the same height, so the step is a lip and not a cone.
+            var at = clothing(z);
+            var above = clothing(z + 0.05f);
+            if (MathF.Abs(above - at) > 0.25f) rings.Add(new LimbRing(z, above));
+            rings.Add(new LimbRing(z, at));
             var below = clothing(z - 0.05f);
-            if (MathF.Abs(below - clothing(z)) > 0.25f) rings.Add(new LimbRing(z, below));
+            if (MathF.Abs(below - at) > 0.25f) rings.Add(new LimbRing(z, below));
         }
         return rings;
     }

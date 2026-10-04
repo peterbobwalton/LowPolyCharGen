@@ -72,7 +72,9 @@ static int Run(string[] args)
         for (var i = 0; i + 1 < args.Length; i++)
             if (args[i] == "--set")
                 Apply(spec, args[i + 1]);
-        if (Option("--preset") is null && !args.Contains("--set")) spec.Name = Path.GetFileNameWithoutExtension(outPath);
+        // Named after the file unless a preset or a Name= override names it (else every export is "Character").
+        var named = args.Any(a => a.StartsWith("Name=", StringComparison.OrdinalIgnoreCase));
+        if (Option("--preset") is null && !named) spec.Name = Path.GetFileNameWithoutExtension(outPath);
         Export(spec, outPath);
         return 0;
     }

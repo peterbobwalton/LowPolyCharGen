@@ -6,6 +6,7 @@ param([string] $OutDir = (Join-Path (Split-Path $PSScriptRoot -Parent) "out\char
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
 dotnet build "$root\src\LowPolyCharGen.Cli\LowPolyCharGen.Cli.csproj" -c Release -nologo -v q | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "build failed" }
 $cli = "$root\src\LowPolyCharGen.Cli\bin\Release\net10.0\lowpolychargen.exe"
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 
