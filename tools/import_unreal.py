@@ -47,10 +47,18 @@ def layered_material():
     BaseColor = lerp(Texture.rgb, GrimeTexture.rgb, GrimeTexture.a * GrimeAmount). Created once.
     """
     if unreal.EditorAssetLibrary.does_asset_exist(LAYERED_MATERIAL):
-        return unreal.load_asset(LAYERED_MATERIAL)
+        mat = unreal.load_asset(LAYERED_MATERIAL)
+        if not mat.get_editor_property("used_with_skeletal_mesh"):
+            # older copies lacked the flag: the meshes then render with the default grey material
+            mat.set_editor_property("used_with_skeletal_mesh", True)
+            unreal.MaterialEditingLibrary.recompile_material(mat)
+            unreal.EditorAssetLibrary.save_loaded_asset(mat)
+        return mat
     mel = unreal.MaterialEditingLibrary
     mat = unreal.AssetToolsHelpers.get_asset_tools().create_asset(
         "M_LPCG_Character", LAYERED_MATERIAL_DIR, unreal.Material, unreal.MaterialFactoryNew())
+    # set up front: without it some imported meshes get the default material in game and in thumbnails
+    mat.set_editor_property("used_with_skeletal_mesh", True)
     tex = mel.create_material_expression(mat, unreal.MaterialExpressionTextureSampleParameter2D, -700, -200)
     tex.set_editor_property("parameter_name", "Texture")
     tex.set_editor_property("texture", unreal.load_asset("/Engine/EngineResources/WhiteSquareTexture"))

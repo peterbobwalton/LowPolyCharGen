@@ -54,7 +54,7 @@ public static class ToonRig
     private static readonly Vector3 Hand = new(1.05f, 1.45f, 1.40f);    // along, up, front (the fist itself is built by BodyBuilder)
     private static readonly Vector3 Thigh = new(1f, 1.40f, 1.32f);
     private static readonly Vector3 Calf = new(1f, 1.45f, 1.38f);
-    private static readonly Vector3 Foot = new(1.50f, 1.38f, 1.0f);    // side, forward, up (up comes from the ankle height)
+    private static readonly Vector3 Foot = new(1.50f, 1.24f, 1.0f);    // side, forward, up (up comes from the ankle height)
 
     /// <summary>Reshapes <paramref name="mesh"/> (built on <paramref name="design"/>) for the Toon Soldiers skeleton.</summary>
     public static (Skeleton Skeleton, MeshData Mesh) Convert(Skeleton design, MeshData mesh, float creaseDegrees)
