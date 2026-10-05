@@ -28,9 +28,9 @@ grime) and `<name>.json` (the options, a preset). Blend the layer in a material 
 |-----------|---------|
 | Character | name, grime, rig (Toon Soldiers or UE5 mannequin), edition (desert, snow, jungle, civilian, militia), gender, build (slim to heavy), skin tone |
 | Head      | face cover (balaclava, shemagh); fatigue and stress; face shape (standard, square, round, slim, heavy), size, ears (normal, pixie, elephant, stick out), eye colour, hair (8 styles), facial hair (stubble, moustache, goatee, beard, bushy beard), hair colour |
-| Torso     | T-shirt, long sleeve, rolled sleeves, tank top, jacket, hoodie, polo, check shirt; colour; camouflage (woodland, digital) |
+| Torso     | T-shirt, long sleeve, rolled sleeves, tank top, jacket, hoodie, polo, check shirt; colour; camouflage (woodland, digital, chocolate chip) |
 | Legs      | trousers, cargo, shorts, tall boots, skirt, jeans, thobe; boots or trainers; trouser and boot colours |
-| Add-ons   | hat (helmet, cap, beret, boonie, beanie, keffiyeh, turban), eyewear, backpack (light, rucksack, hydration, radio), vest (chest rig, plate carrier), belt (plain, pouches, utility with holster), gloves, scarf, knee and elbow pads; hat, gear and accent colours |
+| Add-ons   | hat (helmet, cap, beret, boonie, beanie, keffiyeh, turban), eyewear, backpack (light, rucksack, hydration, radio, demolition, tools), vest (chest rig, plate carrier), belt (plain, pouches, utility with holster), gloves, scarf, knee and elbow pads; hat, gear and accent colours |
 | Output    | texture size (512, 1024 by default, or 2048), flat or smooth shading, IK bones on/off (mannequin rig) |
 
 The preview can show the skeleton and a few test poses (A-pose, relaxed, walk, action) so the skin
@@ -88,6 +88,11 @@ the nose and mouth, with a matching scarf) works with any edition; its colour is
 Traditional dress: `Legs = Thobe` (ankle-length robe in the shirt's cloth), `Hat = Keffiyeh` (headcloth
 in the shemagh pattern, draped to the shoulders, black agal) or `Turban`; `FacialHair = BushyBeard`
 is a real beard mesh. The militia randomiser dresses about a third of the men this way.
+
+`Camouflage = ChocolateChip` is the 1991 US six-colour desert pattern (tan, khaki and brown blobs with
+black and white rocks) in its own fixed colours, whatever the edition. `Backpack = Demolition` straps
+explosive blocks (in `AccentColor`) and a det-cord coil to a small pack; `Tools` is a rucksack with an
+entrenching tool and a pick. `tools/make_desert_storm.ps1` exports the OpDesertStorm cast with them.
 
 **Weathering** (painted, 0..1): `Grime` (dust and smudges everywhere, dirt in creases, mud up the
 legs), `Fatigue` (dark rings and bags under the eyes, red lids, sallow skin, hollow cheeks) and

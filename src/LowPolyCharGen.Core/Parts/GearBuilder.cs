@@ -183,6 +183,36 @@ internal static class GearBuilder
                 AddShoulderStraps(c, 8.5f, 121f, 139f, 1.9f, Slot.GearTrim);
                 break;
             }
+            case BackpackStyle.Demolition:
+            {
+                Body(110f, 144f, 12f, 5.2f, Slot.Gear);
+                // Two columns of three explosive blocks strapped on the outside, a det-cord coil underneath.
+                var outer = backY + 10.4f;
+                mesh.Detail = PaintDetail.Pouch;
+                for (var row = 0; row < 3; row++)
+                    mesh.Mirrored(m => m.AddBox(new Vector3(5.2f, outer + 2.0f, 117.5f + row * 8.6f), new Vector3(4.6f, 2.0f, 4.0f), Slot.Accent, pack));
+                mesh.Detail = PaintDetail.None;
+                mesh.AddBox(new Vector3(0, outer + 4.2f, 126f), new Vector3(11f, 0.4f, 1.1f), Slot.GearTrim, pack);
+                Ring Coil(float x, float r) => new(new Vector3(x, backY + 5.4f, 106f), Back, Up, r, r * 0.8f, 2f);
+                mesh.AddLoft([Coil(-10f, 2.8f), Coil(-9f, 3.8f), Coil(9f, 3.8f), Coil(10f, 2.8f)],
+                    BuildContext.Sides, BuildContext.FlatFront, Slot.Dark, pack);
+                AddShoulderStraps(c, 8.5f, 120f, 138f, 2.0f, Slot.GearTrim);
+                break;
+            }
+            case BackpackStyle.Tools:
+            {
+                Body(108f, 145f, 13f, 6.2f, Slot.Gear);
+                mesh.AddBox(new Vector3(0, backY + 6.4f, 145.5f), new Vector3(11.8f, 6.6f, 2.2f), Slot.GearTrim, pack, null, new Vector2(0.88f, 0.9f));
+                var outer = backY + 12.4f;
+                // Entrenching tool: handle down the left of the pack, blade at the bottom.
+                mesh.AddBeam(new Vector3(7.5f, outer + 1.8f, 142f), new Vector3(7.5f, outer + 1.8f, 116f), 1.6f, 1.5f, Left, Slot.Accent, pack);
+                mesh.AddBox(new Vector3(7.5f, outer + 1.4f, 108f), new Vector3(5.4f, 0.8f, 7.2f), Slot.Metal, pack, null, new Vector2(1f, 1f));
+                // Pick: helve across the right side, head across the top.
+                mesh.AddBeam(new Vector3(-7f, outer + 1.8f, 110f), new Vector3(-7f, outer + 1.8f, 152f), 1.7f, 1.5f, Left, Slot.Accent, pack);
+                mesh.AddBeam(new Vector3(-19f, outer + 1.8f, 153f), new Vector3(5f, outer + 1.8f, 153f), 2.0f, 1.6f, Back, Slot.Metal, pack, new Vector2(0.4f, 0.6f));
+                AddShoulderStraps(c, 8.5f, 119f, 139f, 2.2f, Slot.GearTrim);
+                break;
+            }
         }
         mesh.Detail = PaintDetail.None;
     }

@@ -18,14 +18,16 @@ public enum CamoCoverage { All, TrousersOnly, TopOnly }
 public enum HeadShape { Standard, Square, Round, Slim, Heavy }
 public enum HairStyle { Bald, Buzz, Short, Bob, Long, Ponytail, Bun, Mohawk }
 public enum FacialHair { None, Stubble, Moustache, Goatee, Beard, BushyBeard }
-public enum Camouflage { None, Woodland, Digital }
+/// <summary>ChocolateChip is the 1991 US six-colour desert pattern (tan, khaki and brown blobs with black and white rocks), whatever the edition.</summary>
+public enum Camouflage { None, Woodland, Digital, ChocolateChip }
 public enum EarShape { Normal, Pixie, Elephant, StickOut }
 public enum TorsoStyle { TShirt, LongSleeve, RolledSleeves, TankTop, Jacket, Hoodie, Polo, CheckShirt }
 public enum LegsStyle { Trousers, Cargo, Shorts, TallBoots, Skirt, Jeans, Thobe }
 public enum Footwear { Boots, Trainers }
 public enum HatStyle { None, Helmet, Cap, Beret, Boonie, Beanie, Keffiyeh, Turban }
 public enum EyewearStyle { None, Sunglasses, Goggles }
-public enum BackpackStyle { None, Light, Rucksack, Hydration, Radio }
+/// <summary>Demolition: a pack with explosive blocks and a det-cord coil strapped on. Tools: a rucksack with an entrenching tool and a pick.</summary>
+public enum BackpackStyle { None, Light, Rucksack, Hydration, Radio, Demolition, Tools }
 public enum VestStyle { None, ChestRig, PlateCarrier }
 public enum BeltStyle { None, Plain, Pouches, Utility }
 
@@ -163,7 +165,7 @@ public sealed class CharacterSpec : INotifyPropertyChanged
         if (Legs is LegsStyle.Cargo or LegsStyle.TallBoots) Legs = LegsStyle.Jeans;
         if (Torso is TorsoStyle.Jacket or TorsoStyle.RolledSleeves) Torso = TorsoStyle.Hoodie;
         if (Belt is BeltStyle.Pouches or BeltStyle.Utility) Belt = BeltStyle.Plain;
-        if (Backpack is BackpackStyle.Rucksack or BackpackStyle.Radio or BackpackStyle.Hydration) Backpack = BackpackStyle.Light;
+        if (Backpack is not (BackpackStyle.None or BackpackStyle.Light)) Backpack = BackpackStyle.Light;
     }
 
     /// <summary>Irregular forces: camo trousers under a plain top, a face covering, surplus webbing, boots.</summary>

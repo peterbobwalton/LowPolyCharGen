@@ -225,6 +225,7 @@ internal sealed partial class Painter
     private Vector3 Camouflage(Vector3 color, Vector3 p)
     {
         if (_spec.Camouflage == LowPolyCharGen.Camouflage.None) return color;
+        if (_spec.Camouflage == LowPolyCharGen.Camouflage.ChocolateChip) return ChocolateChip(p);
         var dark = color * 0.55f;
         var brown = Mix(color, new Vector3(0.33f, 0.25f, 0.16f), 0.75f);
         var light = Mix(color, new Vector3(0.78f, 0.74f, 0.60f), 0.5f);
@@ -259,6 +260,39 @@ internal sealed partial class Painter
         color = Mix(color, light, 1f - SmoothStep(0.41f - soft, 0.41f + soft, d));
         color = Mix(color, brown, SmoothStep(0.55f - soft, 0.55f + soft, b));
         color = Mix(color, dark, SmoothStep(0.60f - soft, 0.60f + soft, a));
+        return color;
+    }
+
+    /// <summary>
+    /// US six-colour desert ("chocolate chip"): a pale tan ground, broad khaki-green and light brown blobs,
+    /// dark brown bands, and scattered black rocks each with a white highlight. Rocks are sized to read at
+    /// a 1024 texture and from a distance.
+    /// </summary>
+    private static Vector3 ChocolateChip(Vector3 p)
+    {
+        var tan = new Vector3(0.80f, 0.71f, 0.54f);
+        var khaki = new Vector3(0.66f, 0.63f, 0.47f);
+        var lightBrown = new Vector3(0.60f, 0.47f, 0.32f);
+        var darkBrown = new Vector3(0.40f, 0.30f, 0.21f);
+        const float soft = 0.012f;
+        var q = p * 0.07f;
+        var color = tan;
+        color = Mix(color, khaki, SmoothStep(0.53f - soft, 0.53f + soft, Noise.Fbm(q + new Vector3(3, 7, 1))));
+        color = Mix(color, lightBrown, SmoothStep(0.56f - soft, 0.56f + soft, Noise.Fbm(q * 1.2f + new Vector3(40, 12, 9))));
+        color = Mix(color, darkBrown, SmoothStep(0.62f - soft, 0.62f + soft, Noise.Fbm(q * 1.1f + new Vector3(11, 50, 23))));
+
+        // Rocks: at most one per 3.2 cm cell, a black chip with a white chip touching it.
+        const float cell = 3.2f;
+        var c = new Vector3(MathF.Floor(p.X / cell), MathF.Floor(p.Y / cell), MathF.Floor(p.Z / cell));
+        if (Noise.Cell(c + new Vector3(91, 7, 3)) < 0.42f)
+        {
+            var centre = (c + new Vector3(0.25f + 0.5f * Noise.Cell(c), 0.25f + 0.5f * Noise.Cell(c + new Vector3(5, 0, 0)),
+                0.25f + 0.5f * Noise.Cell(c + new Vector3(0, 9, 0)))) * cell;
+            var size = 0.55f + 0.35f * Noise.Cell(c + new Vector3(0, 0, 13));
+            var white = centre + new Vector3(0.6f, -0.5f, 0.5f) * size;
+            if ((p - white).Length() < size * 0.7f) return new Vector3(0.93f, 0.91f, 0.86f);
+            if ((p - centre).Length() < size) return new Vector3(0.10f, 0.09f, 0.08f);
+        }
         return color;
     }
 
