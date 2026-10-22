@@ -123,14 +123,16 @@ internal static class HeadBuilder
         }
 
         int g20 = grid[2][0], g21 = grid[2][1], g30 = grid[3][0], g31 = grid[3][1], g40 = grid[4][0], g41 = grid[4][1];
-        var b0 = Vertex(2.3f, l * 0.72f, 0f);      // columella, where the underside meets the lip
-        var b1 = Vertex(2.32f, l * 0.52f, 0.6f);   // back of the nostril
-        var t0 = Vertex(2.65f, l, 0f);             // front of the tip
-        var t1 = Vertex(2.68f, l * 0.84f, 0.52f);  // side of the tip
-        var u1 = Vertex(3.0f, l * 0.8f, 0.42f);
+        // The underside runs back almost level (so the nostrils painted on it face down and sit on
+        // the nose) and the tip is a broad, flat-fronted block rather than a pyramid's point.
+        var b0 = Vertex(2.42f, l * 0.8f, 0f);      // columella, where the underside meets the lip
+        var b1 = Vertex(2.4f, l * 0.6f, 0.75f);    // back of the nostril
+        var t0 = Vertex(2.58f, l, 0f);             // front of the tip
+        var t1 = Vertex(2.6f, l * 0.94f, 0.62f);   // side of the tip
+        var u1 = Vertex(3.0f, l * 0.88f, 0.5f);
         var bridge = (0.45f + l * 0.96f) * 0.5f + 0.08f;
         var m0 = Vertex(3.5f, bridge, 0f);
-        var m1 = Vertex(3.5f, bridge - 0.3f, 0.4f);
+        var m1 = Vertex(3.5f, bridge - 0.15f, 0.45f);
 
         var view = Front - Up * 0.6f;   // from in front and a little below: the underside gets texels too
         m.AddPatchOutward(Slot.Head, c.HeadCenter, view,
@@ -146,7 +148,7 @@ internal static class HeadBuilder
             [m0, m1, g41, g40]);
 
         // The painter puts the nostrils on the underside of the tip, a little in from the back.
-        var nostril = Vector3.Lerp(m.Positions[b1], m.Positions[t1], 0.3f) with { X = m.Positions[b1].X * 0.75f };
+        var nostril = Vector3.Lerp(m.Positions[b1], m.Positions[t1], 0.45f) with { X = m.Positions[b1].X * 0.6f };
         c.Paint.Nostril = new Vector2(nostril.X / s, (nostril.Z - c.ChinZ) / s);
     }
 
@@ -296,8 +298,6 @@ internal static class HeadBuilder
     /// <summary>Point on the skull at head height t, pushed out by offset (and up, near the crown).</summary>
     private static Vector3 ScalpPoint(BuildContext c, float t, float degreesFromFront, float offset)
     {
-        // The realistic skull bulges a little past its measured outline in places: hats stand clear of it.
-        if (c.Realistic && offset > 0) offset += 0.6f * c.HeadScale;
         var p = c.Head.Surface(c.HeadZ(t), BuildContext.HeadTheta(degreesFromFront), offset);
         if (offset > 0) p.Z += offset * SmoothStep((t - 0.6f) / 0.4f);
         return p;
@@ -416,7 +416,7 @@ internal static class HeadBuilder
 
         var cropped = new ScalpEdge(0.80f, 0.63f, 0.50f, 0.30f);
         // The realistic face's hairline recedes at the corners of the forehead, more for men.
-        var recession = c.Realistic ? (c.Female ? 0.015f : 0.04f) : 0f;
+        var recession = 0f;
         var shortCut = new ScalpEdge(0.78f, 0.60f, 0.46f, 0.26f) { Recession = recession };
 
         if (c.Spec.FaceCover == FaceCover.Balaclava) return;   // all of it is under the knit
@@ -424,9 +424,7 @@ internal static class HeadBuilder
         // The realistic head gets hair shaped over its own skull.
         void Scalp(ScalpEdge edge, float volume, bool hangs)
         {
-            // Under a hat the realistic head's hair is painted only: the hat sits on the skull.
-            if (c.Realistic) { if (!hat) RealisticBody.BuildHair(c, edge, volume, hangs); }
-            else AddScalp(c, edge, volume, Slot.Hair);
+            AddScalp(c, edge, volume, Slot.Hair);
         }
 
         switch (style)
@@ -447,8 +445,7 @@ internal static class HeadBuilder
                 return;
             case HairStyle.Short or HairStyle.Ponytail or HairStyle.Bun:
                 paint.ScalpHair = shortCut;
-                // On the realistic head short hair is painted only, as on the pack's heads.
-                if (!c.Realistic) Scalp(shortCut, Volume(0.7f), false);
+                Scalp(shortCut, Volume(0.7f), false);
                 break;
             case HairStyle.Bob:
                 paint.ScalpHair = shortCut;

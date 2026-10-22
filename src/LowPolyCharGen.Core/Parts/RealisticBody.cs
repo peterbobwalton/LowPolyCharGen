@@ -24,8 +24,6 @@ internal static class RealisticBody
         var source = HumanBody.Default;
         PoseHands(c, human);
         var detailed = (Vector3[])human.Positions.Clone();   // before the sockets are filled: painted from
-        var nostril = FillNostrils(c, human);
-        FillEyes(c, human);
         var bones = source.Bones;
         var m = c.Mesh;
 
@@ -99,14 +97,6 @@ internal static class RealisticBody
         // hems and decimated. The skin they cover is dropped later as hidden.
         BuildClothing(c, human, SlotOf);
 
-        // No eyeballs: as on the pack's heads the eyes are painted, in sockets filled over (see
-        // FillEyes) under the brow. The painter takes the eyes' place from MakeHuman's eye joints.
-        var eyeCentre = human.Joint("joint-l-eye");
-        c.Paint.ModelledFace = true;
-        c.Paint.EyeCenter = eyeCentre;
-        c.Paint.EyeX = eyeCentre.X;
-        c.Paint.EyeZ = eyeCentre.Z;
-
         // Nails for the painter, from the finger joints (left hand; it mirrors by |x|).
         var nails = new List<HandTemplate.Nail>();
         for (var f = 1; f <= 5; f++)
@@ -120,48 +110,25 @@ internal static class RealisticBody
             var radius = 0.62f * human.Scale;
             nails.Add(new HandTemplate.Nail(f == 1 ? "thumb" : $"finger{f}", tip - along * radius * 0.6f, along, up, radius));
         }
-        // The left ear, for the painted sideburn in front of it.
-        var ear = Enumerable.Range(0, human.Positions.Length).Where(v =>
+        // The head: the generator's own sculpted head (as on the toon characters), on the realistic
+        // head's measured proportions and landmarks, joined to the body by a short neck that sits over
+        // the body's own neck below the cut.
+        c.Mesh.MirroredWelded(hm =>
         {
-            var p = human.Positions[v];
-            var t = (p.Z - c.ChinZ) / c.HeadHeight;
-            return SlotOf(v) == Slot.Head && p.X > c.HeadHalfWidth * 0.9f && MathF.Abs(p.Y - c.HeadCenter.Y) < 4f * c.HeadScale && t > 0.3f && t < 0.68f;
-        }).ToArray();
-        if (ear.Length > 0)
-        {
-            var centre = Vector3.Zero;
-            foreach (var v in ear) centre += human.Positions[v];
-            c.Paint.EarCenter = centre / ear.Length;
-        }
-        if (MeasureLips(c, human, bodyTris) is { } lips)
-        {
-            c.Paint.Lips = lips;
-            c.Paint.MouthZ = lips.At(0f).Seam;
-        }
-        c.Paint.Nostril = nostril is { } n
-            ? new Vector2(n.X / c.HeadScale, (n.Z - c.ChinZ) / c.HeadScale)
-            : new Vector2(0.9f / c.HeadScale, (c.Paint.NoseTipZ - 0.045f * c.HeadHeight - c.ChinZ) / c.HeadScale);
-        // The designed head, now the face's landmarks are known.
-        // The ears: MakeHuman's ear-moving target marks the left one; the right is its mirror.
-        var leftEar = new HashSet<int>();
-        if (source.Targets.TryGetValue("l-ear-trans-up", out var earTarget) && earTarget.Deltas.Length > 0)
-        {
-            var max = earTarget.Deltas.Max(d => d.Length());
-            for (var i = 0; i < earTarget.Vertices.Length; i++)
-                if (earTarget.Deltas[i].Length() > 0.9f * max) leftEar.Add(earTarget.Vertices[i]);
-        }
-        var leftEarPoints = leftEar.Select(v => human.Positions[v]).ToArray();
-        var earCache = new Dictionary<int, bool>();
-        bool IsEar(int v)
-        {
-            if (leftEar.Contains(v)) return true;
-            var p = human.Positions[v];
-            if (p.X >= 0f || leftEarPoints.Length == 0) return false;
-            if (earCache.TryGetValue(v, out var known)) return known;
-            var m = p with { X = -p.X };
-            return earCache[v] = leftEarPoints.Any(q => Vector3.DistanceSquared(q, m) < 0.09f);
-        }
-        RealisticHead.Build(c, human, human.Positions, SlotOf, IsHeadOrNeck, IsEar, (piece, slots) => Emit(c, m, piece, slots));
+            var ringZ = RealisticHead.NeckRingZ(c);
+            var centre = c.Paint.NeckCenter;
+            var lower = new int[7];
+            var top = new int[7];
+            for (var j = 0; j < 7; j++)
+            {
+                var (sin, cos) = MathF.SinCos(Geo.Deg(30f * j));
+                var radius = c.NeckRadius + 0.6f;
+                lower[j] = hm.AddVertex(new Vector3(radius * sin, centre.Y - radius * cos, ringZ - 3f), c.Spine);
+                top[j] = hm.AddVertex(c.NeckTop(30f * j), c.Spine);
+            }
+            hm.AddGridFacesOutward([lower, top], false, Slot.Neck, centre with { Z = ringZ });
+            HeadBuilder.BuildSkullHalf(c, hm, top);
+        });
 
         c.Paint.ModelledHands = true;
         c.Paint.HandOrigin = Vector3.Zero;

@@ -332,7 +332,9 @@ internal sealed partial class Painter
             white = Mix(white, new Vector3(0.80f, 0.58f, 0.55f), 0.35f * SmoothStep(0.55f, 0.95f, MathF.Abs(u)));
 
             // Iris: radial fibres, a lighter ring round the pupil and a dark rim; the lids cover its top and bottom.
-            var lx = fx - MathF.Sign(fx) * eyeX;            // signed, so both catch lights sit on the same side
+            // The iris sits a little in from the middle of the opening, so the eyes look ahead
+            // rather than out to the sides.
+            var lx = fx - MathF.Sign(fx) * (eyeX - 0.22f);  // signed, so both catch lights sit on the same side
             var iy = dz - 0.02f;
             var d = MathF.Sqrt(lx * lx + iy * iy);
             const float radius = 0.62f;
