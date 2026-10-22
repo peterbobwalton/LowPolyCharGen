@@ -37,7 +37,7 @@ internal static class HeadBuilder
                      : [c.ChinForward, c.ChinForward, c.ChinForward * 0.85f],        // square across on men
             [lips, lips * 0.75f, 0f],                                    // mouth
             [0.5f, 0.3f, 0f],                                            // under the nose
-            [c.NoseLength, 0.85f, 0.15f],                                // nose tip and nostrils
+            [c.NoseLength * 0.96f, 0.85f, 0.15f],                        // top of the nose tip, nose wings
             [0.45f, -0.2f, -0.75f, -0.25f],                              // eyes
             [c.BrowRidge + 0.1f, c.BrowRidge, c.BrowRidge * 0.8f, c.BrowRidge * 0.3f],   // brow
         ];
@@ -51,7 +51,7 @@ internal static class HeadBuilder
                 var t = c.HeadRowT(r, j);
                 var p = c.Head.Surface(c.HeadZ(t), BuildContext.HeadTheta(angles[j]));
                 if (r < forward.Length && j < forward[r].Length) p += Front * (forward[r][j] * s);
-                // The second column carries the width of the nose.
+                // The second column carries the width of the nose; the middle of the nose is BuildNose's.
                 if (j == 1 && r == 3) p.X = c.NoseHalfWidth * s;
                 if (j == 1 && r == 2) p.X = c.NoseHalfWidth * 0.9f * s;
                 if (j == 1 && r == 4) p.X = c.NoseHalfWidth * 0.55f * s;
@@ -60,7 +60,8 @@ internal static class HeadBuilder
                 grid[r][j] = m.AddVertex(p, head);
             }
         }
-        m.AddGridFacesOutward(grid, false, Slot.Head, c.HeadCenter);
+        m.AddGridFacesOutward(grid, false, Slot.Head, c.HeadCenter, (r, j) => j == 0 && r is 2 or 3);
+        BuildNose(c, m, grid);
 
         var crown = m.AddVertex(new Vector3(0, c.HeadCenter.Y, c.HeadZ(1f)), head);
         for (var j = 0; j + 1 < angles.Length; j++)
@@ -78,6 +79,56 @@ internal static class HeadBuilder
 
         BuildEar(c, m);
         m.Density = 1f;
+    }
+
+    /// <summary>
+    /// The middle of the nose, in place of the two skull quads beside the centre line from under the
+    /// nose up to the eyes: a bridge, a rounded tip with a flat front, and an underside that turns back
+    /// in to the lip, where the nostrils are painted. Only its inside vertices are new, so it meets the
+    /// cheek and eye quads without cracks.
+    /// </summary>
+    private static void BuildNose(BuildContext c, MeshBuilder m, int[][] grid)
+    {
+        var s = c.HeadScale;
+        var l = c.NoseLength;
+        var w = c.NoseHalfWidth;
+
+        // A point on the skull at a fractional row of the centre column, pushed forward, and set
+        // off the centre line by a fraction of the nose's half-width.
+        int Vertex(float row, float forward, float across)
+        {
+            var r = (int)row;
+            var t = Lerp(c.HeadRowT(r, 0), c.HeadRowT(r + 1, 0), row - r);
+            var p = c.Head.Surface(c.HeadZ(t), BuildContext.HeadTheta(0f)) + Front * (forward * s);
+            return m.AddVertex(p with { X = across * w * s }, c.HeadRigid);
+        }
+
+        int g20 = grid[2][0], g21 = grid[2][1], g30 = grid[3][0], g31 = grid[3][1], g40 = grid[4][0], g41 = grid[4][1];
+        var b0 = Vertex(2.3f, l * 0.72f, 0f);      // columella, where the underside meets the lip
+        var b1 = Vertex(2.32f, l * 0.52f, 0.6f);   // back of the nostril
+        var t0 = Vertex(2.65f, l, 0f);             // front of the tip
+        var t1 = Vertex(2.68f, l * 0.84f, 0.52f);  // side of the tip
+        var u1 = Vertex(3.0f, l * 0.8f, 0.42f);
+        var bridge = (0.45f + l * 0.96f) * 0.5f + 0.08f;
+        var m0 = Vertex(3.5f, bridge, 0f);
+        var m1 = Vertex(3.5f, bridge - 0.3f, 0.4f);
+
+        var view = Front - Up * 0.6f;   // from in front and a little below: the underside gets texels too
+        m.AddPatchOutward(Slot.Head, c.HeadCenter, view,
+            [g20, g21, b1, b0],   // under the nose
+            [b1, g21, g31],       // nose wing
+            [b0, b1, t1, t0],     // underside of the tip: the nostrils
+            [b1, g31, t1],
+            [t0, t1, u1, g30],    // the tip
+            [t1, g31, u1],
+            [g30, u1, m1, m0],    // bridge
+            [u1, g31, m1],
+            [m1, g31, g41],
+            [m0, m1, g41, g40]);
+
+        // The painter puts the nostrils on the underside of the tip, a little in from the back.
+        var nostril = Vector3.Lerp(m.Positions[b1], m.Positions[t1], 0.3f) with { X = m.Positions[b1].X * 0.75f };
+        c.Paint.Nostril = new Vector2(nostril.X / s, (nostril.Z - c.ChinZ) / s);
     }
 
     /// <summary>

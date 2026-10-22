@@ -42,6 +42,9 @@ public sealed class PaintContext
     public float BrowZ { get; init; }
     public float NoseBaseZ { get; init; }
     public float NoseTipZ { get; init; }
+
+    /// <summary>Left nostril in face centimetres (across, above the chin), set from the nose mesh.</summary>
+    public Vector2 Nostril { get; set; } = new(0.85f, 8.45f);
     public float MouthZ { get; init; }
 
     /// <summary>Hair painted straight onto the scalp (null when bald).</summary>

@@ -264,6 +264,26 @@ public sealed class MeshBuilder(Skeleton skeleton)
     }
 
     /// <summary>
+    /// Adds a small patch of polygons in one chart, flattened along <paramref name="view"/> (the
+    /// direction the patch is looked at from), each wound to face away from <paramref name="inside"/>.
+    /// </summary>
+    public void AddPatchOutward(Slot slot, Vector3 inside, Vector3 view, params int[][] polygons)
+    {
+        var all = polygons.SelectMany(p => p).Distinct().ToArray();
+        var (flat, w, h) = Flatten(all, Vector3.Normalize(view));
+        var chart = NewChart(w, h);
+        foreach (var v in polygons)
+        {
+            var centre = Vector3.Zero;
+            foreach (var i in v) centre += Positions[i];
+            centre /= v.Length;
+            var flip = Vector3.Dot(PolygonNormal(v), centre - inside) < 0;
+            var uv = Array.ConvertAll(v, i => flat[Array.IndexOf(all, i)]);
+            Emit(slot, chart, flip, v, uv);
+        }
+    }
+
+    /// <summary>
     /// Adds the quads of a vertex grid (rows of equal length) and unwraps them into one rectangular
     /// chart. Repeated vertices are allowed: the affected quads become triangles or vanish.
     /// </summary>
