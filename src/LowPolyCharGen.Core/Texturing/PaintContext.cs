@@ -71,8 +71,8 @@ public sealed class PaintContext
     public float ChinZ { get; init; }
     public float HeadHeight { get; init; }
     public float HeadHalfWidth { get; init; }
-    public float EyeX { get; init; }
-    public float EyeZ { get; init; }
+    public float EyeX { get; set; }
+    public float EyeZ { get; set; }
     public float BrowZ { get; init; }
     public float NoseBaseZ { get; init; }
     public float NoseTipZ { get; init; }
@@ -112,6 +112,8 @@ public sealed class PaintContext
 
     // ---- realistic face: the modelled eyes and lids replace the painted ones ----
     public bool ModelledFace { get; set; }
+    /// <summary>True when the eyes are modelled eyeballs (painted by EyeBall); false paints them on the face.</summary>
+    public bool ModelledEyes { get; set; }
     /// <summary>Centre of the left eyeball (the right is its mirror) and its radius.</summary>
     public Vector3 EyeCenter { get; set; }
     public float EyeRadius { get; set; } = 1.2f;

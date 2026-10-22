@@ -10,8 +10,13 @@ namespace LowPolyCharGen.Parts;
 /// </summary>
 internal static class RealisticBody
 {
-    /// <summary>Triangles the body is reduced to (the eyes come on top).</summary>
-    public const int BodyTriangles = 4000;
+    /// <summary>
+    /// Triangles the body is reduced to (clothing shells and hair come on top). The Toon Soldiers
+    /// pack's characters are about 700 triangles with simple, angular shapes and the detail painted;
+    /// the realistic body aims at about 1,200 in all. The head is not reduced but designed (see
+    /// <see cref="RealisticHead"/>); this is the rest of the body.
+    /// </summary>
+    public const int BodyTriangles = 700;
 
     public static void Build(BuildContext c)
     {
@@ -19,6 +24,7 @@ internal static class RealisticBody
         var source = HumanBody.Default;
         PoseHands(c, human);
         var nostril = FillNostrils(c, human);
+        FillEyes(c, human);
         var bones = source.Bones;
         var m = c.Mesh;
 
@@ -64,23 +70,27 @@ internal static class RealisticBody
         }
 
         var bodyTris = Triangulate(source.BodyFaces);
-        var body = SymmetricSimplify(human.Positions, bodyTris, BodyTriangles, Importance);
-        // The reduced body shades with the dense body's normals, so its flat facets do not show.
-        var denseNormals = VertexNormals(human.Positions, bodyTris, smoothing: 12);
-        Emit(c, m, body, SlotOf, Array.ConvertAll(body.Source, v => denseNormals[v]));
+        // The head is its own designed mesh: the dense head and upper neck are left out here, the
+        // body's cut edge hidden inside the head mesh's neck.
+        var cutZ = RealisticHead.BodyCutZ(c);
+        bool IsHeadOrNeck(int v) => bones[human.DominantSourceBone[v]].Name is "head" or "neck_01";
+        var restTris = bodyTris.Where(t => !(t.All(IsHeadOrNeck) && t.All(v => human.Positions[v].Z >= cutZ))).ToArray();
+        var body = SymmetricSimplify(human.Positions, restTris, BodyTriangles, Importance);
+        // Shaded with its own smooth normals, like the pack: at this budget the dense body's normals
+        // would disagree with the triangles, and lights and shadows would show the difference.
+        Emit(c, m, body, SlotOf);
 
         // Clothing that stands off the skin: shells offset from the dense body, smoothed, cut at their
         // hems and decimated. The skin they cover is dropped later as hidden.
         BuildClothing(c, human, SlotOf);
 
-        // Eyeballs: small already; reduced a little.
-        var eyes = SymmetricSimplify(human.Positions, Triangulate(source.EyeFaces), 120, null);
-        Emit(c, m, eyes, _ => Slot.Eye);
+        // No eyeballs: as on the pack's heads the eyes are painted, in sockets filled over (see
+        // FillEyes) under the brow. The painter takes the eyes' place from MakeHuman's eye joints.
         var eyeCentre = human.Joint("joint-l-eye");
-        var eyeVerts = source.EyeFaces.SelectMany(f => f).Distinct().Where(v => human.Positions[v].X > 0).ToArray();
         c.Paint.ModelledFace = true;
         c.Paint.EyeCenter = eyeCentre;
-        c.Paint.EyeRadius = eyeVerts.Length > 0 ? eyeVerts.Average(v => Vector3.Distance(human.Positions[v], eyeCentre)) : 1.2f;
+        c.Paint.EyeX = eyeCentre.X;
+        c.Paint.EyeZ = eyeCentre.Z;
 
         // Nails for the painter, from the finger joints (left hand; it mirrors by |x|).
         var nails = new List<HandTemplate.Nail>();
@@ -116,10 +126,75 @@ internal static class RealisticBody
         c.Paint.Nostril = nostril is { } n
             ? new Vector2(n.X / c.HeadScale, (n.Z - c.ChinZ) / c.HeadScale)
             : new Vector2(0.9f / c.HeadScale, (c.Paint.NoseTipZ - 0.045f * c.HeadHeight - c.ChinZ) / c.HeadScale);
+        // The designed head, now the face's landmarks are known.
+        bool IsEar(int v)
+        {
+            var p = human.Positions[v];
+            var t = (p.Z - c.ChinZ) / c.HeadHeight;
+            return SlotOf(v) == Slot.Head && MathF.Abs(p.X) > c.HeadHalfWidth * 0.9f && MathF.Abs(p.Y - c.HeadCenter.Y) < 4f * c.HeadScale && t > 0.3f && t < 0.68f;
+        }
+        RealisticHead.Build(c, human, SlotOf, IsHeadOrNeck, IsEar, (piece, slots) => Emit(c, m, piece, slots));
+
         c.Paint.ModelledHands = true;
         c.Paint.HandOrigin = Vector3.Zero;
         c.Paint.HandScale = 1f;
         c.Paint.Nails = nails;
+    }
+
+    /// <summary>
+    /// Fills the eye sockets of the dense head (the eyeballs are left out): every vertex round the
+    /// eye that lies in a hollow is lifted out towards its neighbours, so the reduced head has a
+    /// smooth surface under the brow for the painted eye instead of a deep, ragged pit.
+    /// </summary>
+    private static void FillEyes(BuildContext c, HumanBody.Fitted human)
+    {
+        var pos = human.Positions;
+        var s = c.HeadScale;
+        var left = human.Joint("joint-l-eye");
+        var radius = 2.2f * s;
+        bool Near(Vector3 p)
+        {
+            var e = left with { X = MathF.Sign(p.X) * left.X };
+            var d = p - e;
+            return MathF.Abs(p.X) > 0.3f * s && d.X * d.X + d.Z * d.Z < radius * radius && d.Y < 1.5f * s && d.Y > -2.5f * s;
+        }
+        LiftHollows(pos, Near, 40);
+    }
+
+    /// <summary>
+    /// Lifts the vertices of the dense body that pass <paramref name="inRegion"/> and lie in a hollow
+    /// out along their normals towards their neighbours, <paramref name="passes"/> times (bumps are
+    /// left alone). Returns where each moved vertex started.
+    /// </summary>
+    private static Dictionary<int, Vector3> LiftHollows(Vector3[] pos, Func<Vector3, bool> inRegion, int passes)
+    {
+        var tris = Triangulate(HumanBody.Default.BodyFaces);
+        var region = new HashSet<int>();
+        for (var v = 0; v < pos.Length; v++)
+            if (inRegion(pos[v])) region.Add(v);
+        var neighbours = region.ToDictionary(v => v, _ => new HashSet<int>());
+        var normals = region.ToDictionary(v => v, _ => Vector3.Zero);
+        foreach (var t in tris)
+            for (var k = 0; k < 3; k++)
+                if (region.Contains(t[k]))
+                {
+                    neighbours[t[k]].Add(t[(k + 1) % 3]);
+                    neighbours[t[k]].Add(t[(k + 2) % 3]);
+                    normals[t[k]] += Vector3.Cross(pos[t[1]] - pos[t[0]], pos[t[2]] - pos[t[0]]);
+                }
+        foreach (var v in region) normals[v] = normals[v].LengthSquared() > 1e-12f ? Vector3.Normalize(normals[v]) : Vector3.UnitZ;
+        var original = region.ToDictionary(v => v, v => pos[v]);
+        for (var pass = 0; pass < passes; pass++)
+            foreach (var v in region)
+            {
+                if (neighbours[v].Count == 0) continue;
+                var avg = Vector3.Zero;
+                foreach (var w in neighbours[v]) avg += pos[w];
+                avg /= neighbours[v].Count;
+                var lift = Vector3.Dot(avg - pos[v], normals[v]);
+                if (lift > 0f) pos[v] += normals[v] * (lift * 0.8f);
+            }
+        return original;
     }
 
     /// <summary>
@@ -146,39 +221,13 @@ internal static class RealisticBody
         var top = pos[tip];
         bool InNose(Vector3 p) => MathF.Abs(p.X) < 1.7f * s && p.Z > top.Z - 1.7f * s && p.Z < top.Z + 0.2f * s && p.Y < top.Y + 2.4f * s;
 
-        var tris = Triangulate(HumanBody.Default.BodyFaces);
-        var region = new HashSet<int>();
-        for (var v = 0; v < pos.Length; v++)
-            if (InNose(pos[v])) region.Add(v);
-        if (region.Count == 0) return null;
-        var neighbours = region.ToDictionary(v => v, _ => new HashSet<int>());
-        var normals = region.ToDictionary(v => v, _ => Vector3.Zero);
-        foreach (var t in tris)
-            for (var k = 0; k < 3; k++)
-                if (region.Contains(t[k]))
-                {
-                    neighbours[t[k]].Add(t[(k + 1) % 3]);
-                    neighbours[t[k]].Add(t[(k + 2) % 3]);
-                    normals[t[k]] += Vector3.Cross(pos[t[1]] - pos[t[0]], pos[t[2]] - pos[t[0]]);
-                }
-        foreach (var v in region) normals[v] = normals[v].LengthSquared() > 1e-12f ? Vector3.Normalize(normals[v]) : Vector3.UnitZ;
-
-        var original = region.ToDictionary(v => v, v => pos[v]);
-        for (var pass = 0; pass < 60; pass++)
-            foreach (var v in region)
-            {
-                var avg = Vector3.Zero;
-                foreach (var w in neighbours[v]) avg += pos[w];
-                avg /= neighbours[v].Count;
-                var lift = Vector3.Dot(avg - pos[v], normals[v]);
-                // Out of a hollow only, and fading to nothing at the edge of the region.
-                if (lift > 0f) pos[v] += normals[v] * (lift * 0.8f);
-            }
+        var original = LiftHollows(pos, InNose, 60);
+        if (original.Count == 0) return null;
 
         // The nostril: where the surface was lifted most, on the left.
         var sum = Vector3.Zero;
         var weight = 0f;
-        foreach (var v in region)
+        foreach (var v in original.Keys)
         {
             if (pos[v].X <= 0.2f * s) continue;
             var lifted = Vector3.Distance(pos[v], original[v]);
@@ -454,7 +503,7 @@ internal static class RealisticBody
                     // Less between the thighs, where the two legs would run into each other.
                     return offset * Geo.Lerp(0.35f, 1f, Geo.SmoothStep((MathF.Abs(p.X) - 3f) / 5f));
                 },
-                smoothing: 4, keep: (a, b, d) => MathF.Min(a.Z, MathF.Min(b.Z, d.Z)) >= paint.TrouserEndZ, triangles: 640, Slot.Leg);
+                smoothing: 4, keep: (a, b, d) => MathF.Min(a.Z, MathF.Min(b.Z, d.Z)) >= paint.TrouserEndZ, triangles: 180, Slot.Leg);
         }
 
         // Sleeves, and for a jacket or hoodie the whole loose top.
@@ -478,13 +527,13 @@ internal static class RealisticBody
                 smoothing: 3,
                 keep: (a, b, d) => MathF.Max(MathF.Abs(a.X), MathF.Max(MathF.Abs(b.X), MathF.Abs(d.X))) <= end
                     && (!jacket || MathF.Min(a.Z, MathF.Min(b.Z, d.Z)) >= paint.HemZ),
-                triangles: jacket ? 900 : 260, slot: jacket ? Slot.Body : Slot.Arm, armSlot: jacket ? Slot.Arm : null, isArm: v => IsArm(Bone(v)));
+                triangles: jacket ? 260 : 70, slot: jacket ? Slot.Body : Slot.Arm, armSlot: jacket ? Slot.Arm : null, isArm: v => IsArm(Bone(v)));
         }
 
         // Boot shafts above the boot (tall boots, or boots worn under bloused trousers).
         if (paint.BootTopZ > 13f)
             Shell(c, human, v => Bone(v).StartsWith("calf") && pos[v].Z < paint.BootTopZ + 2f,
-                _ => 0.7f, smoothing: 3, keep: (a, b, d) => MathF.Max(a.Z, MathF.Max(b.Z, d.Z)) <= paint.BootTopZ, triangles: 160, Slot.Foot);
+                _ => 0.7f, smoothing: 3, keep: (a, b, d) => MathF.Max(a.Z, MathF.Max(b.Z, d.Z)) <= paint.BootTopZ, triangles: 40, Slot.Foot);
     }
 
     /// <summary>
@@ -674,7 +723,7 @@ internal static class RealisticBody
         var local = used.Select((v, i) => (v, i)).ToDictionary(x => x.v, x => x.i);
         var points = used.Select(v => moved[v]).ToArray();
         var localTris = tris.Select(f => new[] { local[f[0]], local[f[1]], local[f[2]] }).ToArray();
-        var piece = Decimator.Simplify(points, localTris, new Decimator.Options { TargetTriangles = hangs ? 700 : 420 });
+        var piece = Decimator.Simplify(points, localTris, new Decimator.Options { TargetTriangles = hangs ? 180 : 110 });
         var shellNormals = VertexNormals(points, localTris, smoothing: 2);
         var pieceNormals = Array.ConvertAll(piece.Source, i => shellNormals[i]);
         Emit(c, c.Mesh, piece with { Source = piece.Source.Select(i => used[i]).ToArray() }, _ => Slot.Hair, pieceNormals);
@@ -755,10 +804,9 @@ internal static class RealisticBody
     /// collapsing its own way. Vertices on the middle stay on it. Falls back to reducing the whole
     /// mesh if it is not symmetric.
     /// </summary>
-    private static Decimator.Result SymmetricSimplify(Vector3[] positions, int[][] tris, int target, Func<int, float>? importance)
+    internal static Decimator.Result SymmetricSimplify(Vector3[] positions, int[][] tris, int target, Func<int, float>? importance)
     {
-        // The fitted middle line wanders by a fraction of a millimetre.
-        const float middle = 0.05f;
+        const float middle = 1e-4f;
         var options = new Decimator.Options { TargetTriangles = target, Importance = importance };
         // Each vertex's mirror image.
         // The fitted halves match to within a few millimetres (the skeleton's sides differ slightly).
@@ -804,6 +852,20 @@ internal static class RealisticBody
             mirror[v] = best;
         }
         if (misses > used.Length / 50) return Decimator.Simplify(positions, tris, options);
+
+        // Make the mesh exactly symmetric first: each vertex halfway between itself and its mirror
+        // image's reflection, the ones on the middle line put on it. The fitted halves differ by a
+        // few millimetres, and a middle line that wandered off the mirror plane opened a gap down
+        // the throat once the halves were joined.
+        var source0 = positions;
+        positions = (Vector3[])positions.Clone();
+        foreach (var v in used)
+        {
+            var m = source0[mirror[v]];
+            var p = (source0[v] + m with { X = -m.X }) / 2f;
+            if (mirror[v] == v || MathF.Abs(p.X) <= middle) p.X = 0f;
+            positions[v] = p;
+        }
 
         var left = tris.Where(t => t.All(v => positions[v].X >= -middle)).ToArray();
         if (left.Length * 2 < tris.Length * 0.95f) return Decimator.Simplify(positions, tris, options);
@@ -926,6 +988,8 @@ internal static class RealisticBody
         }
         return normals;
     }
+
+    internal static int[][] TriangulateFaces(int[][] faces) => Triangulate(faces);
 
     private static int[][] Triangulate(int[][] faces)
     {

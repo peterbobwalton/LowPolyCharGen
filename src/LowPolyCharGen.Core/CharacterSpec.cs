@@ -50,6 +50,7 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     private HandPose _handPose = HandPose.Relaxed;
     private Ancestry _ancestry = Ancestry.Mixed;
     private int _faceSeed;
+    private float _stylization = 0.75f;
     private float _build = 0.5f;
     private float _headSize = 1.0f;
     private HeadShape _headShape = HeadShape.Standard;
@@ -94,6 +95,12 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     public Ancestry Ancestry { get => _ancestry; set => Set(ref _ancestry, value); }
     /// <summary>Realistic body: varies the face within its type (0 = the type's own face).</summary>
     public int FaceSeed { get => _faceSeed; set => Set(ref _faceSeed, Math.Clamp(value, 0, 9999)); }
+    /// <summary>
+    /// How abstract the painted face is, 0 to 1. 0 paints eyes with whites, irises and lashes and
+    /// coloured lips; 1 is the Toon Soldiers pack's look: the eyes are dark shapes under a heavy brow,
+    /// the lips barely there, the face carried by its planes and shading.
+    /// </summary>
+    public float Stylization { get => _stylization; set => Set(ref _stylization, Math.Clamp(value, 0f, 1f)); }
 
     public Gender Gender { get => _gender; set => Set(ref _gender, value); }
 

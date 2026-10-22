@@ -38,7 +38,8 @@ internal sealed partial class Painter
         color = Mix(color, _skin * new Vector3(1.06f, 0.88f, 0.86f), 0.30f * face * Blob((ax - 4.4f) / 2.4f, (fz - 8.2f) / 2.0f));   // cheeks
         // A modelled face has its own sockets, nose and nostrils: the painted shading only hints at them.
         var modelled = _c.ModelledFace;
-        color *= 1f - (male ? 0.20f : 0.11f) * (modelled ? 0.4f : 1f) * face * Blob((ax - eyeX) / 2.6f, (fz - eyeZ - 0.3f) / 1.7f);   // eye sockets
+        var abstraction = _spec.Stylization;
+        color *= 1f - (male ? 0.20f : 0.11f) * (_c.ModelledEyes ? 0.4f : 1f) * (1f + 1.2f * abstraction) * face * Blob((ax - eyeX) / 2.6f, (fz - eyeZ - 0.3f) / 1.7f);   // eye sockets
         if (!modelled)
         {
             color *= 1f - 0.10f * face * Line(ax - 1.5f, 0.4f, 0.25f) * Band(fz, 8.6f, 12.6f, 0.5f);                                 // sides of the nose
@@ -84,7 +85,7 @@ internal sealed partial class Painter
                 var strength = fade * (beard > 0.5f ? 0.75f : 1f);
                 var lowerShine = 1f + (male ? 0.04f : 0.12f) * Blob(ex / (0.5f * lips.Corner), (dz - 0.45f * (bottom - seam)) / (0.25f * (seam - bottom) + 0.05f));
                 // A man's lips are closer to his skin.
-                var lipColour = male ? Mix(_skin, _lips, 0.55f) : _lips;
+                var lipColour = Mix(male ? Mix(_skin, _lips, 0.55f) : _lips, _skin * 0.9f, 0.65f * _spec.Stylization);
                 color = Mix(color, lipColour * 0.88f, onUpper * strength);
                 color = Mix(color, lipColour * lowerShine * (male ? 0.94f : 1f), onLower * strength);
                 // Upper lip's edge catches the light; the meeting line is dark, deepest in the middle.
@@ -115,7 +116,7 @@ internal sealed partial class Painter
         }
 
         // ---- eyes ----
-        if (modelled)
+        if (_c.ModelledEyes)
         {
             // The lids' rims and lashes: darker skin right round the eyeball, most along the upper lid.
             var centre = _c.EyeCenter with { X = MathF.Sign(p.X) * _c.EyeCenter.X };
@@ -124,8 +125,13 @@ internal sealed partial class Painter
             var rim = (1f - SmoothStep(0.05f, male ? 0.32f : 0.42f, gap)) * (p.Y < centre.Y ? 1f : 0f);
             color = Mix(color, new Vector3(0.09f, 0.07f, 0.06f), face * rim * Geo.Lerp(0.25f, male ? 0.75f : 0.95f, upperLid));
         }
-        else if (face > 0f && MathF.Abs(ax - eyeX) < 2.4f)
-            color = Eye(color, fx, ax, fz, eyeX, eyeZ, face, male);
+        else if (face > 0f && MathF.Abs(ax - eyeX) < 2.6f)
+        {
+            // Between the drawn eye and the pack's abstract one, as stylised as asked.
+            var drawn = abstraction < 1f ? Eye(color, fx, ax, fz, eyeX, eyeZ, face, male) : color;
+            var shape = abstraction > 0f ? AbstractEye(color, ax, fz, eyeX, eyeZ, face, male) : color;
+            color = Mix(drawn, shape, abstraction);
+        }
 
         // ---- eyebrows ----
         if (face > 0f)
@@ -217,6 +223,31 @@ internal sealed partial class Painter
         return colour;
     }
 
+    /// <summary>
+    /// The Toon Soldiers pack's eye: no white, iris or lashes, just a dark, soft almond tucked under
+    /// the brow, darkest along the upper lid, with a lighter lid above it. Reads as an eye from any
+    /// distance and as a shape, not a picture, close up.
+    /// </summary>
+    private Vector3 AbstractEye(Vector3 color, float ax, float fz, float eyeX, float eyeZ, float face, bool male)
+    {
+        var u = (ax - eyeX) / 1.55f;                       // -1 inner corner .. +1 outer corner
+        var dz = fz - (eyeZ + 0.12f * u);
+        var span = MathF.Max(0f, 1f - u * u);
+        var upper = (male ? 0.55f : 0.62f) * MathF.Pow(span, 0.55f);
+        var lower = -0.38f * MathF.Pow(span, 0.75f);
+        var inside = SmoothStep(lower - 0.15f, lower + 0.08f, dz) * (1f - SmoothStep(upper - 0.08f, upper + 0.14f, dz));
+        // Shadow from the brow over the socket, then the eye itself, darkest at the upper lid.
+        color *= 1f - 0.28f * face * Blob(u / 1.35f, (dz - 0.35f) / 0.85f);
+        var dark = _skin * Vector3.Lerp(new Vector3(0.42f, 0.35f, 0.32f), new Vector3(0.28f, 0.22f, 0.2f), SmoothStep(0f, upper, dz));
+        color = Mix(color, dark, 0.9f * inside * face);
+        // A faint glint so it is not a hole: the eye's colour in the middle, very dark.
+        color = Mix(color, _eye * 0.35f, 0.5f * Blob(u / 0.35f, (dz - 0.05f) / 0.18f) * inside * face);
+        // The lid between the eye and the brow catches the light; the outer corner tucks into shadow.
+        color *= 1f + 0.08f * face * Band(dz, upper + 0.12f, upper + 0.7f, 0.15f) * MathF.Pow(span, 0.5f);
+        color *= 1f - 0.18f * face * Blob((u - 1.05f) / 0.3f, dz / 0.35f);
+        return color;
+    }
+
     private Vector3 Eye(Vector3 color, float fx, float ax, float fz, float eyeX, float eyeZ, float face, bool male)
     {
         const float halfWidth = 1.5f;
@@ -301,7 +332,7 @@ internal sealed partial class Painter
         var drop = male ? 0.95f : 1.15f;
         var rise = vs < peak ? MathF.Sin(MathF.PI / 2f * vs / peak) : 1f - drop * MathF.Pow((vs - peak) / (1f - peak), 1.6f);
         var centre = browZ - (male ? 0.2f : 0.18f) + arch * rise;
-        var half = (male ? 0.42f : 0.22f) * (1f - 0.15f * vs) * (1f - 0.8f * SmoothStep(peak - 0.1f, 1f, vs));
+        var half = (male ? 0.42f : 0.22f) * (1f + 0.35f * _spec.Stylization) * (1f - 0.15f * vs) * (1f - 0.8f * SmoothStep(peak - 0.1f, 1f, vs));
 
         // Hair direction: up at the head, along the brow in the body, down and out in the tail.
         var angle = v < 0.25f ? Lerp(75f, 20f, SmoothStep(0f, 0.25f, v)) : Lerp(20f, -18f, SmoothStep(peak, 1f, v));
