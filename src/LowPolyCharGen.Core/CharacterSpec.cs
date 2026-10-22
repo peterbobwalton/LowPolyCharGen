@@ -8,6 +8,11 @@ namespace LowPolyCharGen;
 /// <summary>Which skeleton the character is rigged to, which also sets its proportions.</summary>
 public enum RigTarget { ToonSoldiers, Mannequin }
 public enum Gender { Male, Female }
+/// <summary>
+/// How the body is made (mannequin rig): Generated builds it from lofted sections; Realistic shapes
+/// the MakeHuman base mesh (CC0) and decimates it to the triangle budget.
+/// </summary>
+public enum BodyModel { Generated, Realistic }
 
 /// <summary>Uniform edition: a theatre palette for the clothes, gear and camouflage. Custom keeps your own colours.</summary>
 public enum Edition { Custom, Desert, Snow, Jungle, Civilian, Militia }
@@ -37,6 +42,7 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     private string _name = "Character";
     private RigTarget _rig = RigTarget.ToonSoldiers;
     private Gender _gender = Gender.Male;
+    private BodyModel _body = BodyModel.Generated;
     private float _build = 0.5f;
     private float _headSize = 1.0f;
     private HeadShape _headShape = HeadShape.Standard;
@@ -76,6 +82,7 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     /// animations play on it. Mannequin: realistic proportions on the UE5 mannequin skeleton.
     /// </summary>
     public RigTarget Rig { get => _rig; set => Set(ref _rig, value); }
+    public BodyModel Body { get => _body; set => Set(ref _body, value); }
 
     public Gender Gender { get => _gender; set => Set(ref _gender, value); }
 

@@ -241,6 +241,14 @@ static int Check()
     foreach (var edition in Enum.GetValues<Edition>())
         for (var i = 0; i < 25; i++)
             specs.Add(($"{edition}{i}", CharacterSpec.Random(rng, edition)));
+    // The realistic body (slower to build, so fewer of them).
+    for (var i = 0; i < 12; i++)
+    {
+        var spec = CharacterSpec.Random(rng);
+        spec.Rig = RigTarget.Mannequin;
+        spec.Body = BodyModel.Realistic;
+        specs.Add(($"realistic{i}", spec));
+    }
 
     foreach (var (label, spec) in specs)
     {

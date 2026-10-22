@@ -20,6 +20,17 @@ internal static class BodyBuilder
         var legRings = ConfigureLegs(c);
         var armRings = ConfigureArms(c);
 
+        if (c.Realistic)
+        {
+            // The modelled body replaces the lofted one; clothing that changes the silhouette is
+            // still added on top.
+            RealisticBody.Build(c);
+            if (c.Spec.Legs == LegsStyle.Skirt) BuildSkirt(c);
+            if (c.Spec.Legs == LegsStyle.Thobe) BuildThobe(c);
+            if (c.Spec.Scarf || c.Spec.FaceCover == FaceCover.Shemagh) BuildScarf(c);
+            return;
+        }
+
         c.Mesh.MirroredWelded(m =>
         {
             var torso = BuildTorsoHalf(c, m);

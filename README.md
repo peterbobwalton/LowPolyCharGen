@@ -46,6 +46,19 @@ Men have a fit, natural build (chest only a little wider than the waist); women 
 a two-form bust, a defined waist and fuller hips and seat. The jaw has a level underside before it turns
 into the neck, so the chin stands clear of the throat. The Toon Soldiers rig keeps its own chunky trunk.
 
+**Realistic body.** With `Body = Realistic` (mannequin rig) the body is not lofted from sections
+but taken from the MakeHuman base mesh, which is CC0: about 27,000 triangles with real anatomy. Its
+shape targets set gender, build (weight and muscle) and ancestry, the way MakeHuman's macro sliders
+do. The shaped mesh is fitted onto the mannequin skeleton in the T-pose: trunk, neck and head are moved
+and stretched upright, the limbs turned onto the mannequin's bones and stretched to their length,
+each vertex following its bones' moves by MakeHuman's own game_engine rig weights, which are then
+handed over to the mannequin's bones. The result is decimated to `RealisticBody.BodyTriangles` (2,600)
+with the face, hands and feet keeping more of their detail, and painted like the generated body:
+clothes, landmarks (eyes, nose tip and mouth found on the mesh's profile) and gear sit on it because
+the torso and head sections are measured off it. `tools/import_makehuman.py` rebuilds the asset
+(`Assets/human_body.bin`) from a checkout of MakeHuman's MPFB2 data. Still to come: loose trousers,
+boots and fingers bones on the realistic body.
+
 **Hands.** On the mannequin rig the hands are modelled, not generated: `tools/make_hand.py` builds a
 dense, realistic left hand (tapered fingers with full rounded tips, knuckles, palm pads, a relaxed
 thumb) as a distance field meshed with marching cubes, about 174,000 triangles. Look at it or touch
@@ -185,6 +198,9 @@ src/LowPolyCharGen.Core     generator and exporter, no UI dependencies
   Assets/hand_l.obj           the hand template (from tools/make_hand.py via --make-hand)
   Parts/BodyBuilder.cs        the welded body: hips, torso, neck, arms, hands, legs, boots
   Parts/HandTemplate.cs       loads, decimates (cached) and describes the modelled hand
+  Parts/HumanBody.cs          the MakeHuman base mesh: shape targets, fitting onto the mannequin skeleton
+  Parts/RealisticBody.cs      decimates the fitted body into the character mesh, slots and UV patches
+  Assets/human_body.bin       MakeHuman base mesh, targets and rig weights (CC0), from tools/import_makehuman.py
   Parts/HeadBuilder.cs        skull and face shapes, ears, hair, hats, eyewear
   Parts/GearBuilder.cs        vests, backpacks, belt kit
   Texturing/Painter*.cs       the procedural painter (face, clothes, materials)
@@ -225,3 +241,9 @@ Run `lowpolychargen --check` afterwards, and `tools/preview.ps1` to look at the 
 
 `tools/gen_mannequin_data.py` regenerates `MannequinData.cs` from a reference-pose dump of the
 mannequin taken in the Unreal Editor.
+
+## Credits
+
+The realistic body uses the MakeHuman base mesh (hm08), its shape targets and the game_engine rig
+weights, released as CC0 by Data Collection AB, Joel Palmius and Jonas Hauquier
+(http://www.makehumancommunity.org, https://github.com/makehumancommunity/mpfb2).

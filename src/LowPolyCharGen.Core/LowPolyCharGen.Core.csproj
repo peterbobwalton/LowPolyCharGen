@@ -7,6 +7,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Assets\hand_l.obj" LogicalName="LowPolyCharGen.Assets.hand_l.obj" />
+    <EmbeddedResource Include="Assets\human_body.bin" LogicalName="LowPolyCharGen.Assets.human_body.bin" />
   </ItemGroup>
 
 </Project>

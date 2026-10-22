@@ -35,6 +35,11 @@ internal sealed class BuildContext
 
     public bool Female { get; }
     public bool Toon { get; }
+
+    /// <summary>True when the body is the shaped and fitted MakeHuman mesh (see <see cref="HumanBody"/>).</summary>
+    public bool Realistic { get; }
+    /// <summary>The fitted dense body when <see cref="Realistic"/>.</summary>
+    public HumanBody.Fitted? Human { get; }
     public float WidthScale { get; }
     public float DepthScale { get; }
     public float ArmScale { get; }
@@ -139,6 +144,7 @@ internal sealed class BuildContext
 
         Female = spec.Gender == Gender.Female;
         Toon = spec.Rig == RigTarget.ToonSoldiers;
+        Realistic = !Toon && spec.Body == BodyModel.Realistic;
         WidthScale = Geo.Lerp(0.92f, 1.14f, spec.Build);
         DepthScale = Geo.Lerp(0.90f, 1.20f, spec.Build);
         ArmScale = Geo.Lerp(0.90f, 1.14f, spec.Build) * (Female ? (Toon ? 0.86f : 0.93f) : 1f);
@@ -244,6 +250,80 @@ internal sealed class BuildContext
         Sec(0.975f, skull * 0.45f, 3.5f, 4.0f, 2.2f);
         Sec(1.00f, 0.05f, 0.05f, 0.05f, 2.2f);
 
+        // Facial landmarks for the painter, as heights on the head.
+        var eyeX = 3.15f * s * (skull / 7.7f);
+        var eyeZ = HeadZ(0.52f);
+        var shift = 0f;   // how much higher the eyes sit than on the generated head
+        var neckCenter = Geo.P(0, 0.3f, 156f);
+        var neckBaseZ = 153.2f;
+        float? noseTipZ = null, mouthZ = null;
+
+        if (Realistic)
+        {
+            // The MakeHuman body, shaped for this character and fitted to the skeleton. The torso and
+            // head sections are measured off it, so clothing, gear, hair and hats sit on its surface.
+            var body = HumanBody.Default;
+            var shaped = body.Shape(Female ? 0f : 1f, Female ? 0.5f : 0.58f, Geo.Lerp(0.2f, 0.9f, spec.Build), 0.5f, new Vector3(1f / 3f));
+            var used = body.BodyFaces.SelectMany(f => f).Distinct().ToArray();
+            var height = used.Max(v => shaped[v].Z) - used.Min(v => shaped[v].Z);
+            var girth = Female ? 168f / height / FemaleHeightScale : 181f / height;
+            Human = body.Fit(shaped, skeleton, girth, Spine);
+            var pos = Human.Positions;
+            var bones = body.Bones;
+            bool Is(int v, params string[] names) => names.Contains(bones[Human.DominantSourceBone[v]].Name);
+            var trunkNames = new[] { "pelvis", "spine_01", "spine_02", "spine_03", "clavicle_l", "clavicle_r" };
+            var headVerts = used.Where(v => Is(v, "head")).ToArray();
+
+            Torso = MeasuredProfile(Torso.Sections.Select(x => x.Z), used.Where(v => Is(v, trunkNames)).Select(v => pos[v]).ToArray(), 2.4f, false);
+            var chinZ = headVerts.Where(v => MathF.Abs(pos[v].X) < 1.5f && pos[v].Y < Human.Joint("joint-head").Y - 3f).Min(v => pos[v].Z);
+            var topZ = headVerts.Max(v => pos[v].Z);
+            ChinZ = chinZ;
+            HeadHeight = topZ - chinZ;
+            s = HeadScale = HeadHeight / 23.9f;
+            var headPoints = headVerts.Select(v => pos[v]).ToArray();
+            Head = MeasuredProfile(new[] { 0f, 0.1f, 0.2f, 0.33f, 0.42f, 0.52f, 0.62f, 0.76f, 0.9f, 0.975f, 1f }.Select(HeadZ), headPoints, 2.2f, true);
+            var mid = Head.At(HeadZ(0.5f));
+            HeadCenter = new Vector3(0, mid.CenterY, HeadZ(0.5f));
+            HeadHalfWidth = Head.At(HeadZ(0.62f)).HalfWidth;
+            HeadHalfDepth = (mid.Front + mid.Back) / 2;
+            var neck = Human.Joint("joint-neck");
+            var neckPoints = used.Where(v => Is(v, "neck_01") && MathF.Abs(pos[v].Z - (neck.Z + 2f)) < 1f).Select(v => pos[v]).ToArray();
+            if (neckPoints.Length > 0)
+            {
+                NeckRadius = neckPoints.Max(p => MathF.Abs(p.X));
+                neckCenter = new Vector3(0, (neckPoints.Min(p => p.Y) + neckPoints.Max(p => p.Y)) / 2, neck.Z + 2f);
+            }
+            neckBaseZ = neck.Z - 0.5f;
+            var eye = Human.Joint("joint-l-eye");
+            eyeX = MathF.Abs(eye.X);
+            eyeZ = eye.Z;
+            shift = eye.Z - HeadZ(0.52f);
+
+            // Nose tip and mouth from the profile down the middle of the face: the tip is the point
+            // furthest forward below the eyes, the mouth the deepest point between the two lips.
+            var centre = headVerts.Select(v => pos[v]).Where(p => MathF.Abs(p.X) < 0.15f && p.Y < HeadCenter.Y - 3f).ToArray();
+            float Envelope(float z0, float z1) => centre.Where(p => p.Z >= z0 && p.Z < z1).Select(p => p.Y).DefaultIfEmpty(float.NaN).Min();
+            var hh = HeadHeight;
+            var tip = centre.Where(p => p.Z < eyeZ - 0.05f * hh && p.Z > eyeZ - 0.3f * hh).MinBy(p => p.Y);
+            noseTipZ = tip.Z;
+            const float bin = 0.3f;
+            float? Deepest(float z0, float z1, bool forward)
+            {
+                float? bestZ = null;
+                var best = forward ? float.MaxValue : float.MinValue;
+                for (var z = z0; z < z1; z += bin)
+                {
+                    var y = Envelope(z, z + bin);
+                    if (float.IsNaN(y)) continue;
+                    if (forward ? y < best : y > best) { best = y; bestZ = z + bin / 2; }
+                }
+                return bestZ;
+            }
+            var upperLip = Deepest(tip.Z - 0.11f * hh, tip.Z - 0.05f * hh, true);
+            var lowerLip = Deepest(tip.Z - 0.2f * hh, tip.Z - 0.11f * hh, true);
+            if (upperLip is { } u && lowerLip is { } l && u - l > 2 * bin) mouthZ = Deepest(l + bin / 2, u - bin / 2, false);
+        }
+
         Paint = new PaintContext
         {
             Spec = spec,
@@ -253,14 +333,14 @@ internal sealed class BuildContext
             ChinZ = ChinZ,
             HeadHeight = HeadHeight,
             HeadHalfWidth = HeadHalfWidth,
-            EyeX = 3.15f * s * (skull / 7.7f),
-            EyeZ = HeadZ(0.52f),
-            BrowZ = HeadZ(0.595f),
-            NoseBaseZ = HeadZ(0.33f),
-            NoseTipZ = HeadZ(0.41f),
-            MouthZ = HeadZ(0.215f),
-            NeckBaseZ = 153.2f,
-            NeckCenter = Geo.P(0, 0.3f, 156f),
+            EyeX = eyeX,
+            EyeZ = eyeZ,
+            BrowZ = HeadZ(0.595f) + shift,
+            NoseBaseZ = noseTipZ is { } nt ? nt - 0.06f * HeadHeight : HeadZ(0.33f) + shift,
+            NoseTipZ = noseTipZ ?? HeadZ(0.41f) + shift,
+            MouthZ = mouthZ ?? HeadZ(0.215f) + shift,
+            NeckBaseZ = neckBaseZ,
+            NeckCenter = neckCenter,
             NeckRadius = NeckRadius,
             ArmScale = ArmScale,
             Ankle = skeleton["foot_l"].Position,
@@ -275,6 +355,30 @@ internal sealed class BuildContext
             LegCenter = LegL.Center,
             KneeZ = skeleton["calf_l"].Position.Z,
         };
+    }
+
+    /// <summary>
+    /// Sections measured off a mesh: at each height, the extent of the points within a centimetre of
+    /// it. With <paramref name="skipEars"/> the width is taken from the front and back of the head only.
+    /// </summary>
+    private static Profile MeasuredProfile(IEnumerable<float> heights, Vector3[] points, float exp, bool skipEars)
+    {
+        var profile = new Profile();
+        foreach (var z in heights)
+        {
+            Vector3[] near = [];
+            for (var band = 0.8f; band < 6f && near.Length < 6; band *= 1.6f)
+                near = points.Where(p => MathF.Abs(p.Z - z) < band).ToArray();
+            if (near.Length == 0) continue;
+            float minY = near.Min(p => p.Y), maxY = near.Max(p => p.Y);
+            var centreY = (minY + maxY) / 2;
+            var depth = maxY - minY;
+            var across = skipEars ? near.Where(p => MathF.Abs(p.Y - centreY) > 0.22f * depth).ToArray() : near;
+            if (across.Length == 0) across = near;
+            var halfWidth = MathF.Max(0.05f, across.Max(p => MathF.Abs(p.X)));
+            profile.Add(z, -centreY, halfWidth, MathF.Max(0.05f, centreY - minY), MathF.Max(0.05f, maxY - centreY), exp);
+        }
+        return profile;
     }
 
     private Profile BuildTorso()

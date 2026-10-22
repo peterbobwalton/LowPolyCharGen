@@ -45,6 +45,10 @@
                                                     ToolTip="Toon Soldiers: the pack's chunky proportions on its Bip001 skeleton, so its animations play on it. UE5 mannequin: realistic proportions on SK_Mannequin.">
                                 <ComboBox Style="{StaticResource EnumCombo}" ItemsSource="{local:EnumValues {x:Type core:RigTarget}}" SelectedItem="{Binding Rig}" />
                             </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource Row}" Header="Body"
+                                                    ToolTip="UE5 mannequin rig only. Generated: built from lofted sections. Realistic: the MakeHuman base mesh (CC0) shaped for gender and build, fitted to the skeleton and decimated to the triangle budget.">
+                                <ComboBox Style="{StaticResource EnumCombo}" ItemsSource="{local:EnumValues {x:Type core:BodyModel}}" SelectedItem="{Binding Body}" />
+                            </HeaderedContentControl>
                             <HeaderedContentControl Style="{StaticResource Row}" Header="Edition"
                                                     ToolTip="Uniform edition: sets the clothing, hat, gear and camouflage colours for desert, snow or jungle kit">
                                 <ComboBox Style="{StaticResource EnumCombo}" ItemsSource="{local:EnumValues {x:Type core:Edition}}" SelectedItem="{Binding Edition}" />
