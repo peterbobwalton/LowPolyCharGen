@@ -18,6 +18,7 @@ internal static class RealisticBody
         var human = c.Human ?? throw new InvalidOperationException("No fitted body.");
         var source = HumanBody.Default;
         PoseHands(c, human);
+        var nostril = FillNostrils(c, human);
         var bones = source.Bones;
         var m = c.Mesh;
 
@@ -112,11 +113,80 @@ internal static class RealisticBody
             c.Paint.Lips = lips;
             c.Paint.MouthZ = lips.At(0f).Seam;
         }
-        c.Paint.Nostril = new Vector2(0.9f / c.HeadScale, (c.Paint.NoseTipZ - 0.045f * c.HeadHeight - c.ChinZ) / c.HeadScale);
+        c.Paint.Nostril = nostril is { } n
+            ? new Vector2(n.X / c.HeadScale, (n.Z - c.ChinZ) / c.HeadScale)
+            : new Vector2(0.9f / c.HeadScale, (c.Paint.NoseTipZ - 0.045f * c.HeadHeight - c.ChinZ) / c.HeadScale);
         c.Paint.ModelledHands = true;
         c.Paint.HandOrigin = Vector3.Zero;
         c.Paint.HandScale = 1f;
         c.Paint.Nails = nails;
+    }
+
+    /// <summary>
+    /// Fills the nostrils of the dense head before it is reduced. Reduced to a few triangles they
+    /// became sharp dark wedges; filled, the underside of the nose is a smooth surface and the
+    /// nostrils are painted on it as soft dark ovals. Every vertex of the underside of the nose that
+    /// lies in a hollow is lifted out along its normal towards its neighbours until the hollow is
+    /// gone; bumps are left alone. Returns the middle of the left nostril (where it was deepest), or
+    /// null if no nose was found.
+    /// </summary>
+    private static Vector3? FillNostrils(BuildContext c, HumanBody.Fitted human)
+    {
+        var pos = human.Positions;
+        var s = c.HeadScale;
+        var mouth = MouthCentre(human);
+        if (mouth == Vector3.Zero) return null;
+        var tip = -1;
+        for (var v = 0; v < pos.Length; v++)
+        {
+            var p = pos[v];
+            if (MathF.Abs(p.X) < 0.15f * s && p.Z > mouth.Z + 1f * s && p.Z < mouth.Z + 5f * s && (tip < 0 || p.Y < pos[tip].Y)) tip = v;
+        }
+        if (tip < 0) return null;
+        var top = pos[tip];
+        bool InNose(Vector3 p) => MathF.Abs(p.X) < 1.7f * s && p.Z > top.Z - 1.7f * s && p.Z < top.Z + 0.2f * s && p.Y < top.Y + 2.4f * s;
+
+        var tris = Triangulate(HumanBody.Default.BodyFaces);
+        var region = new HashSet<int>();
+        for (var v = 0; v < pos.Length; v++)
+            if (InNose(pos[v])) region.Add(v);
+        if (region.Count == 0) return null;
+        var neighbours = region.ToDictionary(v => v, _ => new HashSet<int>());
+        var normals = region.ToDictionary(v => v, _ => Vector3.Zero);
+        foreach (var t in tris)
+            for (var k = 0; k < 3; k++)
+                if (region.Contains(t[k]))
+                {
+                    neighbours[t[k]].Add(t[(k + 1) % 3]);
+                    neighbours[t[k]].Add(t[(k + 2) % 3]);
+                    normals[t[k]] += Vector3.Cross(pos[t[1]] - pos[t[0]], pos[t[2]] - pos[t[0]]);
+                }
+        foreach (var v in region) normals[v] = normals[v].LengthSquared() > 1e-12f ? Vector3.Normalize(normals[v]) : Vector3.UnitZ;
+
+        var original = region.ToDictionary(v => v, v => pos[v]);
+        for (var pass = 0; pass < 60; pass++)
+            foreach (var v in region)
+            {
+                var avg = Vector3.Zero;
+                foreach (var w in neighbours[v]) avg += pos[w];
+                avg /= neighbours[v].Count;
+                var lift = Vector3.Dot(avg - pos[v], normals[v]);
+                // Out of a hollow only, and fading to nothing at the edge of the region.
+                if (lift > 0f) pos[v] += normals[v] * (lift * 0.8f);
+            }
+
+        // The nostril: where the surface was lifted most, on the left.
+        var sum = Vector3.Zero;
+        var weight = 0f;
+        foreach (var v in region)
+        {
+            if (pos[v].X <= 0.2f * s) continue;
+            var lifted = Vector3.Distance(pos[v], original[v]);
+            var w = lifted * lifted * lifted;
+            sum += pos[v] * w;
+            weight += w;
+        }
+        return weight > 1e-9f ? sum / weight : null;
     }
 
     /// <summary>The middle of the mouth: where the vertices the lip targets move most are.</summary>

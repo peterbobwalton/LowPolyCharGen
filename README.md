@@ -82,7 +82,10 @@ match exactly; the lips and nostrils keep the most triangles of all. The reduced
 dense body's normals (smoothed a little first, `Face.CornerNormals`), so it looks rounded instead of
 faceted. The painted lips are measured off the modelled mouth (`LipProfile`: the face is rasterised as
 a depth map and the line between the lips, and each lip's edge, found column by column), so the colour
-sits exactly on the lips; women's corners of the mouth are lifted a little (`mouth-angles`).
+sits exactly on the lips; women's corners of the mouth are lifted a little (`mouth-angles`). The
+nostrils are filled in on the dense head before it is reduced (hollows under the nose lifted out to
+a smooth surface), so they no longer turn into sharp dark wedges, and are painted as soft, angled
+ovals on the underside of the nose where they were deepest.
 
 **Hair.** On the realistic head the hair is a shell over the dense skull (`RealisticBody.BuildHair`):
 thin at the hairline, so it grows out of the painted hair rather than sitting on the head like a

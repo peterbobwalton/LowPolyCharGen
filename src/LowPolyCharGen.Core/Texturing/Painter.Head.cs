@@ -42,12 +42,16 @@ internal sealed partial class Painter
         {
             color *= 1f - 0.10f * face * Line(ax - 1.5f, 0.4f, 0.25f) * Band(fz, 8.6f, 12.6f, 0.5f);                                 // sides of the nose
             color *= 1f + 0.06f * face * Blob(ax / 0.9f, (fz - 9.9f) / 1.0f);                                                        // nose tip
-            // Light bounced up off the lip into the underside of the nose, so it is not a dark bar and the nostrils read.
-            var noseUnder = face * SmoothStep(-0.1f, 0.35f, -t.N.Z) * (1f - SmoothStep(1.6f, 2.4f, ax)) * Band(fz, _c.Nostril.Y - 1.2f, _c.Nostril.Y + 1.6f, 0.3f);
-            color *= 1f + 0.35f * noseUnder;
-            var nostrils = MathF.Min(1f, 1.5f * Blob((ax - _c.Nostril.X) / 0.34f, (fz - _c.Nostril.Y) / 0.42f)) * SmoothStep(-0.25f, 0.15f, -t.N.Z);
-            color = Mix(color, _skin * 0.36f, face * nostrils);                                                                      // nostrils, under the tip
         }
+        // Light bounced up off the lip into the underside of the nose, so it is not a dark bar and the nostrils read.
+        var noseUnder = face * SmoothStep(-0.1f, 0.35f, -t.N.Z) * (1f - SmoothStep(1.6f, 2.4f, ax)) * Band(fz, _c.Nostril.Y - 1.2f, _c.Nostril.Y + 1.6f, 0.3f);
+        color *= 1f + (modelled ? 0.2f : 0.35f) * noseUnder;
+        // The nostrils, under the tip (the modelled nose's are filled in and painted here).
+        var nostrils = modelled
+            // Kidney-shaped and soft, angled in towards the tip, on the underside only.
+            ? 0.85f * MathF.Min(1f, 1.3f * Blob((ax - _c.Nostril.X + 0.25f * (fz - _c.Nostril.Y)) / 0.5f, (fz - _c.Nostril.Y) / 0.24f)) * SmoothStep(0.1f, 0.45f, -t.N.Z)
+            : MathF.Min(1f, 1.5f * Blob((ax - _c.Nostril.X) / 0.34f, (fz - _c.Nostril.Y) / 0.42f)) * SmoothStep(-0.25f, 0.15f, -t.N.Z);
+        color = Mix(color, _skin * 0.36f, face * nostrils);
         color *= 1f - 0.09f * face * Blob(ax / 1.9f, (fz - mouthZ + 1.3f) / 0.55f);                                                  // under the lower lip
         color *= 1f + 0.05f * face * Blob(ax / 3.2f, (fz - 16.6f) / 2.2f);                                                           // forehead
         color *= 1f - 0.07f * SmoothStep(4.6f, 7.2f, ax) * Band(fz, 1f, 11f, 2f);                                                    // sides of the face
