@@ -89,6 +89,7 @@ internal sealed partial class Painter
             Slot.Hand => Hand(t),
             Slot.Leg => Leg(t),
             Slot.Foot => Foot(t),
+            Slot.Eye => EyeBall(t),
             _ => Detail(t, Material(t)),
         };
 
@@ -98,7 +99,7 @@ internal sealed partial class Painter
         if (_spec.Rig == RigTarget.ToonSoldiers) return Vector3.Clamp(ToonFinish(color, t), Vector3.Zero, Vector3.One);
 
         // Baked soft lighting: occlusion, and surfaces facing up a touch brighter than those facing down.
-        var depth = t.Slot is Slot.Head or Slot.Ear or Slot.Neck or Slot.Hand ? 0.30f : 0.44f;
+        var depth = t.Slot is Slot.Head or Slot.Ear or Slot.Neck or Slot.Hand or Slot.Eye ? 0.30f : 0.44f;
         color *= (1f - depth + depth * t.Ao) * (0.94f + 0.08f * t.N.Z);
         return Vector3.Clamp(color, Vector3.Zero, Vector3.One);
     }

@@ -35,14 +35,19 @@ internal sealed partial class Painter
 
         // ---- skin shading: what a portrait painter would put in before the features ----
         color = Mix(color, _skin * new Vector3(1.06f, 0.88f, 0.86f), 0.30f * face * Blob((ax - 4.4f) / 2.4f, (fz - 8.2f) / 2.0f));   // cheeks
-        color *= 1f - (male ? 0.20f : 0.11f) * face * Blob((ax - eyeX) / 2.6f, (fz - eyeZ - 0.3f) / 1.7f);                          // eye sockets
-        color *= 1f - 0.10f * face * Line(ax - 1.5f, 0.4f, 0.25f) * Band(fz, 8.6f, 12.6f, 0.5f);                                     // sides of the nose
-        color *= 1f + 0.06f * face * Blob(ax / 0.9f, (fz - 9.9f) / 1.0f);                                                            // nose tip
-        // Light bounced up off the lip into the underside of the nose, so it is not a dark bar and the nostrils read.
-        var noseUnder = face * SmoothStep(-0.1f, 0.35f, -t.N.Z) * (1f - SmoothStep(1.6f, 2.4f, ax)) * Band(fz, _c.Nostril.Y - 1.2f, _c.Nostril.Y + 1.6f, 0.3f);
-        color *= 1f + 0.35f * noseUnder;
-        var nostrils = MathF.Min(1f, 1.5f * Blob((ax - _c.Nostril.X) / 0.34f, (fz - _c.Nostril.Y) / 0.42f)) * SmoothStep(-0.25f, 0.15f, -t.N.Z);
-        color = Mix(color, _skin * 0.36f, face * nostrils);                                                                          // nostrils, under the tip
+        // A modelled face has its own sockets, nose and nostrils: the painted shading only hints at them.
+        var modelled = _c.ModelledFace;
+        color *= 1f - (male ? 0.20f : 0.11f) * (modelled ? 0.4f : 1f) * face * Blob((ax - eyeX) / 2.6f, (fz - eyeZ - 0.3f) / 1.7f);   // eye sockets
+        if (!modelled)
+        {
+            color *= 1f - 0.10f * face * Line(ax - 1.5f, 0.4f, 0.25f) * Band(fz, 8.6f, 12.6f, 0.5f);                                 // sides of the nose
+            color *= 1f + 0.06f * face * Blob(ax / 0.9f, (fz - 9.9f) / 1.0f);                                                        // nose tip
+            // Light bounced up off the lip into the underside of the nose, so it is not a dark bar and the nostrils read.
+            var noseUnder = face * SmoothStep(-0.1f, 0.35f, -t.N.Z) * (1f - SmoothStep(1.6f, 2.4f, ax)) * Band(fz, _c.Nostril.Y - 1.2f, _c.Nostril.Y + 1.6f, 0.3f);
+            color *= 1f + 0.35f * noseUnder;
+            var nostrils = MathF.Min(1f, 1.5f * Blob((ax - _c.Nostril.X) / 0.34f, (fz - _c.Nostril.Y) / 0.42f)) * SmoothStep(-0.25f, 0.15f, -t.N.Z);
+            color = Mix(color, _skin * 0.36f, face * nostrils);                                                                      // nostrils, under the tip
+        }
         color *= 1f - 0.09f * face * Blob(ax / 1.9f, (fz - mouthZ + 1.3f) / 0.55f);                                                  // under the lower lip
         color *= 1f + 0.05f * face * Blob(ax / 3.2f, (fz - 16.6f) / 2.2f);                                                           // forehead
         color *= 1f - 0.07f * SmoothStep(4.6f, 7.2f, ax) * Band(fz, 1f, 11f, 2f);                                                    // sides of the face
@@ -79,7 +84,16 @@ internal sealed partial class Painter
         }
 
         // ---- eyes ----
-        if (face > 0f && MathF.Abs(ax - eyeX) < 2.4f)
+        if (modelled)
+        {
+            // The lids' rims and lashes: darker skin right round the eyeball, most along the upper lid.
+            var centre = _c.EyeCenter with { X = MathF.Sign(p.X) * _c.EyeCenter.X };
+            var gap = Vector3.Distance(p, centre) - _c.EyeRadius;
+            var upperLid = SmoothStep(-0.25f, 0.15f, p.Z - centre.Z);
+            var rim = (1f - SmoothStep(0.05f, male ? 0.32f : 0.42f, gap)) * (p.Y < centre.Y ? 1f : 0f);
+            color = Mix(color, new Vector3(0.09f, 0.07f, 0.06f), face * rim * Geo.Lerp(0.25f, male ? 0.75f : 0.95f, upperLid));
+        }
+        else if (face > 0f && MathF.Abs(ax - eyeX) < 2.4f)
             color = Eye(color, fx, ax, fz, eyeX, eyeZ, face, male);
 
         // ---- eyebrows ----
@@ -152,6 +166,37 @@ internal sealed partial class Painter
     /// lid dips towards the ear, a shaded eyeball with the iris tucked under both lids, then the lash
     /// lines, the lid crease, the lower lid's wet rim and the shadow under the eye.
     /// </summary>
+    /// <summary>
+    /// The realistic body's eyeball: white, iris and pupil laid out by angle from straight ahead, so
+    /// they sit on the ball wherever the lids leave it showing.
+    /// </summary>
+    private Vector3 EyeBall(in Texel t)
+    {
+        var p = t.P;
+        var centre = _c.EyeCenter with { X = MathF.Sign(p.X) * _c.EyeCenter.X };
+        var dir = Vector3.Normalize(p - centre);
+        // Looking straight ahead, a touch down.
+        var gaze = Vector3.Normalize(new Vector3(0f, -1f, -0.1f));
+        var arc = MathF.Acos(Math.Clamp(Vector3.Dot(dir, gaze), -1f, 1f)) * _c.EyeRadius;   // cm over the ball from the centre of the pupil
+        var side = Vector3.Normalize(Vector3.Cross(gaze, Vector3.UnitZ));
+        var lx = Vector3.Dot(dir, side) * MathF.Sign(p.X);
+        var ly = dir.Z;
+
+        var white = new Vector3(0.84f, 0.81f, 0.77f) * (1f - 0.35f * SmoothStep(0.6f, 1.6f, arc));
+        white = Mix(white, new Vector3(0.82f, 0.6f, 0.57f), 0.4f * SmoothStep(0.9f, 1.5f, arc) * SmoothStep(0.2f, 0.7f, MathF.Abs(lx)));
+        const float radius = 0.64f;
+        var angle = MathF.Atan2(ly, lx);
+        var fibres = 0.8f + 0.4f * Noise.Value(new Vector3(MathF.Cos(angle) * 5f, MathF.Sin(angle) * 5f, arc * 1.5f));
+        var iris = _eye * (0.6f + 0.6f * (1f - arc / radius)) * fibres;
+        iris = Mix(iris, _eye * 1.35f + new Vector3(0.04f), 0.45f * Line(arc - 0.28f, 0.06f, 0.05f));
+        iris *= 1f - 0.55f * SmoothStep(radius - 0.14f, radius - 0.02f, arc);
+        var colour = Mix(white, iris, 1f - SmoothStep(radius - 0.03f, radius + 0.02f, arc));
+        colour = Mix(colour, new Vector3(0.02f), 1f - SmoothStep(0.2f, 0.24f, arc));                       // pupil
+        colour = Mix(colour, Vector3.One, 0.85f * Disc(lx * _c.EyeRadius - 0.17f, ly * _c.EyeRadius - 0.2f, 0.07f, 0.025f));   // catch light
+        colour *= 1f - 0.45f * SmoothStep(-0.2f, 0.45f, ly * _c.EyeRadius);                                   // the upper lid's shadow
+        return colour;
+    }
+
     private Vector3 Eye(Vector3 color, float fx, float ax, float fz, float eyeX, float eyeZ, float face, bool male)
     {
         const float halfWidth = 1.5f;

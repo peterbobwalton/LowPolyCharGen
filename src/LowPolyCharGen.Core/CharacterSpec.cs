@@ -15,6 +15,8 @@ public enum Gender { Male, Female }
 public enum BodyModel { Generated, Realistic }
 /// <summary>How the realistic body's hands are posed in the exported bind pose (the finger bones follow).</summary>
 public enum HandPose { Relaxed, Open, Closed, Fist }
+/// <summary>Realistic body: the ancestry the face and build lean towards (MakeHuman's ethnic targets).</summary>
+public enum Ancestry { Mixed, African, EastAsian, European }
 
 /// <summary>Uniform edition: a theatre palette for the clothes, gear and camouflage. Custom keeps your own colours.</summary>
 public enum Edition { Custom, Desert, Snow, Jungle, Civilian, Militia }
@@ -46,6 +48,8 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     private Gender _gender = Gender.Male;
     private BodyModel _body = BodyModel.Generated;
     private HandPose _handPose = HandPose.Relaxed;
+    private Ancestry _ancestry = Ancestry.Mixed;
+    private int _faceSeed;
     private float _build = 0.5f;
     private float _headSize = 1.0f;
     private HeadShape _headShape = HeadShape.Standard;
@@ -87,6 +91,9 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     public RigTarget Rig { get => _rig; set => Set(ref _rig, value); }
     public BodyModel Body { get => _body; set => Set(ref _body, value); }
     public HandPose HandPose { get => _handPose; set => Set(ref _handPose, value); }
+    public Ancestry Ancestry { get => _ancestry; set => Set(ref _ancestry, value); }
+    /// <summary>Realistic body: varies the face within its type (0 = the type's own face).</summary>
+    public int FaceSeed { get => _faceSeed; set => Set(ref _faceSeed, Math.Clamp(value, 0, 9999)); }
 
     public Gender Gender { get => _gender; set => Set(ref _gender, value); }
 
@@ -294,6 +301,8 @@ public sealed class CharacterSpec : INotifyPropertyChanged
         {
             Gender = Pick<Gender>(),
             Build = (float)rng.NextDouble(),
+            Ancestry = Pick<Ancestry>(),
+            FaceSeed = rng.Next(1, 10000),
             HeadSize = 0.97f + (float)rng.NextDouble() * 0.1f,
             HeadShape = Pick<HeadShape>(),
             Hair = Pick<HairStyle>(),

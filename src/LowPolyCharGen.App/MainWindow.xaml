@@ -53,6 +53,14 @@
                                                     ToolTip="Realistic body: how the hands are posed in the exported bind pose (relaxed, open, closed grip or fist). The finger bones are the mannequin's, so its animations still move the fingers.">
                                 <ComboBox Style="{StaticResource EnumCombo}" ItemsSource="{local:EnumValues {x:Type core:HandPose}}" SelectedItem="{Binding HandPose}" />
                             </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource Row}" Header="Ancestry"
+                                                    ToolTip="Realistic body: the ancestry the face and build lean towards (MakeHuman's targets).">
+                                <ComboBox Style="{StaticResource EnumCombo}" ItemsSource="{local:EnumValues {x:Type core:Ancestry}}" SelectedItem="{Binding Ancestry}" />
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource Row}" Header="Face">
+                                <Slider Minimum="0" Maximum="9999" Value="{Binding FaceSeed}" IsSnapToTickEnabled="True" TickFrequency="1" LargeChange="97" SmallChange="1"
+                                        ToolTip="Realistic body: varies the face within its type (0 = the type's own face). Randomise picks one." />
+                            </HeaderedContentControl>
                             <HeaderedContentControl Style="{StaticResource Row}" Header="Edition"
                                                     ToolTip="Uniform edition: sets the clothing, hat, gear and camouflage colours for desert, snow or jungle kit">
                                 <ComboBox Style="{StaticResource EnumCombo}" ItemsSource="{local:EnumValues {x:Type core:Edition}}" SelectedItem="{Binding Edition}" />

@@ -103,9 +103,13 @@ public sealed class HumanBody
     /// female .. 1 = male; muscle and weight 0 .. 1 with 0.5 average; bust 0 .. 1 (women);
     /// ancestry weights (African, Asian, European) summing to 1.
     /// </summary>
-    public Vector3[] Shape(float gender, float muscle, float weight, float bust, Vector3 ancestry)
+    public Vector3[] Shape(float gender, float muscle, float weight, float bust, Vector3 ancestry, IReadOnlyDictionary<string, float>? features = null)
     {
         var p = (Vector3[])BasePositions.Clone();
+        if (features is not null)
+            foreach (var (name, w) in features)
+                if (Targets.TryGetValue(name, out var ft))
+                    for (var k = 0; k < ft.Vertices.Length; k++) p[ft.Vertices[k]] += ft.Deltas[k] * w;
         void Add(string name, float w)
         {
             if (w <= 1e-5f || !Targets.TryGetValue(name, out var t)) return;
@@ -126,6 +130,97 @@ public sealed class HumanBody
         foreach (var (c, cw) in Three(bust, "mincup", "averagecup", "maxcup"))
             Add($"female-young-averagemuscle-averageweight-{c}-averagefirmness", (1f - gender) * cw);
         return p;
+    }
+
+    /// <summary>The face features that vary, as (low end, high end) target pairs (see tools/import_makehuman.py).</summary>
+    public static readonly (string Low, string High)[] FacePairs =
+    [
+        ("head-fat-decr", "head-fat-incr"), ("head-scale-horiz-decr", "head-scale-horiz-incr"), ("head-scale-vert-decr", "head-scale-vert-incr"),
+        ("chin-width-decr", "chin-width-incr"), ("chin-prominent-decr", "chin-prominent-incr"), ("chin-height-decr", "chin-height-incr"),
+        ("chin-bones-decr", "chin-bones-incr"),
+        ("nose-scale-horiz-decr", "nose-scale-horiz-incr"), ("nose-scale-vert-decr", "nose-scale-vert-incr"), ("nose-scale-depth-decr", "nose-scale-depth-incr"),
+        ("nose-point-width-decr", "nose-point-width-incr"), ("nose-hump-decr", "nose-hump-incr"), ("nose-volume-decr", "nose-volume-incr"),
+        ("nose-nostrils-width-decr", "nose-nostrils-width-incr"),
+        ("mouth-scale-horiz-decr", "mouth-scale-horiz-incr"), ("mouth-lowerlip-volume-decr", "mouth-lowerlip-volume-incr"),
+        ("mouth-upperlip-volume-decr", "mouth-upperlip-volume-incr"),
+        ("l-eye-scale-decr", "l-eye-scale-incr"), ("r-eye-scale-decr", "r-eye-scale-incr"),
+        ("l-eye-height2-decr", "l-eye-height2-incr"), ("r-eye-height2-decr", "r-eye-height2-incr"),
+        ("l-cheek-bones-decr", "l-cheek-bones-incr"), ("r-cheek-bones-decr", "r-cheek-bones-incr"),
+        ("l-cheek-volume-decr", "l-cheek-volume-incr"), ("r-cheek-volume-decr", "r-cheek-volume-incr"),
+        ("eyebrows-trans-down", "eyebrows-trans-up"),
+        ("torso-vshape-decr", "torso-vshape-incr"), ("torso-muscle-pectoral-decr", "torso-muscle-pectoral-incr"),
+        ("torso-muscle-dorsi-decr", "torso-muscle-dorsi-incr"), ("measure-shoulder-dist-decr", "measure-shoulder-dist-incr"),
+        ("measure-waist-circ-decr", "measure-waist-circ-incr"), ("measure-hips-circ-decr", "measure-hips-circ-incr"),
+        ("hip-scale-horiz-decr", "hip-scale-horiz-incr"),
+    ];
+
+    /// <summary>
+    /// The face for a character: a male or female archetype (a man's square, strong jaw and heavier
+    /// brow and nose; a woman's oval face, finer chin and nose, larger eyes and fuller lips), the
+    /// head shape asked for, and a little variation from <paramref name="seed"/> (0 = none), mirrored
+    /// so both sides match. Returns target weights for <see cref="Shape"/>.
+    /// </summary>
+    public static Dictionary<string, float> Face(bool female, HeadShape shape, int seed)
+    {
+        var w = new Dictionary<string, float>();
+        // Feature value -1 .. 1 onto its pair of targets.
+        void Set(string feature, float value)
+        {
+            var (lo, hi) = FacePairs.First(p => p.Low.StartsWith(feature + "-", StringComparison.Ordinal) && p.Low.Length - feature.Length <= 6);
+            if (value < 0) w[lo] = w.GetValueOrDefault(lo) - value;
+            else w[hi] = w.GetValueOrDefault(hi) + value;
+        }
+        var f = new Dictionary<string, float>();
+        void Add(string feature, float value) => f[feature] = f.GetValueOrDefault(feature) + value;
+        if (female)
+        {
+            w["head-oval"] = 0.6f;
+            Add("head-fat", -0.25f); Add("chin-width", -0.45f); Add("chin-prominent", -0.2f); Add("chin-bones", -0.35f);
+            Add("nose-scale-horiz", -0.3f); Add("nose-scale-vert", -0.2f); Add("nose-volume", -0.3f); Add("nose-point-width", -0.3f);
+            Add("nose-nostrils-width", -0.25f); Add("nose-hump", -0.3f);
+            Add("mouth-lowerlip-volume", 0.2f); Add("mouth-upperlip-volume", 0.12f);
+            Add("l-eye-scale", 0.12f); Add("r-eye-scale", 0.12f);
+            Add("l-cheek-bones", 0.25f); Add("r-cheek-bones", 0.25f); Add("eyebrows-trans", 0.25f);
+            // Petite: narrow shoulders, a small waist and trim hips.
+            Add("measure-shoulder-dist", -0.25f); Add("measure-waist-circ", -0.35f); Add("measure-hips-circ", -0.2f); Add("hip-scale-horiz", -0.15f);
+        }
+        else
+        {
+            // Lean and angular: a square jaw and chin under flat cheeks, not a broad round face.
+            w["head-square"] = 0.4f;
+            Add("head-fat", -0.3f); Add("head-scale-horiz", -0.1f);
+            Add("chin-width", 0.35f); Add("chin-prominent", 0.35f); Add("chin-bones", 0.45f); Add("chin-height", 0.15f);
+            Add("l-cheek-volume", -0.3f); Add("r-cheek-volume", -0.3f);
+            // Strong: broad shoulders over a V-shaped back and chest, a trim waist.
+            Add("torso-vshape", 0.5f); Add("torso-muscle-pectoral", 0.4f); Add("torso-muscle-dorsi", 0.35f);
+            Add("measure-shoulder-dist", 0.35f); Add("measure-waist-circ", -0.15f);
+            Add("nose-scale-horiz", 0.15f); Add("nose-volume", 0.15f);
+            Add("mouth-upperlip-volume", -0.2f); Add("mouth-lowerlip-volume", -0.1f);
+            Add("l-cheek-bones", 0.2f); Add("r-cheek-bones", 0.2f); Add("eyebrows-trans", -0.25f);
+        }
+        switch (shape)
+        {
+            case HeadShape.Square: w["head-square"] = w.GetValueOrDefault("head-square") + 0.5f; Add("chin-width", 0.25f); break;
+            case HeadShape.Round: w["head-round"] = 0.6f; Add("head-fat", 0.2f); break;
+            case HeadShape.Slim: w["head-oval"] = w.GetValueOrDefault("head-oval") + 0.3f; w["head-rectangular"] = 0.3f; Add("head-fat", -0.3f); break;
+            case HeadShape.Heavy: Add("head-fat", 0.55f); Add("chin-bones", 0.25f); Add("nose-volume", 0.2f); break;
+        }
+        if (seed != 0)
+        {
+            // Small, symmetric variation that keeps the archetype.
+            var rng = new Random(seed);
+            float Jitter(float spread) => (float)((rng.NextDouble() + rng.NextDouble() + rng.NextDouble() - 1.5) / 1.5 * spread);
+            foreach (var feature in new[] { "head-fat", "head-scale-horiz", "head-scale-vert", "chin-width", "chin-prominent", "chin-height",
+                         "nose-scale-horiz", "nose-scale-vert", "nose-scale-depth", "nose-point-width", "nose-hump", "nose-volume",
+                         "mouth-scale-horiz", "mouth-lowerlip-volume", "mouth-upperlip-volume", "eyebrows-trans" })
+                Add(feature, Jitter(0.35f));
+            var eye = Jitter(0.3f);
+            Add("l-eye-scale", eye); Add("r-eye-scale", eye);
+            var cheek = Jitter(0.3f);
+            Add("l-cheek-bones", cheek); Add("r-cheek-bones", cheek);
+        }
+        foreach (var (feature, value) in f) Set(feature, Math.Clamp(value, -1f, 1f));
+        return w;
     }
 
     public Vector3 Joint(Vector3[] positions, string name)

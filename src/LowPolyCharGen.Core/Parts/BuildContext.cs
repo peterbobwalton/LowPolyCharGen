@@ -263,7 +263,21 @@ internal sealed class BuildContext
             // The MakeHuman body, shaped for this character and fitted to the skeleton. The torso and
             // head sections are measured off it, so clothing, gear, hair and hats sit on its surface.
             var body = HumanBody.Default;
-            var shaped = body.Shape(Female ? 0f : 1f, Female ? 0.5f : 0.58f, Geo.Lerp(0.2f, 0.9f, spec.Build), 0.5f, new Vector3(1f / 3f));
+            // Men strong and square-jawed, women petite with an oval face (see HumanBody.Face).
+            var ancestry = spec.Ancestry switch
+            {
+                Ancestry.African => new Vector3(0.8f, 0.1f, 0.1f),
+                Ancestry.EastAsian => new Vector3(0.1f, 0.8f, 0.1f),
+                Ancestry.European => new Vector3(0.1f, 0.1f, 0.8f),
+                _ => new Vector3(1f / 3f),
+            };
+            var shaped = body.Shape(
+                Female ? 0f : 1f,
+                Female ? 0.42f : Geo.Lerp(0.7f, 0.88f, spec.Build),
+                Female ? Geo.Lerp(0.08f, 0.6f, spec.Build) : Geo.Lerp(0.3f, 0.85f, spec.Build),
+                0.62f,
+                ancestry,
+                HumanBody.Face(Female, spec.HeadShape, spec.FaceSeed));
             var used = body.BodyFaces.SelectMany(f => f).Distinct().ToArray();
             var height = used.Max(v => shaped[v].Z) - used.Min(v => shaped[v].Z);
             var girth = Female ? 168f / height / FemaleHeightScale : 181f / height;

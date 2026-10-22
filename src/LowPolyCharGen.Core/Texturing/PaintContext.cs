@@ -73,6 +73,12 @@ public sealed class PaintContext
     public float HandScale { get; set; } = 1f;
     public IReadOnlyList<Parts.HandTemplate.Nail> Nails { get; set; } = [];
 
+    // ---- realistic face: the modelled eyes and lids replace the painted ones ----
+    public bool ModelledFace { get; set; }
+    /// <summary>Centre of the left eyeball (the right is its mirror) and its radius.</summary>
+    public Vector3 EyeCenter { get; set; }
+    public float EyeRadius { get; set; } = 1.2f;
+
     /// <summary>Left ankle joint.</summary>
     public Vector3 Ankle { get; init; }
 

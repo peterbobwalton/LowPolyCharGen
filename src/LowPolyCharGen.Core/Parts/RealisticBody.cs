@@ -10,7 +10,7 @@ namespace LowPolyCharGen.Parts;
 internal static class RealisticBody
 {
     /// <summary>Triangles the body is reduced to (the eyes come on top).</summary>
-    public const int BodyTriangles = 2600;
+    public const int BodyTriangles = 3000;
 
     public static void Build(BuildContext c)
     {
@@ -40,7 +40,12 @@ internal static class RealisticBody
         {
             var slot = SlotOf(v);
             var p = human.Positions[v];
-            if (slot == Slot.Head) return p.Y < c.HeadCenter.Y - 2f ? 6f : 1.5f;
+            if (slot == Slot.Head)
+            {
+                // The face carries the character: it keeps by far the most detail, the ears next.
+                if (MathF.Abs(p.X) > c.HeadHalfWidth * 0.92f && MathF.Abs(p.Y - c.HeadCenter.Y) < 4f) return 10f;
+                return p.Y < c.HeadCenter.Y - 2f ? 30f : 3f;
+            }
             if (slot == Slot.Hand) return 3.5f;
             if (slot == Slot.Foot) return 1.5f;
             return 1f;
@@ -55,8 +60,13 @@ internal static class RealisticBody
         BuildClothing(c, human, SlotOf);
 
         // Eyeballs: small already; reduced a little.
-        var eyes = Decimator.Simplify(human.Positions, Triangulate(source.EyeFaces), new Decimator.Options { TargetTriangles = 96 });
-        Emit(c, m, eyes, _ => Slot.Head);
+        var eyes = Decimator.Simplify(human.Positions, Triangulate(source.EyeFaces), new Decimator.Options { TargetTriangles = 120 });
+        Emit(c, m, eyes, _ => Slot.Eye);
+        var eyeCentre = human.Joint("joint-l-eye");
+        var eyeVerts = source.EyeFaces.SelectMany(f => f).Distinct().Where(v => human.Positions[v].X > 0).ToArray();
+        c.Paint.ModelledFace = true;
+        c.Paint.EyeCenter = eyeCentre;
+        c.Paint.EyeRadius = eyeVerts.Length > 0 ? eyeVerts.Average(v => Vector3.Distance(human.Positions[v], eyeCentre)) : 1.2f;
 
         // Nails for the painter, from the finger joints (left hand; it mirrors by |x|).
         var nails = new List<HandTemplate.Nail>();
@@ -314,7 +324,10 @@ internal static class RealisticBody
         for (var i = 0; i < ids.Length; i++)
         {
             var w = human.Weights[piece.Source[i]];
-            ids[i] = m.AddVertex(piece.Positions[i], _ => w);
+            // Decimation may settle a sole vertex a hair below the ground: keep it on it.
+            var at = piece.Positions[i];
+            if (at.Z < 0f) at.Z = 0f;
+            ids[i] = m.AddVertex(at, _ => w);
         }
 
         var axes = new[] { Vector3.UnitX, -Vector3.UnitX, Vector3.UnitY, -Vector3.UnitY, Vector3.UnitZ, -Vector3.UnitZ };
@@ -367,7 +380,10 @@ internal static class RealisticBody
                         }
                 }
             }
+            // The face and eyes get more of the texture, so eyes, brows and lips stay sharp.
+            m.Density = slot[f0] is Slot.Head or Slot.Eye ? 3.2f : 1f;
             m.AddPatch(slot[f0], axes[axis[f0]], patch);
+            m.Density = 1f;
         }
     }
 }

@@ -17,6 +17,9 @@ public enum Slot : byte
     Boots, Accent, Gear, GearTrim,
     Belt, Hat, HatTrim, Metal,
     Scarf,
+
+    // The realistic body's eyeballs: white, iris and pupil painted round the front of the ball.
+    Eye,
 }
 
 /// <summary>Extra detail the painter draws on a primitive, in the primitive's own UV space.</summary>

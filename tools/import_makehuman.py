@@ -39,6 +39,27 @@ GENDERS = ["female", "male"]
 RACES = ["african", "asian", "caucasian"]
 MUSCLES = ["minmuscle", "averagemuscle", "maxmuscle"]
 WEIGHTS = ["minweight", "averageweight", "maxweight"]
+FACE_SHAPES = ["square", "round", "oval", "rectangular", "triangular", "invertedtriangular", "diamond"]
+# (folder, low, high): the two ends of each face feature the generator varies.
+FACE_PAIRS = [(folder, f"{name}-{lo}", f"{name}-{hi}") for folder, name, lo, hi in [
+    ("head", "head-fat", "decr", "incr"), ("head", "head-scale-horiz", "decr", "incr"), ("head", "head-scale-vert", "decr", "incr"),
+    ("chin", "chin-width", "decr", "incr"), ("chin", "chin-prominent", "decr", "incr"), ("chin", "chin-height", "decr", "incr"),
+    ("chin", "chin-bones", "decr", "incr"),
+    ("nose", "nose-scale-horiz", "decr", "incr"), ("nose", "nose-scale-vert", "decr", "incr"), ("nose", "nose-scale-depth", "decr", "incr"),
+    ("nose", "nose-point-width", "decr", "incr"), ("nose", "nose-hump", "decr", "incr"), ("nose", "nose-volume", "decr", "incr"),
+    ("nose", "nose-nostrils-width", "decr", "incr"),
+    ("mouth", "mouth-scale-horiz", "decr", "incr"), ("mouth", "mouth-lowerlip-volume", "decr", "incr"), ("mouth", "mouth-upperlip-volume", "decr", "incr"),
+    ("eyes", "l-eye-scale", "decr", "incr"), ("eyes", "r-eye-scale", "decr", "incr"),
+    ("eyes", "l-eye-height2", "decr", "incr"), ("eyes", "r-eye-height2", "decr", "incr"),
+    ("cheek", "l-cheek-bones", "decr", "incr"), ("cheek", "r-cheek-bones", "decr", "incr"),
+    ("cheek", "l-cheek-volume", "decr", "incr"), ("cheek", "r-cheek-volume", "decr", "incr"),
+    ("eyebrows", "eyebrows-trans", "down", "up"),
+    # Build: a man's V-shaped, muscular torso; a woman's petite frame.
+    ("torso", "torso-vshape", "decr", "incr"), ("torso", "torso-muscle-pectoral", "decr", "incr"),
+    ("torso", "torso-muscle-dorsi", "decr", "incr"), ("torso", "measure-shoulder-dist", "decr", "incr"),
+    ("torso", "measure-waist-circ", "decr", "incr"), ("torso", "measure-hips-circ", "decr", "incr"),
+    ("hip", "hip-scale-horiz", "decr", "incr"),
+]]
 
 
 def convert(p):
@@ -104,6 +125,10 @@ def main():
                     targets.append(f"macrodetails/universal-{g}-{AGE}-{m}-{w}")
     for cup in ("mincup", "maxcup"):
         targets.append(f"breast/female-{AGE}-averagemuscle-averageweight-{cup}-averagefirmness")
+    # Face shape: head outlines and the paired (decr/incr) features the generator varies per face.
+    targets += [f"head/head-{shape}" for shape in FACE_SHAPES]
+    for folder, lo, hi in FACE_PAIRS:
+        targets += [f"{folder}/{lo}", f"{folder}/{hi}"]
 
     buf = bytearray()
 
