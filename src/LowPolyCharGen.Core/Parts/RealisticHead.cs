@@ -131,11 +131,11 @@ internal static class RealisticHead
         Corner("occiput", zE, 180f);
         Corner("nape", zS, 180f);
         Corner("napeLow", zT, 180f);
-        Corner("neck", zR, 0f, 0f, 0f, 0.15f);
-        Corner("neckBack", zR, 180f, 0f, 0f, 0.15f);
-        Corner("neckF", zR, 40f, 0f, 0f, 0.15f);
-        Corner("neckS", zR, 90f, 0f, 0f, 0.15f);
-        Corner("neckB", zR, 140f, 0f, 0f, 0.15f);
+        Corner("neck", zR, 0f, 0f, 0f, 0.35f);
+        Corner("neckBack", zR, 180f, 0f, 0f, 0.35f);
+        Corner("neckF", zR, 40f, 0f, 0f, 0.35f);
+        Corner("neckS", zR, 90f, 0f, 0f, 0.35f);
+        Corner("neckB", zR, 140f, 0f, 0f, 0.35f);
         // Left side.
         Corner("foreL", zF, 40f);
         Corner("sideTop", zF, 85f);

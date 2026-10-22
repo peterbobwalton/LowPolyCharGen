@@ -89,7 +89,7 @@ internal sealed partial class Painter
                 var strength = fade * (beard > 0.5f ? 0.75f : 1f);
                 var lowerShine = 1f + (male ? 0.04f : 0.12f) * Blob(ex / (0.5f * lips.Corner), (dz - 0.45f * (bottom - seam)) / (0.25f * (seam - bottom) + 0.05f));
                 // A man's lips are closer to his skin.
-                var lipColour = Mix(male ? Mix(_skin, _lips, 0.55f) : _lips, _skin * 0.9f, 0.65f * _spec.Stylization);
+                var lipColour = male ? Mix(Mix(_skin, _lips, 0.55f), _skin * 0.9f, 0.65f * _spec.Stylization) : Mix(_lips, _skin, 0.2f * _spec.Stylization);
                 color = Mix(color, lipColour * 0.88f, onUpper * strength);
                 color = Mix(color, lipColour * lowerShine * (male ? 0.94f : 1f), onLower * strength);
                 // Upper lip's edge catches the light; the meeting line is dark, deepest in the middle.
@@ -132,9 +132,11 @@ internal sealed partial class Painter
         else if (face > 0f && MathF.Abs(ax - eyeX) < 2.6f)
         {
             // Between the drawn eye and the pack's abstract one, as stylised as asked.
-            var drawn = abstraction < 1f ? Eye(color, fx, ax, fz, eyeX, eyeZ, face, male) : color;
-            var shape = abstraction > 0f ? AbstractEye(color, ax, fz, eyeX, eyeZ, face, male) : color;
-            color = Mix(drawn, shape, abstraction);
+            // A woman's eyes stay eyes (lids, lashes, a light white) even fully stylised.
+            var eyeAbstraction = male ? abstraction : 0.35f * abstraction;
+            var drawn = eyeAbstraction < 1f ? Eye(color, fx, ax, fz, eyeX, eyeZ, face, male) : color;
+            var shape = eyeAbstraction > 0f ? AbstractEye(color, ax, fz, eyeX, eyeZ, face, male) : color;
+            color = Mix(drawn, shape, eyeAbstraction);
         }
 
         // ---- eyebrows ----
@@ -238,33 +240,46 @@ internal sealed partial class Painter
         var browZ = eyeZ + 1.25f;
         var noseZ = (_c.NoseTipZ - _c.ChinZ) / s;
         var shade = _skin * new Vector3(0.55f, 0.42f, 0.36f);    // warm brown shadow, as the pack paints it
-        float Dark(float amount) => amount;
+        // Only on the front of the face: painted by face coordinates, these shapes would otherwise
+        // run on round the sides of the head as stray strokes on the cheek and temple.
+        var facing = face * SmoothStep(0.25f, 0.65f, -n.Y);
+        // A woman's face is painted light and smooth: soft lids instead of a dark socket band, little
+        // shadow on the nose and none round the mouth, a touch of colour on the cheeks.
+        var k = male ? 1f : 0.4f;
+        float Dark(float amount) => amount * facing * k;
 
         // Under the brow: the socket band across both eyes, deepest at the inner corners.
         var socket = Band(fz, eyeZ - 1.0f, browZ + 0.1f, 0.45f) * SmoothStep(0.35f, 1.0f, ax) * (1f - SmoothStep(eyeX + 1.6f, eyeX + 2.8f, ax));
         socket *= 0.75f + 0.25f * (1f - SmoothStep(eyeX - 1f, eyeX + 1.5f, ax));
-        color = Mix(color, shade * 0.75f, Dark((male ? 0.9f : 0.75f) * socket));
+        color = Mix(color, shade * 0.75f, Dark(0.9f * socket));
         // Nose: lit ridge, shaded sides, shadow under the tip.
         var ridge = Line(ax, 0.6f, 0.35f) * Band(fz, noseZ - 0.1f, eyeZ - 0.6f, 0.5f);
-        color *= 1f + 0.07f * ridge * face;
+        color *= 1f + 0.07f * ridge * facing;
         var sides = Band(ax, 0.55f, 1.6f, 0.3f) * Band(fz, noseZ - 0.3f, eyeZ - 0.6f, 0.4f);
-        color = Mix(color, shade, 0.45f * sides * face);
+        color = Mix(color, shade, Dark(0.45f * sides));
         var underNose = Blob(ax / 1.6f, (fz - (noseZ - 0.8f)) / 0.5f);
-        color = Mix(color, shade * 0.7f, 0.8f * underNose * face);
+        color = Mix(color, shade * 0.7f, Dark(0.8f * underNose));
         // Mouth: the line where the lips meet, a darker upper lip, the shadow under the lower lip.
         var width = male ? 2.3f : 2.1f;
         var line = Line(fz - mouthZ, 0.07f, 0.06f) * (1f - SmoothStep(width - 0.4f, width + 0.2f, ax));
-        color = Mix(color, shade * 0.6f, 0.75f * line * face);
-        color = Mix(color, shade, 0.22f * Band(fz, mouthZ, mouthZ + 0.45f, 0.1f) * (1f - SmoothStep(width - 0.5f, width, ax)) * face);
-        color = Mix(color, shade, 0.4f * Blob(ax / 1.7f, (fz - mouthZ + 0.95f) / 0.35f) * face);
-        color = Mix(color, shade, 0.3f * Blob((ax - width) / 0.4f, (fz - mouthZ) / 0.45f) * face);   // corners
+        color = Mix(color, shade * 0.6f, (male ? 0.75f : 0.5f) * line * facing);
+        color = Mix(color, shade, Dark(0.22f * Band(fz, mouthZ, mouthZ + 0.45f, 0.1f) * (1f - SmoothStep(width - 0.5f, width, ax))));
+        color = Mix(color, shade, Dark(0.4f * Blob(ax / 1.7f, (fz - mouthZ + 0.95f) / 0.35f)));
+        color = Mix(color, shade, Dark(0.3f * Blob((ax - width) / 0.4f, (fz - mouthZ) / 0.45f)));   // corners
         // Cheeks fall into shadow towards the sides; cheekbones and forehead catch the light.
-        color = Mix(color, shade, 0.32f * SmoothStep(eyeX + 0.6f, eyeX + 3.8f, ax) * Band(fz, 1f, eyeZ + 0.5f, 1.2f));
-        color *= 1f + 0.08f * Blob((ax - eyeX - 0.3f) / 1.6f, (fz - (eyeZ - 1.9f)) / 0.9f) * face;
-        color *= 1f + 0.07f * Blob(ax / 3.6f, (fz - browZ - 2.6f) / 2.2f) * face;
+        color = Mix(color, shade, 0.32f * k * SmoothStep(eyeX + 0.6f, eyeX + 3.8f, ax) * Band(fz, 1f, eyeZ + 0.5f, 1.2f));
+        color *= 1f + 0.08f * Blob((ax - eyeX - 0.3f) / 1.6f, (fz - (eyeZ - 1.9f)) / 0.9f) * facing;
+        color *= 1f + 0.07f * Blob(ax / 3.6f, (fz - browZ - 2.6f) / 2.2f) * facing;
         // Under the jaw and chin.
-        color = Mix(color, shade, 0.45f * SmoothStep(0.15f, 0.7f, -n.Z));
-        if (male) color = Mix(color, shade * 0.9f, 0.18f * Band(fz, 0.5f, mouthZ - 0.4f, 0.6f) * face);   // shadow of a shave
+        color = Mix(color, shade, (male ? 0.45f : 0.3f) * SmoothStep(0.3f, 0.8f, -n.Z));
+        if (!male)
+        {
+            // Soft lid shadow and lash line over each eye, blush on the cheekbones.
+            var lid = Blob((ax - eyeX) / 1.7f, (fz - eyeZ - 0.45f) / 0.55f);
+            color = Mix(color, shade * 0.9f, 0.28f * lid * facing);
+            color = Mix(color, _skin * new Vector3(1.08f, 0.82f, 0.8f), 0.3f * Blob((ax - eyeX - 0.4f) / 1.5f, (fz - (eyeZ - 2.1f)) / 0.9f) * facing);
+        }
+        if (male) color = Mix(color, shade * 0.9f, 0.18f * Band(fz, 0.5f, mouthZ - 0.4f, 0.6f) * facing);   // shadow of a shave
         return color;
     }
 

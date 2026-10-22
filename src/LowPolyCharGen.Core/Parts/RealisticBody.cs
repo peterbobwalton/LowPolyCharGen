@@ -81,13 +81,13 @@ internal static class RealisticBody
         // The head mesh comes down the neck to just above the collar: the body's head and the neck
         // inside that ring are left out (only near the neck's axis, so the shoulders stay).
         bool IsHeadOrNeck(int v) => bones[human.DominantSourceBone[v]].Name is "head" or "neck_01";
-        var ringZ = RealisticHead.NeckRingZ(c) + 0.5f;
+        var ringZ = RealisticHead.NeckRingZ(c) + 1.2f;
         var neckAxis = c.Paint.NeckCenter;
         bool Covered(int v)
         {
             var p = human.Positions[v];
             if (bones[human.DominantSourceBone[v]].Name == "head") return true;
-            return IsHeadOrNeck(v) && p.Z > ringZ && new Vector2(p.X, p.Y - neckAxis.Y).Length() < c.NeckRadius * 1.15f + 0.5f;
+            return IsHeadOrNeck(v) && p.Z > ringZ;
         }
         var restTris = bodyTris.Where(t => !t.All(Covered)).ToArray();
         var body = SymmetricSimplify(human.Positions, restTris, BodyTriangles, Importance);
@@ -523,7 +523,10 @@ internal static class RealisticBody
         if (paint.TrouserEndZ < paint.BeltBottomZ)
         {
             var crotch = c.Torso.Sections[0].Z;
-            Shell(c, human, v => (IsLeg(Bone(v)) || (IsTrunk(Bone(v)) && pos[v].Z < paint.BeltBottomZ)) && pos[v].Z > paint.TrouserEndZ - 3f,
+            // Up over the belt, so the waistband is a clean line: the hips are painted as the body
+            // (trousers, then the belt), the legs as legs.
+            var waistZ = MathF.Max(paint.BeltTopZ, paint.BeltBottomZ) + 0.6f;
+            Shell(c, human, v => (IsLeg(Bone(v)) || (IsTrunk(Bone(v)) && pos[v].Z < waistZ + 2f)) && pos[v].Z > paint.TrouserEndZ - 3f,
                 p =>
                 {
                     var leg = c.LegL.Clothing(p.Z);
@@ -531,12 +534,15 @@ internal static class RealisticBody
                     // Less between the thighs, where the two legs would run into each other.
                     return offset * Geo.Lerp(0.35f, 1f, Geo.SmoothStep((MathF.Abs(p.X) - 3f) / 5f));
                 },
-                smoothing: 4, keep: (a, b, d) => MathF.Min(a.Z, MathF.Min(b.Z, d.Z)) >= paint.TrouserEndZ, triangles: 180, Slot.Leg);
+                smoothing: 4, keep: (a, b, d) => MathF.Min(a.Z, MathF.Min(b.Z, d.Z)) >= paint.TrouserEndZ && MathF.Max(a.Z, MathF.Max(b.Z, d.Z)) <= waistZ,
+                triangles: 300, Slot.Leg, armSlot: Slot.Body, isArm: v => pos[v].Z > crotch);
         }
 
         // Sleeves, and for a jacket or hoodie the whole loose top.
         var jacket = spec.Torso is TorsoStyle.Jacket or TorsoStyle.Hoodie;
-        if (paint.SleeveEndX > c.ShoulderX || jacket)
+        // Shirt sleeves are painted on the arm (at this triangle count a sleeve shell folds and
+        // breaks up at the shoulder); a jacket or hoodie is a loose shell over the whole top.
+        if (jacket)
         {
             var end = paint.SleeveEndX;
             var neckTop = paint.NeckBaseZ;
@@ -555,13 +561,26 @@ internal static class RealisticBody
                 smoothing: 3,
                 keep: (a, b, d) => MathF.Max(MathF.Abs(a.X), MathF.Max(MathF.Abs(b.X), MathF.Abs(d.X))) <= end
                     && (!jacket || MathF.Min(a.Z, MathF.Min(b.Z, d.Z)) >= paint.HemZ),
-                triangles: jacket ? 260 : 70, slot: jacket ? Slot.Body : Slot.Arm, armSlot: jacket ? Slot.Arm : null, isArm: v => IsArm(Bone(v)));
+                triangles: 420, slot: jacket ? Slot.Body : Slot.Arm, armSlot: jacket ? Slot.Arm : null, isArm: v => IsArm(Bone(v)));
         }
+
+        // Shoes and boots: a shell over the foot itself, so they keep the foot's own shape and size
+        // (the generated boot did not match the realistic body's feet). Thicker round the sole.
+        var ankleZ = c.Paint.Ankle.Z;
+        var shoeTop = MathF.Min(paint.BootTopZ, ankleZ + 3f);
+        // Toes are filled in first (the hollows between them lifted out), so the toe box is one shape.
+        var bare = (Vector3[])pos.Clone();
+        var ankle = c.Paint.Ankle;
+        LiftHollows(pos, p => p.Z < 5f && p.Y < ankle.Y - 9f, 80);
+        Shell(c, human, v => (Bone(v).StartsWith("foot") || Bone(v).StartsWith("ball") || Bone(v).StartsWith("calf")) && pos[v].Z < shoeTop + 2f,
+            p => 0.5f + 0.6f * (1f - Geo.SmoothStep(p.Z / 3f)),
+            smoothing: 14, keep: (a, b, d) => MathF.Max(a.Z, MathF.Max(b.Z, d.Z)) <= shoeTop, triangles: 160, Slot.Foot);
+        Array.Copy(bare, pos, pos.Length);
 
         // Boot shafts above the boot (tall boots, or boots worn under bloused trousers).
         if (paint.BootTopZ > 13f)
             Shell(c, human, v => Bone(v).StartsWith("calf") && pos[v].Z < paint.BootTopZ + 2f,
-                _ => 0.7f, smoothing: 3, keep: (a, b, d) => MathF.Max(a.Z, MathF.Max(b.Z, d.Z)) <= paint.BootTopZ, triangles: 40, Slot.Foot);
+                _ => 0.7f, smoothing: 3, keep: (a, b, d) => MathF.Max(a.Z, MathF.Max(b.Z, d.Z)) <= paint.BootTopZ, triangles: 60, Slot.Foot);
     }
 
     /// <summary>
