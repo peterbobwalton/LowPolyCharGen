@@ -194,8 +194,9 @@ public sealed class HumanBody
             Add("head-fat", -0.3f); Add("head-scale-horiz", -0.1f);
             Add("chin-width", 0.35f); Add("chin-prominent", 0.35f); Add("chin-bones", 0.45f); Add("chin-height", 0.15f);
             Add("l-cheek-volume", -0.3f); Add("r-cheek-volume", -0.3f);
-            // Strong: broad shoulders over a V-shaped back and chest, a trim waist.
-            Add("torso-vshape", 0.5f); Add("torso-muscle-pectoral", 0.4f); Add("torso-muscle-dorsi", 0.35f);
+            // Strong: broad shoulders over a V-shaped back, a trim waist. Only a little more chest:
+            // MakeHuman's pectoral target reduced to a few triangles reads as a bust.
+            Add("torso-vshape", 0.5f); Add("torso-muscle-pectoral", 0.1f); Add("torso-muscle-dorsi", 0.35f);
             Add("measure-shoulder-dist", 0.35f); Add("measure-waist-circ", -0.15f);
             Add("nose-scale-horiz", 0.15f); Add("nose-volume", 0.15f);
             Add("mouth-upperlip-volume", -0.2f); Add("mouth-lowerlip-volume", -0.1f);

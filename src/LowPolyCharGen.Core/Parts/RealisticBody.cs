@@ -11,7 +11,7 @@ namespace LowPolyCharGen.Parts;
 internal static class RealisticBody
 {
     /// <summary>Triangles the body is reduced to (the eyes come on top).</summary>
-    public const int BodyTriangles = 3000;
+    public const int BodyTriangles = 4000;
 
     public static void Build(BuildContext c)
     {
@@ -51,12 +51,12 @@ internal static class RealisticBody
                 {
                     var dx = p.X / (3.4f * hs);
                     var dz = (p.Z - mouth.Z) / (1.8f * hs);
-                    if (dx * dx + dz * dz < 1f) return 90f;
-                    if (MathF.Abs(p.X) < 2.2f * hs && p.Z > mouth.Z + 1f * hs && p.Z < mouth.Z + 4.2f * hs) return 60f;
+                    if (dx * dx + dz * dz < 1f) return 160f;
+                    if (MathF.Abs(p.X) < 2.2f * hs && p.Z > mouth.Z + 1f * hs && p.Z < mouth.Z + 4.2f * hs) return 110f;
                 }
                 // The face carries the character: it keeps by far the most detail, the ears next.
                 if (MathF.Abs(p.X) > c.HeadHalfWidth * 0.92f && MathF.Abs(p.Y - c.HeadCenter.Y) < 4f) return 10f;
-                return p.Y < c.HeadCenter.Y - 2f ? 30f : 3f;
+                return p.Y < c.HeadCenter.Y - 2f ? 60f : 3f;
             }
             if (slot == Slot.Hand) return 3.5f;
             if (slot == Slot.Foot) return 1.5f;
@@ -789,8 +789,19 @@ internal static class RealisticBody
                                 var d = Vector3.DistanceSquared(positions[w], p);
                                 if (d < bestD) { bestD = d; best = w; }
                             }
-            if (best < 0) misses++;
-            mirror[v] = best < 0 ? v : best;
+            if (best < 0)
+            {
+                // Further out than the grid looks: the nearest vertex at any distance (never the
+                // vertex itself, or a right-hand copy would keep the left side's bones).
+                misses++;
+                bestD = float.MaxValue;
+                foreach (var w in used)
+                {
+                    var d = Vector3.DistanceSquared(positions[w], p);
+                    if (d < bestD) { bestD = d; best = w; }
+                }
+            }
+            mirror[v] = best;
         }
         if (misses > used.Length / 50) return Decimator.Simplify(positions, tris, options);
 

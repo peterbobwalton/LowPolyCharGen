@@ -102,6 +102,7 @@ internal sealed partial class Painter
             }
             case TorsoStyle.Hoodie:
             {
+                if (_c.ModelledFace && z > _c.NeckBaseZ + 4.2f) return SkinTone(p);   // above the hood, as on the neck
                 if (z > 149.5f) cloth = Cloth(trim, p) * (1f + 0.08f * MathF.Sin(MathF.Atan2(p.X, p.Y) * 9f));   // hood bunched round the neck
                 if (z < _c.HemZ + 3.6f)
                     cloth = Cloth(trim, p) * (1f + 0.09f * MathF.Sin(MathF.Atan2(p.X, p.Y) * 46f));   // ribbed hem

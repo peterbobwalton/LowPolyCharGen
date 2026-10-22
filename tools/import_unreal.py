@@ -25,6 +25,7 @@ TOON_MATERIAL = PACK + "/Materials/M_Armies_Parent"
 LAYERED_MATERIAL_DIR = "/Game/LowPolyCharGen/Materials"
 LAYERED_MATERIAL = LAYERED_MATERIAL_DIR + "/M_LPCG_Character"
 MANNEQUIN_SKELETON = "/Game/Characters/Mannequins/Meshes/SK_Mannequin"
+MANNEQUIN_PHYSICS = "/Game/Characters/Mannequins/Rigs/PA_Mannequin"
 DEFAULT_LODS = 3   # LOD0 + two reduced levels; --lods=1 imports the full mesh only
 
 
@@ -145,33 +146,33 @@ def import_character(fbx, destination, mannequin, lods=DEFAULT_LODS):
     if os.path.exists(spec_json):
         amount = float(json.load(open(spec_json, encoding="utf-8-sig")).get("Grime", 0.0))
 
-    if not mannequin:
-        tools = unreal.AssetToolsHelpers.get_asset_tools()
-        mi_path = destination + "/MI_" + base
-        if unreal.EditorAssetLibrary.does_asset_exist(mi_path):
-            mi = unreal.load_asset(mi_path)
-        else:
-            mi = tools.create_asset("MI_" + base, destination, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
-        mel = unreal.MaterialEditingLibrary
-        # With a grime layer: the layered material; otherwise the pack's own.
-        mel.set_material_instance_parent(mi, layered_material() if grime is not None else unreal.load_asset(TOON_MATERIAL))
-        if texture is not None:
-            mel.set_material_instance_texture_parameter_value(mi, "Texture", texture)
-        if grime is not None:
-            mel.set_material_instance_texture_parameter_value(mi, "GrimeTexture", grime)
-            mel.set_material_instance_scalar_parameter_value(mi, "GrimeAmount", amount)
-        single_sided(mi)
-        unreal.EditorAssetLibrary.save_loaded_asset(mi)
+    # The same material set-up on either skeleton (the realistic body on the mannequin included).
+    tools = unreal.AssetToolsHelpers.get_asset_tools()
+    mi_path = destination + "/MI_" + base
+    if unreal.EditorAssetLibrary.does_asset_exist(mi_path):
+        mi = unreal.load_asset(mi_path)
+    else:
+        mi = tools.create_asset("MI_" + base, destination, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+    mel = unreal.MaterialEditingLibrary
+    # With a grime layer: the layered material; otherwise the pack's own.
+    mel.set_material_instance_parent(mi, layered_material() if grime is not None else unreal.load_asset(TOON_MATERIAL))
+    if texture is not None:
+        mel.set_material_instance_texture_parameter_value(mi, "Texture", texture)
+    if grime is not None:
+        mel.set_material_instance_texture_parameter_value(mi, "GrimeTexture", grime)
+        mel.set_material_instance_scalar_parameter_value(mi, "GrimeAmount", amount)
+    single_sided(mi)
+    unreal.EditorAssetLibrary.save_loaded_asset(mi)
 
-        mesh.set_editor_property("materials", [
-            unreal.SkeletalMaterial(material_interface=mi, material_slot_name=slot.material_slot_name)
-            for slot in mesh.get_editor_property("materials")])
-        physics = unreal.load_asset(TOON_PHYSICS)
-        if physics is not None:
-            mesh.set_editor_property("physics_asset", physics)
-        if lods > 1:
-            add_lods(mesh, lods)
-        unreal.EditorAssetLibrary.save_loaded_asset(mesh)
+    mesh.set_editor_property("materials", [
+        unreal.SkeletalMaterial(material_interface=mi, material_slot_name=slot.material_slot_name)
+        for slot in mesh.get_editor_property("materials")])
+    physics = unreal.load_asset(MANNEQUIN_PHYSICS if mannequin else TOON_PHYSICS)
+    if physics is not None:
+        mesh.set_editor_property("physics_asset", physics)
+    if lods > 1:
+        add_lods(mesh, lods)
+    unreal.EditorAssetLibrary.save_loaded_asset(mesh)
 
     unreal.log("LPCG imported %s -> %s (skeleton %s)" % (fbx, mesh.get_path_name(), mesh.skeleton.get_path_name()))
     return mesh

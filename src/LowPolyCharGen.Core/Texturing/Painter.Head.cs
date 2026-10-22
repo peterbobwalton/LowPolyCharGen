@@ -26,6 +26,7 @@ internal sealed partial class Painter
         var face = 1f - SmoothStep(-0.55f, -0.2f, frontness);                          // 1 on the face, 0 from the ears back
         var under = SmoothStep(0.3f, 0.65f, -t.N.Z);                                   // underside of the jaw
 
+        if (_c.ModelledFace && Collar(t, out var collar)) return collar;
         var color = SkinTone(p);
         var male = !_c.Female;
 
@@ -391,20 +392,76 @@ internal sealed partial class Painter
         {
             var edge = scalp.At(frontness) + (Noise.Value(p * 1.6f) - 0.5f) * 0.03f;
             var mask = SmoothStep(edge - 0.012f, edge + 0.014f, th);
-            if (_c.ScalpHairDensity >= 0.7f)
+            // The generated head's painted sideburn; the realistic head's hair shell already comes
+            // down in front of the ear, and a painted patch there sat on the cheek.
+            if (_c.ScalpHairDensity >= 0.7f && !modelled)
             {
                 // Sideburn in front of the ear.
-                var sideburn = modelled
-                    // Just in front of the modelled ear, narrowing down to about its middle.
-                    ? Line(p.Y - (_c.EarCenter.Y - 1.2f * s), (0.15f + 0.45f * SmoothStep(_c.EarCenter.Z - 0.5f * s, _c.EarCenter.Z + 2f * s, p.Z)) * s, 0.3f * s)
-                        * Band(p.Z, _c.EarCenter.Z - 0.5f * s, _c.EarCenter.Z + 4f * s, 0.5f * s) * 0.85f * SmoothStep(0.5f, 0.8f, MathF.Abs(t.N.X))
-                    : Line(angle - 74f, 5f, 4f) * Band(th, 0.44f, edge + 0.02f, 0.035f);
+                var sideburn = Line(angle - 74f, 5f, 4f) * Band(th, 0.44f, edge + 0.02f, 0.035f);
                 mask = MathF.Max(mask, sideburn);
             }
             color = Mix(color, HairStrands(p), mask * _c.ScalpHairDensity);
         }
 
         return color;
+    }
+
+    /// <summary>
+    /// The shirt's collar or hood where it rises up the neck. The realistic body's neck and the
+    /// underside of its jaw belong to different parts of the mesh (neck, head), so both paint it and
+    /// its edge runs where it should rather than along their triangles.
+    /// </summary>
+    private bool Collar(in Texel t, out Vector3 color)
+    {
+        color = default;
+        if (_spec.FaceCover != LowPolyCharGen.FaceCover.None) return false;
+        var p = t.P;
+        var ax = MathF.Abs(p.X);
+        var h = p.Z - _c.NeckBaseZ;                 // height above the base of the neck
+        var front = p.Y < _c.NeckCenter.Y;
+        switch (_spec.Torso)
+        {
+            case TorsoStyle.LongSleeve or TorsoStyle.CheckShirt or TorsoStyle.Polo:
+            {
+                // Fold-down collar, open at the throat.
+                var open = front && ax < 1.6f + h * 0.6f;
+                if (!open && h < 2.4f)
+                {
+                    var collar = Cloth(_shirt * 1.06f, p, CamoTop);
+                    { color = collar * (1f - 0.3f * Line(h - 2.4f, 0.12f)); return true; }
+                }
+                break;
+            }
+            case TorsoStyle.Hoodie:
+                // The hood lies in folds round the neck, open at the front. On the realistic body the
+                // shirt reaches up the neck too: both paint the hood up to the same height all round,
+                // so the edge between them does not follow the triangles.
+                if (_c.ModelledFace)
+                {
+                    if (h < 4.2f)
+                    {
+                        color = Cloth(_shirt * 0.82f, p) * (1f + 0.1f * MathF.Sin(MathF.Atan2(p.X, p.Y) * 8f + h)) * (1f - 0.3f * Line(h - 4.2f, 0.15f));
+                        return true;
+                    }
+                    break;
+                }
+                if (h < 4.2f && !(front && ax < 1.4f + h * 0.5f))
+                {
+                    color = Cloth(_shirt * 0.82f, p) * (1f + 0.1f * MathF.Sin(MathF.Atan2(p.X, p.Y) * 8f + h)) * (1f - 0.3f * Line(h - 4.2f, 0.15f));
+                    return true;
+                }
+                break;
+            case TorsoStyle.Jacket:
+                // Stand-up collar with the zip running into it.
+                if (h < 3.2f)
+                {
+                    var collar = Cloth(_shirt * 0.8f, p);
+                    if (front && ax < 0.3f) { color = Steel * 0.45f; return true; }
+                    { color = collar * (1f - 0.3f * Line(h - 3.2f, 0.12f)); return true; }
+                }
+                break;
+        }
+        return false;
     }
 
     private Vector3 Neck(in Texel t)
@@ -417,34 +474,7 @@ internal sealed partial class Painter
         if (_spec.FaceCover == LowPolyCharGen.FaceCover.Balaclava) return Knit(p);
         if (_spec.FaceCover == LowPolyCharGen.FaceCover.Shemagh) return Shemagh(p);
 
-        switch (_spec.Torso)
-        {
-            case TorsoStyle.LongSleeve or TorsoStyle.CheckShirt or TorsoStyle.Polo:
-            {
-                // Fold-down collar, open at the throat.
-                var open = front && ax < 1.6f + h * 0.6f;
-                if (!open && h < 2.4f)
-                {
-                    var collar = Cloth(_shirt * 1.06f, p, CamoTop);
-                    return collar * (1f - 0.3f * Line(h - 2.4f, 0.12f));
-                }
-                break;
-            }
-            case TorsoStyle.Hoodie:
-                // The hood lies in folds round the neck, open at the front.
-                if (h < 4.2f && !(front && ax < 1.4f + h * 0.5f))
-                    return Cloth(_shirt * 0.82f, p) * (1f + 0.1f * MathF.Sin(MathF.Atan2(p.X, p.Y) * 8f + h)) * (1f - 0.3f * Line(h - 4.2f, 0.15f));
-                break;
-            case TorsoStyle.Jacket:
-                // Stand-up collar with the zip running into it.
-                if (h < 3.2f)
-                {
-                    var collar = Cloth(_shirt * 0.8f, p);
-                    if (front && ax < 0.3f) return Steel * 0.45f;
-                    return collar * (1f - 0.3f * Line(h - 3.2f, 0.12f));
-                }
-                break;
-        }
+        if (Collar(t, out var collar)) return collar;
         if (_c.ModelledFace)
         {
             // The realistic neck runs up behind the ears: hair at the nape is painted on it too.

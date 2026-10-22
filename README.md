@@ -52,7 +52,7 @@ shape targets set gender, build (weight and muscle) and ancestry, the way MakeHu
 do. The shaped mesh is fitted onto the mannequin skeleton in the T-pose: trunk, neck and head are moved
 and stretched upright, the limbs turned onto the mannequin's bones and stretched to their length,
 each vertex following its bones' moves by MakeHuman's own game_engine rig weights, which are then
-handed over to the mannequin's bones. The result is decimated to `RealisticBody.BodyTriangles` (2,600)
+handed over to the mannequin's bones. The result is decimated to `RealisticBody.BodyTriangles` (4,000)
 with the face, hands and feet keeping more of their detail, and painted like the generated body:
 clothes, landmarks (eyes, nose tip and mouth found on the mesh's profile) and gear sit on it because
 the torso and head sections are measured off it. `tools/import_makehuman.py` rebuilds the asset
@@ -200,10 +200,13 @@ Python console). For every FBX in the folder it imports `SK_<name>` onto
 `MI_<name>` (a `M_Armies_Parent` instance using it) and assigns the pack's physics asset. Any pack
 animation, Blueprint or weapon socket then works with the new mesh.
 
-**Mannequin rig:** import the FBX as a skeletal mesh. Either let Unreal create a new skeleton, or pick `SK_Mannequin`
-as the skeleton to share the mannequin's animations (the bones are a subset of that skeleton, so
-it binds without changes). Leave "Use T0 as ref pose" off. With "Import textures" on, the texture
-and a material are created automatically.
+**Mannequin rig (and the realistic body):** `import_unreal.py ... --mannequin` imports onto
+`SK_Mannequin` with the same material instance and texture set-up, and `PA_Mannequin` as the physics
+asset, so the mannequin's animations (fingers included) play on it. By hand: import the FBX as a
+skeletal mesh, pick `SK_Mannequin` as the skeleton, leave "Use T0 as ref pose" off and import normals.
+
+With virtual shadow maps, the low-poly body's smooth shading can catch blotchy self-shadowing where
+its flat triangles turn away from the light; `r.Shadow.Virtual.NormalBias 2` (default 0.5) clears it.
 
 ## Command line
 
