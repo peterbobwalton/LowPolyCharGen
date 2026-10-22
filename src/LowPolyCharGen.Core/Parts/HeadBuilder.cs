@@ -33,7 +33,8 @@ internal static class HeadBuilder
         var lips = c.Female ? 0.65f : 0.5f;
         float[][] forward =
         [
-            [c.ChinForward, c.ChinForward * 0.8f, 0.1f],                 // jaw line
+            c.Female ? [c.ChinForward, c.ChinForward * 0.85f, c.ChinForward * 0.3f]   // jaw line: a flat chin,
+                     : [c.ChinForward, c.ChinForward, c.ChinForward * 0.85f],        // square across on men
             [lips, lips * 0.75f, 0f],                                    // mouth
             [0.5f, 0.3f, 0f],                                            // under the nose
             [c.NoseLength, 0.85f, 0.15f],                                // nose tip and nostrils

@@ -122,7 +122,7 @@ internal sealed class BuildContext
         HeadCenter = Geo.P(0, centerFront, HeadZ(0.5f));
 
         // Face shapes. Widths are half-widths in centimetres at scale 1.
-        float skull = 7.7f, cheek = 7.1f, jaw = 6.2f, chin = 2.7f, jawExp = 2.3f, jawCorner = 0.19f;
+        float skull = 7.7f, cheek = 7.1f, jaw = 6.2f, jawExp = 2.3f, jawCorner = 0.19f;
         NoseLength = 2.2f;
         NoseHalfWidth = 1.75f;
         BrowRidge = 0.55f;
@@ -130,22 +130,22 @@ internal sealed class BuildContext
         switch (spec.HeadShape)
         {
             case HeadShape.Square:
-                jaw = 7.0f; chin = 3.5f; jawExp = 3.0f; jawCorner = 0.16f; ChinForward = 0.8f;
+                jaw = 7.0f; jawExp = 3.0f; jawCorner = 0.16f; ChinForward = 0.8f;
                 break;
             case HeadShape.Round:
-                skull = 8.0f; cheek = 7.6f; jaw = 6.6f; chin = 3.1f; jawExp = 2.0f; jawCorner = 0.21f; ChinForward = 0.2f; BrowRidge = 0.3f;
+                skull = 8.0f; cheek = 7.6f; jaw = 6.6f; jawExp = 2.0f; jawCorner = 0.21f; ChinForward = 0.2f; BrowRidge = 0.3f;
                 break;
             case HeadShape.Slim:
-                skull = 7.2f; cheek = 6.5f; jaw = 5.5f; chin = 2.2f; jawExp = 2.1f; NoseLength = 2.4f; NoseHalfWidth = 1.55f;
+                skull = 7.2f; cheek = 6.5f; jaw = 5.5f; jawExp = 2.1f; NoseLength = 2.4f; NoseHalfWidth = 1.55f;
                 break;
             case HeadShape.Heavy:
-                skull = 7.9f; cheek = 7.4f; jaw = 6.9f; chin = 3.2f; jawExp = 2.7f; jawCorner = 0.17f;
+                skull = 7.9f; cheek = 7.4f; jaw = 6.9f; jawExp = 2.7f; jawCorner = 0.17f;
                 BrowRidge = 1.0f; NoseLength = 2.5f; NoseHalfWidth = 2.0f; ChinForward = 0.7f;
                 break;
         }
         if (Female)
         {
-            jaw *= 0.91f; chin *= 0.82f; cheek *= 0.97f; skull *= 0.97f;
+            jaw *= 0.91f; cheek *= 0.97f; skull *= 0.97f;
             jawExp = MathF.Min(jawExp, 2.4f);
             BrowRidge *= 0.4f; NoseLength *= 0.88f; NoseHalfWidth *= 0.86f; ChinForward *= 0.6f;
         }
@@ -153,15 +153,28 @@ internal sealed class BuildContext
         HeadHalfDepth = 9.6f * s;
         HeadExp = 2.2f;
         NeckRadius = (Female ? 4.8f : 5.5f) * Geo.Lerp(0.95f, 1.1f, spec.Build);
-        // The front of the jaw line is raised a little and kept flat across the chin, so the chin is
-        // blunt and rounded like the pack's rather than a wedge pointing down and forward.
-        JawLine = [0.08f, 0.082f, 0.095f, 0.135f, jawCorner, 0.27f, 0.27f, 0.25f];
+        // Every chin is flat across the bottom, never a point. A man's jaw is square: the bottom of the
+        // chin stays level and wide out to a hard corner below the ear. A woman's is oval: a narrower
+        // flat chin that curves up round into the jaw.
+        float chin;
+        if (Female)
+        {
+            chin = jaw * 0.74f;
+            jawExp = 2.0f;
+            JawLine = [0.075f, 0.075f, 0.077f, 0.10f, jawCorner * 0.92f, 0.27f, 0.27f, 0.25f];
+        }
+        else
+        {
+            chin = jaw * 0.86f;
+            jawExp = MathF.Max(jawExp, 3.2f);
+            JawLine = [0.07f, 0.07f, 0.07f, 0.075f, jawCorner * 0.7f, 0.27f, 0.27f, 0.25f];
+        }
 
         Head = new Profile();
         void Sec(float t, float halfWidth, float front, float back, float exp) =>
             Head.Add(HeadZ(t), centerFront, halfWidth * s, front * s, back * s, exp);
-        Sec(0.00f, chin * 1.3f, 6.9f, 4.0f, jawExp);
-        Sec(0.10f, Geo.Lerp(chin * 1.3f, jaw, 0.72f), 8.5f, 4.6f, jawExp);
+        Sec(0.00f, chin, 6.9f, 4.0f, jawExp);
+        Sec(0.10f, Geo.Lerp(chin, jaw, 0.6f), 8.5f, 4.6f, jawExp);
         Sec(0.20f, jaw, 9.3f, 6.2f, jawExp);
         Sec(0.33f, Geo.Lerp(jaw, cheek, 0.75f), 9.4f, 8.4f, 2.3f);
         Sec(0.42f, cheek, 9.3f, 9.2f, 2.25f);
