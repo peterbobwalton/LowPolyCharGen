@@ -13,16 +13,10 @@ namespace LowPolyCharGen.Parts;
 /// </summary>
 internal static class RealisticHead
 {
-    /// <summary>Columns round the head, degrees from the front (left side; the right mirrors them).</summary>
-    private static readonly float[] Columns = [0f, 8f, 17f, 28f, 42f, 60f, 85f, 115f, 148f, 180f];
 
-    /// <summary>Triangles the head is reduced to (the face keeps its layout; the back of the head and the neck give way).</summary>
-    public const int HeadTriangles = 220;
 
-    /// <summary>Height below which the dense body is kept: the head mesh overlaps it there, so no seam shows.</summary>
-    public static float BodyCutZ(BuildContext c) => c.Paint.NeckBaseZ - 0.3f;
 
-    public static void Build(BuildContext c, HumanBody.Fitted human, Func<int, Slot> slotOf,
+    public static void Build(BuildContext c, HumanBody.Fitted human, Vector3[] detailed, Func<int, Slot> slotOf,
         Func<int, bool> isHeadOrNeck, Func<int, bool> isEar, Action<Decimator.Result, Func<int, Slot>> emit)
     {
         var pos = human.Positions;
@@ -51,37 +45,25 @@ internal static class RealisticHead
                 surface[v] = avg / neighbours[v].Count;
             }
 
-        // Rows: heights of the face's landmarks, from the neck up to the crown.
+        // ---- the cage: a fixed low-poly head, like the Toon Soldiers pack's ----
+        // Heights of the face's landmarks.
+        var s2 = s;
         var eyeZ = paint.EyeZ;
         var noseTip = paint.NoseTipZ;
         var mouth = paint.MouthZ;
         var chin = c.ChinZ;
-        var top = c.HeadZ(1f);
-        float[] rows =
-        [
-            paint.NeckBaseZ - 1.5f,              // base of the neck, over the reduced body's cut edge
-            chin - 1.6f * s,                     // throat and nape
-            chin + 0.35f * s,                    // under the jaw, the point of the chin
-            (chin + mouth) / 2f - 0.2f * s,      // chin
-            mouth - 0.55f * s,                   // lower lip
-            mouth,                               // mouth
-            mouth + 0.6f * s,                    // upper lip
-            noseTip - 0.75f * s,                 // under the nose
-            noseTip,                             // tip of the nose, cheekbones
-            (noseTip + eyeZ) / 2f,               // bridge of the nose
-            eyeZ - 0.1f * s,                     // eyes
-            eyeZ + 1.25f * s,                    // brow
-            Geo.Lerp(eyeZ, top, 0.42f),          // forehead
-            Geo.Lerp(eyeZ, top, 0.78f),          // crown
-        ];
+        var top = neighbours.Keys.Where(v => !isEar(v)).Max(v => surface[v].Z);
+        float zF = Geo.Lerp(eyeZ, top, 0.55f), zB = eyeZ + 1.15f * s2, zE = eyeZ, zN = noseTip, zS = noseTip - 0.85f * s2,
+            zW = noseTip - 0.45f * s2, zM = mouth, zC = (chin + mouth) / 2f - 0.15f * s2, zT = chin - 2.2f * s2,
+            zU = Geo.Lerp(zF, top, 0.6f);
 
         // Each row's axis: the head's, leaning back to the neck's below the jaw.
-        float AxisY(float z) => Geo.Lerp(paint.NeckCenter.Y, c.HeadCenter.Y, Geo.SmoothStep((z - (chin - 1.6f * s)) / (2f * s)));
+        float AxisY(float z) => Geo.Lerp(paint.NeckCenter.Y, c.HeadCenter.Y, Geo.SmoothStep((z - zT) / (2.5f * s2)));
 
         // Rays from the axis meet the surface; the furthest hit is the outside.
-        Vector3? Cast(Vector3 origin, Vector3 dir)
+        Vector3? Cast(Vector3 origin, Vector3 dir, bool nearest = false)
         {
-            float best = -1f;
+            float best = nearest ? float.MaxValue : -1f;
             foreach (var t in tris)
             {
                 Vector3 a = surface[t[0]], b = surface[t[1]], d = surface[t[2]];
@@ -98,104 +80,191 @@ internal static class RealisticHead
                 var v = Vector3.Dot(dir, q) * inv;
                 if (v < 0f || u + v > 1f) continue;
                 var dist = Vector3.Dot(e2, q) * inv;
-                if (dist > best) best = dist;
+                if (nearest ? dist > 0f && dist < best : dist > best) best = dist;
             }
-            return best > 0f ? origin + dir * best : null;
+            return best > 0f && best < float.MaxValue ? origin + dir * best : null;
         }
 
-        // The grid: left columns plus their mirrors (the middle ones shared).
-        var angles = Columns.Concat(Columns.Skip(1).Take(Columns.Length - 2).Reverse().Select(a => -a)).ToArray();
-        var grid = new Vector3[rows.Length, angles.Length];
-        for (var r = 0; r < rows.Length; r++)
-            for (var k = 0; k < angles.Length; k++)
-            {
-                var a = angles[k];
-                if (a < 0f) continue;   // mirrored below
-                var rad = a * MathF.PI / 180f;
-                var dir = new Vector3(MathF.Sin(rad), -MathF.Cos(rad), 0f);
-                var origin = new Vector3(0f, AxisY(rows[r]), rows[r]);
-                var hit = Cast(origin, dir) ?? origin + dir * (c.HeadHalfWidth * 0.8f);
-                if (a == 0f || a == 180f) hit.X = 0f;
-                grid[r, k] = hit;
-            }
-        for (var k = 0; k < angles.Length; k++)
-        {
-            if (angles[k] >= 0f) continue;
-            var mirror = Array.IndexOf(angles, -angles[k]);
-            for (var r = 0; r < rows.Length; r++) grid[r, k] = grid[r, mirror] with { X = -grid[r, mirror].X };
-        }
-        // The bottom of the neck stands a little off the skin, over the reduced body's cut edge.
-        for (var k = 0; k < angles.Length; k++)
-        {
-            var axis = new Vector3(0f, AxisY(rows[0]), rows[0]);
-            var out0 = grid[0, k] - axis;
-            out0.Z = 0f;
-            if (out0.LengthSquared() > 1e-6f) grid[0, k] += Vector3.Normalize(out0) * 0.6f;
-            var axis1 = new Vector3(0f, AxisY(rows[1]), rows[1]);
-            var out1 = grid[1, k] - axis1;
-            out1.Z = 0f;
-            if (out1.LengthSquared() > 1e-6f) grid[1, k] += Vector3.Normalize(out1) * 0.2f;
-        }
-
-        // The crown: one point on the top of the head.
-        var crown = surface[neighbours.Keys.Where(v => !isEar(v)).MaxBy(v => surface[v].Z)];
-        crown.X = 0f;
-
+        // Cage corners (left half and the middle line): a height, a direction round the head
+        // (degrees from the front), a tilt up or down and how far to sink it below the surface.
         var points = new List<Vector3>();
-        var index = new int[rows.Length, angles.Length];
-        for (var r = 0; r < rows.Length; r++)
-            for (var k = 0; k < angles.Length; k++)
-            {
-                index[r, k] = points.Count;
-                points.Add(grid[r, k]);
-            }
-        var crownIndex = points.Count;
-        points.Add(crown);
+        var names = new Dictionary<string, int>();
+        void Corner(string name, float z, float azimuth, float tilt = 0f, float inset = 0f, float outset = 0f)
+        {
+            var a = azimuth * MathF.PI / 180f;
+            var e = tilt * MathF.PI / 180f;
+            var dir = new Vector3(MathF.Sin(a) * MathF.Cos(e), -MathF.Cos(a) * MathF.Cos(e), MathF.Sin(e));
+            var origin = new Vector3(0f, AxisY(z), z);
+            var hit = Cast(origin, dir) ?? origin + dir * c.HeadHalfWidth;
+            hit -= dir * inset;
+            hit += new Vector3(dir.X, dir.Y, 0f) * outset;
+            if (azimuth is 0f or 180f) hit.X = 0f;
+            names[name] = points.Count;
+            points.Add(hit);
+        }
+        // Middle line, front and back.
+        Corner("crown", top - 0.5f * s2, 0f, 88f);
+        Corner("topF", zU, 0f);
+        Corner("topL", zU, 58f);
+        Corner("topBL", zU, 125f);
+        Corner("topB", zU, 180f);
+        Corner("fore", zF, 0f);
+        Corner("brow", zB, 0f);
+        Corner("bridge", zE, 0f, 0f, 0.15f * s2);
+        Corner("tip", zN, 0f);
+        Corner("base", zS, 0f);
+        Corner("lip", zM, 0f);
+        Corner("chin", zC, 0f);
+        {
+            // Under the chin: straight down from just behind the point of the chin.
+            var chinFront = points[names["chin"]];
+            var origin = new Vector3(0f, chinFront.Y + 1.4f * s2, zC);
+            var hit = Cast(origin, -Vector3.UnitZ, nearest: true) ?? origin with { Z = chin };
+            names["under"] = points.Count;
+            points.Add(hit with { X = 0f });
+        }
+        Corner("throat", zT, 0f, 0f, 0.35f);
+        Corner("backTop", zF, 180f);
+        Corner("occiput", zE, 180f);
+        Corner("nape", zS, 180f);
+        Corner("napeLow", zT, 180f, 0f, 0.35f);
+        // Left side.
+        Corner("foreL", zF, 40f);
+        Corner("sideTop", zF, 85f);
+        Corner("backUpper", zF, 135f);
+        Corner("browIn", zB, 14f);
+        Corner("browOut", zB, 36f);
+        Corner("temple", zB, 62f);
+        Corner("eyeIn", zE, 12f, 0f, 0.35f * s2);       // the eye band sits back under the brow
+        Corner("eyeOut", zE, 33f, 0f, 0.3f * s2);
+        Corner("sideEye", zE, 80f);
+        Corner("backMid", zE, 130f);
+        Corner("cheekbone", zN, 38f);
+        Corner("earFront", zN, 96f);
+        Corner("wing", zW, 15f);
+        Corner("mouth", zM, 21f);
+        Corner("jawAngle", zM - 0.6f * s2, 80f);
+        Corner("backLow", zS, 130f);
+        Corner("jawFront", zC, 26f);
+        Corner("throatL", zT, 35f, 0f, 0.35f);
+        Corner("neckSide", zT, 90f, 0f, 0.35f);
+        Corner("neckBackL", zT, 145f, 0f, 0.35f);
 
+        // The left half's triangles (each wound outward below).
+        string[][] layout =
+        [
+            // top of the head
+            ["fore", "foreL", "topF"], ["foreL", "topL", "topF"], ["foreL", "sideTop", "topL"], ["sideTop", "topBL", "topL"],
+            ["sideTop", "backUpper", "topBL"], ["backUpper", "topB", "topBL"], ["backUpper", "backTop", "topB"],
+            ["crown", "topF", "topL"], ["crown", "topL", "topBL"], ["crown", "topBL", "topB"],
+            // forehead and temple
+            ["fore", "brow", "browIn"], ["fore", "browIn", "foreL"], ["foreL", "browIn", "browOut"], ["foreL", "browOut", "temple"],
+            ["foreL", "temple", "sideTop"], ["sideTop", "temple", "sideEye"],
+            // side and back of the skull
+            ["sideTop", "sideEye", "backMid"], ["sideTop", "backMid", "backUpper"], ["backUpper", "backMid", "occiput"], ["backUpper", "occiput", "backTop"],
+            // brow shelf and eye band
+            ["brow", "bridge", "eyeIn"], ["brow", "eyeIn", "browIn"], ["browIn", "eyeIn", "eyeOut"], ["browIn", "eyeOut", "browOut"],
+            ["browOut", "eyeOut", "temple"], ["temple", "eyeOut", "sideEye"],
+            // nose: a wedge
+            ["bridge", "tip", "eyeIn"], ["eyeIn", "tip", "wing"], ["tip", "base", "wing"],
+            // cheek: three planes
+            ["eyeIn", "wing", "cheekbone"], ["eyeIn", "cheekbone", "eyeOut"], ["eyeOut", "cheekbone", "sideEye"],
+            ["sideEye", "cheekbone", "earFront"], ["wing", "mouth", "cheekbone"], ["cheekbone", "mouth", "jawAngle"], ["cheekbone", "jawAngle", "earFront"],
+            // behind the cheek
+            ["sideEye", "earFront", "backMid"], ["backMid", "earFront", "backLow"], ["backMid", "backLow", "nape"], ["backMid", "nape", "occiput"],
+            ["earFront", "jawAngle", "backLow"],
+            // mouth and chin
+            ["base", "lip", "mouth"], ["base", "mouth", "wing"], ["lip", "chin", "jawFront"], ["lip", "jawFront", "mouth"], ["mouth", "jawFront", "jawAngle"],
+            // under the jaw
+            ["chin", "under", "jawFront"], ["under", "throat", "throatL"], ["under", "throatL", "jawFront"], ["jawFront", "throatL", "jawAngle"],
+            ["jawAngle", "throatL", "neckSide"], ["jawAngle", "neckSide", "backLow"], ["backLow", "neckSide", "neckBackL"], ["backLow", "neckBackL", "nape"],
+            ["nape", "neckBackL", "napeLow"],
+        ];
+
+        // Mirror: the right half shares the middle line.
+        var count = points.Count;
+        var mirrorOf = new int[count];
+        for (var i = 0; i < count; i++)
+        {
+            if (points[i].X == 0f) { mirrorOf[i] = i; continue; }
+            mirrorOf[i] = points.Count;
+            points.Add(points[i] with { X = -points[i].X });
+        }
         var faces = new List<int[]>();
-        var n = angles.Length;
-        for (var r = 0; r + 1 < rows.Length; r++)
-            for (var k = 0; k < n; k++)
-            {
-                var k1 = (k + 1) % n;
-                int a = index[r, k], b = index[r, k1], cc = index[r + 1, k1], d = index[r + 1, k];
-                // Each quad split along its shorter diagonal (only the left half is kept and mirrored).
-                if (Vector3.DistanceSquared(points[a], points[cc]) <= Vector3.DistanceSquared(points[b], points[d]))
-                {
-                    faces.Add([a, b, cc]);
-                    faces.Add([a, cc, d]);
-                }
-                else
-                {
-                    faces.Add([a, b, d]);
-                    faces.Add([b, cc, d]);
-                }
-            }
-        for (var k = 0; k < n; k++)
-            faces.Add([index[rows.Length - 1, k], index[rows.Length - 1, (k + 1) % n], crownIndex]);
+        foreach (var t in layout)
+        {
+            var f = t.Select(x => names[x]).ToArray();
+            faces.Add(f);
+            faces.Add(f.Select(i => mirrorOf[i]).ToArray());
+        }
+        // Wind every triangle outward, away from the head's axis.
+        foreach (var f in faces)
+        {
+            var nrm = Vector3.Cross(points[f[1]] - points[f[0]], points[f[2]] - points[f[0]]);
+            var centre = (points[f[0]] + points[f[1]] + points[f[2]]) / 3f;
+            var axisPoint = new Vector3(0f, AxisY(centre.Z), Math.Clamp(centre.Z, zT, top - 4f * s2));
+            if (Vector3.Dot(nrm, centre - axisPoint) < 0f) (f[1], f[2]) = (f[2], f[1]);
+        }
 
-        // Faces wound outward: the first column runs to the character's left, so check one and flip all if needed.
-        var f0 = faces[n * 2 * 6];
-        var normal0 = Vector3.Cross(points[f0[1]] - points[f0[0]], points[f0[2]] - points[f0[0]]);
-        var centre0 = (points[f0[0]] + points[f0[1]] + points[f0[2]]) / 3f;
-        if (Vector3.Dot(normal0, centre0 - new Vector3(0f, c.HeadCenter.Y, centre0.Z)) < 0f)
-            foreach (var f in faces) (f[1], f[2]) = (f[2], f[1]);
-
-        // The face keeps its layout; the neck, the back and the top of the head give way to the
-        // budget. Reduced as the body is: the left half, mirrored, so the two sides match exactly.
-        var face = new HashSet<int>();
-        for (var r = 2; r <= 11; r++)
-            for (var k = 0; k < n; k++)
-                if (MathF.Abs(angles[k]) <= 85f) face.Add(index[r, k]);
-        var reduced = RealisticBody.SymmetricSimplify(points.ToArray(), faces.ToArray(), HeadTriangles, v => face.Contains(v) ? 1000f : 1f);
-
-        // Each corner takes the bones, slot and colour of the dense vertex nearest it.
+        // Each corner takes the bones of the dense vertex nearest it.
         var candidates = neighbours.Keys.ToArray();
         int Nearest(Vector3 p) => candidates.MinBy(v => Vector3.DistanceSquared(pos[v], p));
-        var head = reduced with { Source = Array.ConvertAll(reduced.Positions, Nearest) };
+        var head = new Decimator.Result(points.ToArray(), faces.ToArray(), points.Select(Nearest).ToArray());
         emit(head, slotOf);
 
         BuildEars(c, human, isEar, emit);
+        paint.HeadSurface = null;   // SurfaceField(detailed, tris, s): the painted ToonFace reads better
+    }
+
+    /// <summary>
+    /// A lookup of the detailed head (see <see cref="Texturing.PaintContext.HeadSurface"/>): its
+    /// vertices with smooth normals in a grid, averaged over the few nearest a point.
+    /// </summary>
+    private static Func<Vector3, Vector3, (float, Vector3)> SurfaceField(Vector3[] pos, int[][] tris, float s)
+    {
+        var normals = new Dictionary<int, Vector3>();
+        foreach (var t in tris)
+        {
+            var n = Vector3.Cross(pos[t[1]] - pos[t[0]], pos[t[2]] - pos[t[0]]);
+            foreach (var v in t) normals[v] = normals.GetValueOrDefault(v) + n;
+        }
+        const float cell = 1.2f;
+        static (int, int, int) Key(Vector3 p) => ((int)MathF.Floor(p.X / cell), (int)MathF.Floor(p.Y / cell), (int)MathF.Floor(p.Z / cell));
+        var grid = new Dictionary<(int, int, int), List<(Vector3 P, Vector3 N)>>();
+        foreach (var (v, n) in normals)
+        {
+            var k = Key(pos[v]);
+            if (!grid.TryGetValue(k, out var list)) grid[k] = list = [];
+            list.Add((pos[v], n.LengthSquared() > 1e-12f ? Vector3.Normalize(n) : Vector3.UnitZ));
+        }
+        var radius = 0.8f * s;
+        return (p, _) =>
+        {
+            // The detailed surface near p, smoothed over a few centimetres: its mean point and normal.
+            // Independent of the low-poly face p is on, so the paint runs on across face edges.
+            var (kx, ky, kz) = Key(p);
+            float wsum = 0f;
+            Vector3 mean = Vector3.Zero, normal = Vector3.Zero;
+            var reach = (int)MathF.Ceiling(2.5f * radius / cell);
+            for (var dx = -reach; dx <= reach; dx++)
+                for (var dy = -reach; dy <= reach; dy++)
+                    for (var dz = -reach; dz <= reach; dz++)
+                        if (grid.TryGetValue((kx + dx, ky + dy, kz + dz), out var list))
+                            foreach (var (q, n) in list)
+                            {
+                                var d2 = Vector3.DistanceSquared(q, p);
+                                if (d2 > 6.25f * radius * radius) continue;
+                                var w = MathF.Exp(-d2 / (radius * radius));
+                                wsum += w;
+                                mean += q * w;
+                                normal += n * w;
+                            }
+            if (wsum < 1e-6f) return (0f, Vector3.UnitZ);
+            mean /= wsum;
+            normal = Vector3.Normalize(normal);
+            // Positive where the detailed surface rises above the low-poly one, negative over hollows.
+            return (Vector3.Dot(mean - p, normal), normal);
+        };
     }
 
     /// <summary>Simple ear flaps (like the pack's), from the dense ear's outline: a few triangles each.</summary>

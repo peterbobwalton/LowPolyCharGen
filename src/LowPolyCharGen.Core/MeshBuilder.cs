@@ -142,6 +142,9 @@ public sealed class MeshBuilder(Skeleton skeleton)
     /// <summary>Shading normals for vertices (see <see cref="Face.CornerNormals"/>); faces made from three of them carry them.</summary>
     public Dictionary<int, Vector3> VertexNormals { get; } = [];
 
+    /// <summary>Faces created from now on are flat shaded (each corner takes the face's own normal).</summary>
+    public bool FlatFaces { get; set; }
+
     public int AddVertex(Vector3 position, WeightFn weights)
     {
         Positions.Add(position);
@@ -181,7 +184,13 @@ public sealed class MeshBuilder(Skeleton skeleton)
         void Tri(int a, int b, int c)
         {
             var face = new Face([vs[a], vs[b], vs[c]], slot, Detail, chart, [us[a], us[b], us[c]], SmoothGroup);
-            if (VertexNormals.Count > 0 && VertexNormals.TryGetValue(vs[a], out var na) && VertexNormals.TryGetValue(vs[b], out var nb)
+            if (FlatFaces)
+            {
+                var fn = Vector3.Cross(Positions[vs[b]] - Positions[vs[a]], Positions[vs[c]] - Positions[vs[a]]);
+                fn = fn.LengthSquared() > 1e-12f ? Vector3.Normalize(fn) : Vector3.UnitZ;
+                face.CornerNormals = [fn, fn, fn];
+            }
+            else if (VertexNormals.Count > 0 && VertexNormals.TryGetValue(vs[a], out var na) && VertexNormals.TryGetValue(vs[b], out var nb)
                 && VertexNormals.TryGetValue(vs[c], out var nc))
                 face.CornerNormals = [na, nb, nc];
             Faces.Add(face);

@@ -23,6 +23,7 @@ internal static class RealisticBody
         var human = c.Human ?? throw new InvalidOperationException("No fitted body.");
         var source = HumanBody.Default;
         PoseHands(c, human);
+        var detailed = (Vector3[])human.Positions.Clone();   // before the sockets are filled: painted from
         var nostril = FillNostrils(c, human);
         FillEyes(c, human);
         var bones = source.Bones;
@@ -70,11 +71,11 @@ internal static class RealisticBody
         }
 
         var bodyTris = Triangulate(source.BodyFaces);
-        // The head is its own designed mesh: the dense head and upper neck are left out here, the
-        // body's cut edge hidden inside the head mesh's neck.
-        var cutZ = RealisticHead.BodyCutZ(c);
+        // The head is its own designed mesh (see RealisticHead): the dense head is left out here.
+        // The body keeps its own neck; the head mesh's lowest ring sits just inside it.
         bool IsHeadOrNeck(int v) => bones[human.DominantSourceBone[v]].Name is "head" or "neck_01";
-        var restTris = bodyTris.Where(t => !(t.All(IsHeadOrNeck) && t.All(v => human.Positions[v].Z >= cutZ))).ToArray();
+        bool IsHead(int v) => bones[human.DominantSourceBone[v]].Name == "head";
+        var restTris = bodyTris.Where(t => !t.All(IsHead)).ToArray();
         var body = SymmetricSimplify(human.Positions, restTris, BodyTriangles, Importance);
         // Shaded with its own smooth normals, like the pack: at this budget the dense body's normals
         // would disagree with the triangles, and lights and shadows would show the difference.
@@ -133,7 +134,7 @@ internal static class RealisticBody
             var t = (p.Z - c.ChinZ) / c.HeadHeight;
             return SlotOf(v) == Slot.Head && MathF.Abs(p.X) > c.HeadHalfWidth * 0.9f && MathF.Abs(p.Y - c.HeadCenter.Y) < 4f * c.HeadScale && t > 0.3f && t < 0.68f;
         }
-        RealisticHead.Build(c, human, SlotOf, IsHeadOrNeck, IsEar, (piece, slots) => Emit(c, m, piece, slots));
+        RealisticHead.Build(c, human, human.Positions, SlotOf, IsHeadOrNeck, IsEar, (piece, slots) => Emit(c, m, piece, slots));
 
         c.Paint.ModelledHands = true;
         c.Paint.HandOrigin = Vector3.Zero;
@@ -1004,8 +1005,9 @@ internal static class RealisticBody
     /// the triangles in UV patches - grouped by slot and by the axis they face, split into connected
     /// pieces, each flattened along its axis.
     /// </summary>
-    private static void Emit(BuildContext c, MeshBuilder m, Decimator.Result piece, Func<int, Slot> slotOf, Vector3[]? normals = null)
+    private static void Emit(BuildContext c, MeshBuilder m, Decimator.Result piece, Func<int, Slot> slotOf, Vector3[]? normals = null, bool flat = false)
     {
+        m.FlatFaces = flat;
         var human = c.Human!;
         var ids = new int[piece.Positions.Length];
         m.VertexNormals.Clear();
@@ -1075,5 +1077,6 @@ internal static class RealisticBody
             m.Density = 1f;
         }
         m.VertexNormals.Clear();
+        m.FlatFaces = false;
     }
 }

@@ -112,6 +112,13 @@ public sealed class PaintContext
 
     // ---- realistic face: the modelled eyes and lids replace the painted ones ----
     public bool ModelledFace { get; set; }
+
+    /// <summary>
+    /// The detailed head under a low-poly one, for painting its form into the texture the way the
+    /// Toon Soldiers pack does: for a point and the low-poly face's normal there, how far the detailed
+    /// surface lies above (+) or below (-) it, in centimetres, and the detailed surface's smooth normal.
+    /// </summary>
+    public Func<Vector3, Vector3, (float Relief, Vector3 Normal)>? HeadSurface { get; set; }
     /// <summary>True when the eyes are modelled eyeballs (painted by EyeBall); false paints them on the face.</summary>
     public bool ModelledEyes { get; set; }
     /// <summary>Centre of the left eyeball (the right is its mirror) and its radius.</summary>
