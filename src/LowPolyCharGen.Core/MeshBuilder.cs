@@ -59,6 +59,9 @@ public sealed class MeshData
 
     public int TriangleCount => Faces.Sum(f => f.Vertices.Length - 2);
 
+    /// <summary>Crease angle between faces of head skin, which is smoothed over its sharper bends.</summary>
+    private const float HeadCreaseDegrees = 100f;
+
     /// <summary>
     /// Corner normals: face normals averaged over the faces around a vertex that are within the crease
     /// angle of each other. A crease angle of 0 gives fully faceted shading.
@@ -80,6 +83,9 @@ public sealed class MeshData
         }
 
         var cos = MathF.Cos(Geo.Deg(creaseDegrees));
+        // Skin on the head is smoothed over sharper bends (brow ridge, nose): split normals there drew
+        // the face's quads as light and dark patches. The jaw line keeps its own smoothing group.
+        var headCos = MathF.Cos(Geo.Deg(MathF.Max(creaseDegrees, HeadCreaseDegrees)));
         var result = new Vector3[faces.Count][];
         for (var f = 0; f < faces.Count; f++)
         {
@@ -90,7 +96,8 @@ public sealed class MeshData
                 var sum = Vector3.Zero;
                 if (creaseDegrees > 0)
                     foreach (var g in perVertex[v[i]]!)
-                        if (faces[g].SmoothGroup == faces[f].SmoothGroup && Vector3.Dot(unitNormals[f], unitNormals[g]) >= cos)
+                        if (faces[g].SmoothGroup == faces[f].SmoothGroup
+                            && Vector3.Dot(unitNormals[f], unitNormals[g]) >= (faces[f].Slot == Slot.Head && faces[g].Slot == Slot.Head ? headCos : cos))
                             sum += faceNormals[g];
                 corner[i] = sum.LengthSquared() > 1e-12f ? Vector3.Normalize(sum) : unitNormals[f];
             }
