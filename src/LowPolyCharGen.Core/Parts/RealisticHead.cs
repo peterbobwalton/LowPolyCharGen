@@ -16,6 +16,9 @@ internal static class RealisticHead
 
 
 
+    /// <summary>Height of the head mesh's lowest ring, on the neck just above the collar.</summary>
+    public static float NeckRingZ(BuildContext c) => c.ChinZ - 3.8f * c.HeadScale;
+
     public static void Build(BuildContext c, HumanBody.Fitted human, Vector3[] detailed, Func<int, Slot> slotOf,
         Func<int, bool> isHeadOrNeck, Func<int, bool> isEar, Action<Decimator.Result, Func<int, Slot>> emit)
     {
@@ -54,7 +57,7 @@ internal static class RealisticHead
         var chin = c.ChinZ;
         var top = neighbours.Keys.Where(v => !isEar(v)).Max(v => surface[v].Z);
         float zF = Geo.Lerp(eyeZ, top, 0.55f), zB = eyeZ + 1.15f * s2, zE = eyeZ, zN = noseTip, zS = noseTip - 0.85f * s2,
-            zW = noseTip - 0.45f * s2, zM = mouth, zC = (chin + mouth) / 2f - 0.15f * s2, zT = chin - 2.2f * s2,
+            zW = noseTip - 0.45f * s2, zM = mouth, zC = (chin + mouth) / 2f - 0.15f * s2, zT = chin - 2.0f * s2, zR = chin - 3.8f * s2,
             zU = Geo.Lerp(zF, top, 0.6f);
 
         // Each row's axis: the head's, leaning back to the neck's below the jaw.
@@ -123,11 +126,16 @@ internal static class RealisticHead
             names["under"] = points.Count;
             points.Add(hit with { X = 0f });
         }
-        Corner("throat", zT, 0f, 0f, 0.35f);
+        Corner("throat", zT, 0f);
         Corner("backTop", zF, 180f);
         Corner("occiput", zE, 180f);
         Corner("nape", zS, 180f);
-        Corner("napeLow", zT, 180f, 0f, 0.35f);
+        Corner("napeLow", zT, 180f);
+        Corner("neck", zR, 0f, 0f, 0f, 0.15f);
+        Corner("neckBack", zR, 180f, 0f, 0f, 0.15f);
+        Corner("neckF", zR, 40f, 0f, 0f, 0.15f);
+        Corner("neckS", zR, 90f, 0f, 0f, 0.15f);
+        Corner("neckB", zR, 140f, 0f, 0f, 0.15f);
         // Left side.
         Corner("foreL", zF, 40f);
         Corner("sideTop", zF, 85f);
@@ -146,9 +154,9 @@ internal static class RealisticHead
         Corner("jawAngle", zM - 0.6f * s2, 80f);
         Corner("backLow", zS, 130f);
         Corner("jawFront", zC, 26f);
-        Corner("throatL", zT, 35f, 0f, 0.35f);
-        Corner("neckSide", zT, 90f, 0f, 0.35f);
-        Corner("neckBackL", zT, 145f, 0f, 0.35f);
+        Corner("throatL", zT, 35f);
+        Corner("neckSide", zT, 90f);
+        Corner("neckBackL", zT, 145f);
 
         // The left half's triangles (each wound outward below).
         string[][] layout =
@@ -179,6 +187,9 @@ internal static class RealisticHead
             ["chin", "under", "jawFront"], ["under", "throat", "throatL"], ["under", "throatL", "jawFront"], ["jawFront", "throatL", "jawAngle"],
             ["jawAngle", "throatL", "neckSide"], ["jawAngle", "neckSide", "backLow"], ["backLow", "neckSide", "neckBackL"], ["backLow", "neckBackL", "nape"],
             ["nape", "neckBackL", "napeLow"],
+            // neck, down to the collar
+            ["throat", "neck", "neckF"], ["throat", "neckF", "throatL"], ["throatL", "neckF", "neckS"], ["throatL", "neckS", "neckSide"],
+            ["neckSide", "neckS", "neckB"], ["neckSide", "neckB", "neckBackL"], ["neckBackL", "neckB", "neckBack"], ["neckBackL", "neckBack", "napeLow"],
         ];
 
         // Mirror: the right half shares the middle line.
@@ -202,7 +213,7 @@ internal static class RealisticHead
         {
             var nrm = Vector3.Cross(points[f[1]] - points[f[0]], points[f[2]] - points[f[0]]);
             var centre = (points[f[0]] + points[f[1]] + points[f[2]]) / 3f;
-            var axisPoint = new Vector3(0f, AxisY(centre.Z), Math.Clamp(centre.Z, zT, top - 4f * s2));
+            var axisPoint = new Vector3(0f, AxisY(centre.Z), Math.Clamp(centre.Z, zR, top - 4f * s2));
             if (Vector3.Dot(nrm, centre - axisPoint) < 0f) (f[1], f[2]) = (f[2], f[1]);
         }
 
@@ -210,9 +221,14 @@ internal static class RealisticHead
         var candidates = neighbours.Keys.ToArray();
         int Nearest(Vector3 p) => candidates.MinBy(v => Vector3.DistanceSquared(pos[v], p));
         var head = new Decimator.Result(points.ToArray(), faces.ToArray(), points.Select(Nearest).ToArray());
-        emit(head, slotOf);
+        // Painted as head above the jaw and as neck below it (the collar, hood and nape hair are
+        // drawn on both, so the edge between them does not show).
+        var neckBelow = chin - 0.6f * s2;
+        emit(head, v => pos[v].Z < neckBelow ? Slot.Neck : Slot.Head);
 
-        BuildEars(c, human, isEar, emit);
+        // Hair that hangs past the ears covers them, as on the pack's long-haired heads.
+        var hidden = c.Spec.Hair is HairStyle.Bob or HairStyle.Long && c.Spec.Hat == HatStyle.None;
+        if (!hidden) BuildEars(c, human, surface, isEar, emit);
         paint.HeadSurface = null;   // SurfaceField(detailed, tris, s): the painted ToonFace reads better
     }
 
@@ -267,37 +283,57 @@ internal static class RealisticHead
         };
     }
 
-    /// <summary>Simple ear flaps (like the pack's), from the dense ear's outline: a few triangles each.</summary>
-    private static void BuildEars(BuildContext c, HumanBody.Fitted human, Func<int, bool> isEar, Action<Decimator.Result, Func<int, Slot>> emit)
+    /// <summary>
+    /// Chunky block ears, like the pack's: the dense ear's outline (front top, top, back, bottom,
+    /// front bottom) as a flat outer face, walled back to the skull; about a dozen triangles each.
+    /// The painter draws the bowl and canal on the outer face (Slot.Ear).
+    /// </summary>
+    private static void BuildEars(BuildContext c, HumanBody.Fitted human, Vector3[] skull, Func<int, bool> isEar, Action<Decimator.Result, Func<int, Slot>> emit)
     {
         var pos = human.Positions;
+        var s = c.HeadScale;
+        // The ear proper: what stands off the skull (the head with the ears smoothed away).
         var ear = Enumerable.Range(0, pos.Length).Where(v => isEar(v) && pos[v].X > 0f).ToArray();
         if (ear.Length < 8) return;
         var top = ear.MaxBy(v => pos[v].Z);
         var bottom = ear.MinBy(v => pos[v].Z);
-        var back = ear.MaxBy(v => pos[v].Y - 0.3f * pos[v].Z);
-        var outer = ear.MaxBy(v => pos[v].X);
-        var frontTop = ear.Where(v => pos[v].Z > (pos[top].Z + pos[bottom].Z) / 2f).MinBy(v => pos[v].Y);
-        var frontBottom = ear.Where(v => pos[v].Z <= (pos[top].Z + pos[bottom].Z) / 2f).MinBy(v => pos[v].Y);
-        // Root points pulled in towards the skull so the flap grows out of it.
-        Vector3 Root(int v) => pos[v] with { X = pos[v].X - 0.6f * c.HeadScale };
-        var points = new List<Vector3> { Root(frontTop), Root(frontBottom), pos[top], pos[back], pos[bottom], pos[outer] };
-        int[] source = [frontTop, frontBottom, top, back, bottom, outer];
-        int[][] tris =
-        [
-            [0, 2, 5], [2, 3, 5], [3, 4, 5], [4, 1, 5], [1, 0, 5],    // outer face, round the rim
-            [0, 1, 4], [0, 4, 3], [0, 3, 2],                          // back of the flap, against the head
-        ];
-        // Wind the outer face away from the head.
-        var n = Vector3.Cross(points[2] - points[0], points[5] - points[0]);
-        if (n.X < 0f) foreach (var t in tris) (t[1], t[2]) = (t[2], t[1]);
-        var left = new Decimator.Result(points.ToArray(), tris, source);
-        emit(left, _ => Slot.Head);
-        // The right ear: the mirror image, with the mirror vertices' bones.
+        var midZ = (pos[top].Z + pos[bottom].Z) / 2f;
+        var back = ear.MaxBy(v => pos[v].Y);
+        var frontTop = ear.Where(v => pos[v].Z > midZ).MinBy(v => pos[v].Y);
+        var frontBottom = ear.Where(v => pos[v].Z <= midZ).MinBy(v => pos[v].Y);
+        int[] outline = [frontTop, top, back, bottom, frontBottom];
+        // The outer face: the outline a little in from the real ear, hugging the head; the root on the skull.
+        var outer = outline.Select(v => pos[v] with { X = skull[v].X + 0.8f * (pos[v].X - skull[v].X) }).ToArray();
+        var root = outline.Select(v => pos[v] with { X = skull[v].X - 0.3f * s }).ToArray();
+        var centre = outer.Aggregate(Vector3.Zero, (a, b) => a + b) / outer.Length;
+        // A little smaller than the detailed ear, as the pack draws them.
+        for (var i = 0; i < outer.Length; i++)
+        {
+            outer[i] = Vector3.Lerp(outer[i], centre with { X = outer[i].X }, 0.12f);
+            root[i] = Vector3.Lerp(root[i], centre with { X = root[i].X }, 0.25f);
+        }
+        var points = outer.Concat(root).ToList();
+        var source = outline.Concat(outline).ToArray();
+        var tris = new List<int[]> { new[] { 0, 1, 2 }, new[] { 0, 2, 3 }, new[] { 0, 3, 4 } };
+        for (var i = 0; i < 4; i++) { tris.Add([i, i + 1, i + 6]); tris.Add([i, i + 6, i + 5]); }
+        // Wind each triangle away from the middle of the ear.
+        var inside = points.Aggregate(Vector3.Zero, (a, b) => a + b) / points.Count;
+        foreach (var t in tris)
+        {
+            var nrm = Vector3.Cross(points[t[1]] - points[t[0]], points[t[2]] - points[t[0]]);
+            var mid = (points[t[0]] + points[t[1]] + points[t[2]]) / 3f;
+            if (Vector3.Dot(nrm, mid - inside) < 0f) (t[1], t[2]) = (t[2], t[1]);
+        }
+        emit(new Decimator.Result(points.ToArray(), tris.ToArray(), source), _ => Slot.Ear);
         var mirrored = points.Select(p => p with { X = -p.X }).ToArray();
-        var mirrorSource = source.Select(v => ear.Length > 0 ? MirrorOf(pos, v) : v).ToArray();
-        var rightTris = tris.Select(t => new[] { t[0], t[2], t[1] }).ToArray();
-        emit(new Decimator.Result(mirrored, rightTris, mirrorSource), _ => Slot.Head);
+        var mirrorSource = source.Select(v => MirrorOf(pos, v)).ToArray();
+        emit(new Decimator.Result(mirrored, tris.Select(t => new[] { t[0], t[2], t[1] }).ToArray(), mirrorSource), _ => Slot.Ear);
+
+        // Where the painter draws the ear: its outer face's centre and axes.
+        c.Paint.EarCenter = centre;
+        c.Paint.EarAcross = Vector3.UnitY;
+        c.Paint.EarUp = Vector3.UnitZ;
+        c.Paint.EarScale = (pos[top].Z - pos[bottom].Z) / 5f;
     }
 
     private static int MirrorOf(Vector3[] pos, int v)

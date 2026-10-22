@@ -129,6 +129,8 @@ def main():
     targets += [f"head/head-{shape}" for shape in FACE_SHAPES]
     for folder, lo, hi in FACE_PAIRS:
         targets += [f"{folder}/{lo}", f"{folder}/{hi}"]
+    # Moves the whole left ear and nothing else: marks which vertices are the ear.
+    targets.append("ears/l-ear-trans-up")
 
     buf = bytearray()
 

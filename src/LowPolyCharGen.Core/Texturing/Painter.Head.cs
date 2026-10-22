@@ -66,7 +66,7 @@ internal sealed partial class Painter
         // ---- facial hair (under the lips, so the mouth stays visible) ----
         var beard = FacialHair(ax, fz, angle, mouthZ, p, under);
         // On a modelled jaw the beard ends in a line across the throat (the neck carries on to it).
-        if (modelled) beard *= SmoothStep(_c.ChinZ + 0.5f * s, _c.ChinZ + 1.3f * s, p.Z);
+        if (modelled) beard *= SmoothStep(_c.ChinZ + 0.5f * s, _c.ChinZ + 1.3f * s, p.Z) * (1f - SmoothStep(100f, 112f, angle));
         if (beard > 0f)
         {
             var strands = Noise.Value(new Vector3(p.X * 5f, p.Y * 5f, p.Z * 1.2f));
@@ -280,7 +280,7 @@ internal sealed partial class Painter
         var span = MathF.Max(0f, 1f - u * u);
         var upper = (male ? 0.55f : 0.62f) * MathF.Pow(span, 0.55f);
         var lower = -0.38f * MathF.Pow(span, 0.75f);
-        var inside = SmoothStep(lower - 0.15f, lower + 0.08f, dz) * (1f - SmoothStep(upper - 0.08f, upper + 0.14f, dz));
+        var inside = SmoothStep(lower - 0.15f, lower + 0.08f, dz) * (1f - SmoothStep(upper - 0.08f, upper + 0.14f, dz)) * SmoothStep(0f, 0.2f, span);
         // Shadow from the brow over the socket, then the eye itself, darkest at the upper lid.
         color *= 1f - 0.28f * face * Blob(u / 1.35f, (dz - 0.35f) / 0.85f);
         var dark = _skin * Vector3.Lerp(new Vector3(0.42f, 0.35f, 0.32f), new Vector3(0.28f, 0.22f, 0.2f), SmoothStep(0f, upper, dz));
@@ -391,7 +391,7 @@ internal sealed partial class Painter
         var mask = SmoothStep(lo - 0.04f, lo + 0.04f, fz) * (1f - SmoothStep(hi - 0.1f, hi + 0.08f, fz));
         mask *= SmoothStep(-0.1f, 0.06f, v) * (1f - SmoothStep(0.93f, 1.05f, v));
         var density = Lerp(0.5f, 0.95f, SmoothStep(0f, 0.3f, vs)) * (1f - 0.15f * SmoothStep(0.7f, 1f, vs));
-        var alpha = mask * density * (0.65f + 0.35f * SmoothStep(0.35f, 0.7f, strokes));
+        var alpha = mask * density * Lerp(0.65f + 0.35f * SmoothStep(0.35f, 0.7f, strokes), 0.95f, _spec.Stylization);
         var brow = Mix(_hair * 0.7f, new Vector3(0.08f, 0.06f, 0.05f), 0.15f);
         return Mix(color, brow, alpha * face);
     }

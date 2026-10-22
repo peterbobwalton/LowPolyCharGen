@@ -447,7 +447,8 @@ internal static class HeadBuilder
                 return;
             case HairStyle.Short or HairStyle.Ponytail or HairStyle.Bun:
                 paint.ScalpHair = shortCut;
-                Scalp(shortCut, Volume(0.7f), false);
+                // On the realistic head short hair is painted only, as on the pack's heads.
+                if (!c.Realistic) Scalp(shortCut, Volume(0.7f), false);
                 break;
             case HairStyle.Bob:
                 paint.ScalpHair = shortCut;

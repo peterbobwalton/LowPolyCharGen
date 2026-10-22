@@ -16,7 +16,7 @@ internal static class RealisticBody
     /// the realistic body aims at about 1,200 in all. The head is not reduced but designed (see
     /// <see cref="RealisticHead"/>); this is the rest of the body.
     /// </summary>
-    public const int BodyTriangles = 700;
+    public const int BodyTriangles = 1000;
 
     public static void Build(BuildContext c)
     {
@@ -44,6 +44,12 @@ internal static class RealisticBody
             return Slot.Body;
         }
 
+        // Fingertips keep their round ends.
+        var tips = new List<Vector3>();
+        foreach (var side in new[] { "l", "r" })
+            for (var f = 1; f <= 5; f++) tips.Add(human.Joint($"joint-{side}-finger-{f}-4"));
+        bool FingerTip(int v) => tips.Any(t => Vector3.DistanceSquared(t, human.Positions[v]) < 1.0f);
+
         // The face and hands hold their shape best if their error counts for more.
         var mouth = MouthCentre(human);
         var hs = c.HeadScale;
@@ -65,17 +71,25 @@ internal static class RealisticBody
                 if (MathF.Abs(p.X) > c.HeadHalfWidth * 0.92f && MathF.Abs(p.Y - c.HeadCenter.Y) < 4f) return 10f;
                 return p.Y < c.HeadCenter.Y - 2f ? 60f : 3f;
             }
-            if (slot == Slot.Hand) return 3.5f;
+            if (slot == Slot.Hand) return FingerTip(v) ? 60f : 25f;
             if (slot == Slot.Foot) return 1.5f;
             return 1f;
         }
 
         var bodyTris = Triangulate(source.BodyFaces);
         // The head is its own designed mesh (see RealisticHead): the dense head is left out here.
-        // The body keeps its own neck; the head mesh's lowest ring sits just inside it.
+        // The head mesh comes down the neck to just above the collar: the body's head and the neck
+        // inside that ring are left out (only near the neck's axis, so the shoulders stay).
         bool IsHeadOrNeck(int v) => bones[human.DominantSourceBone[v]].Name is "head" or "neck_01";
-        bool IsHead(int v) => bones[human.DominantSourceBone[v]].Name == "head";
-        var restTris = bodyTris.Where(t => !t.All(IsHead)).ToArray();
+        var ringZ = RealisticHead.NeckRingZ(c) + 0.5f;
+        var neckAxis = c.Paint.NeckCenter;
+        bool Covered(int v)
+        {
+            var p = human.Positions[v];
+            if (bones[human.DominantSourceBone[v]].Name == "head") return true;
+            return IsHeadOrNeck(v) && p.Z > ringZ && new Vector2(p.X, p.Y - neckAxis.Y).Length() < c.NeckRadius * 1.15f + 0.5f;
+        }
+        var restTris = bodyTris.Where(t => !t.All(Covered)).ToArray();
         var body = SymmetricSimplify(human.Positions, restTris, BodyTriangles, Importance);
         // Shaded with its own smooth normals, like the pack: at this budget the dense body's normals
         // would disagree with the triangles, and lights and shadows would show the difference.
@@ -128,11 +142,24 @@ internal static class RealisticBody
             ? new Vector2(n.X / c.HeadScale, (n.Z - c.ChinZ) / c.HeadScale)
             : new Vector2(0.9f / c.HeadScale, (c.Paint.NoseTipZ - 0.045f * c.HeadHeight - c.ChinZ) / c.HeadScale);
         // The designed head, now the face's landmarks are known.
+        // The ears: MakeHuman's ear-moving target marks the left one; the right is its mirror.
+        var leftEar = new HashSet<int>();
+        if (source.Targets.TryGetValue("l-ear-trans-up", out var earTarget) && earTarget.Deltas.Length > 0)
+        {
+            var max = earTarget.Deltas.Max(d => d.Length());
+            for (var i = 0; i < earTarget.Vertices.Length; i++)
+                if (earTarget.Deltas[i].Length() > 0.9f * max) leftEar.Add(earTarget.Vertices[i]);
+        }
+        var leftEarPoints = leftEar.Select(v => human.Positions[v]).ToArray();
+        var earCache = new Dictionary<int, bool>();
         bool IsEar(int v)
         {
+            if (leftEar.Contains(v)) return true;
             var p = human.Positions[v];
-            var t = (p.Z - c.ChinZ) / c.HeadHeight;
-            return SlotOf(v) == Slot.Head && MathF.Abs(p.X) > c.HeadHalfWidth * 0.9f && MathF.Abs(p.Y - c.HeadCenter.Y) < 4f * c.HeadScale && t > 0.3f && t < 0.68f;
+            if (p.X >= 0f || leftEarPoints.Length == 0) return false;
+            if (earCache.TryGetValue(v, out var known)) return known;
+            var m = p with { X = -p.X };
+            return earCache[v] = leftEarPoints.Any(q => Vector3.DistanceSquared(q, m) < 0.09f);
         }
         RealisticHead.Build(c, human, human.Positions, SlotOf, IsHeadOrNeck, IsEar, (piece, slots) => Emit(c, m, piece, slots));
 
@@ -805,10 +832,10 @@ internal static class RealisticBody
     /// collapsing its own way. Vertices on the middle stay on it. Falls back to reducing the whole
     /// mesh if it is not symmetric.
     /// </summary>
-    internal static Decimator.Result SymmetricSimplify(Vector3[] positions, int[][] tris, int target, Func<int, float>? importance)
+    internal static Decimator.Result SymmetricSimplify(Vector3[] positions, int[][] tris, int target, Func<int, float>? importance, IReadOnlySet<int>? locked = null)
     {
         const float middle = 1e-4f;
-        var options = new Decimator.Options { TargetTriangles = target, Importance = importance };
+        var options = new Decimator.Options { TargetTriangles = target, Importance = importance, Locked = locked };
         // Each vertex's mirror image.
         // The fitted halves match to within a few millimetres (the skeleton's sides differ slightly).
         const float cell = 0.3f;
@@ -872,7 +899,7 @@ internal static class RealisticBody
         if (left.Length * 2 < tris.Length * 0.95f) return Decimator.Simplify(positions, tris, options);
         var half = Decimator.Simplify(positions, left, new Decimator.Options
         {
-            TargetTriangles = target / 2, Importance = importance, OnMiddle = v => MathF.Abs(positions[v].X) <= middle,
+            TargetTriangles = target / 2, Importance = importance, OnMiddle = v => MathF.Abs(positions[v].X) <= middle, Locked = locked,
         });
 
         var points = new List<Vector3>(half.Positions.Length * 2);
