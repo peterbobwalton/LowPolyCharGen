@@ -10,6 +10,9 @@ namespace LowPolyCharGen;
 /// </summary>
 public static class BodyFrame
 {
+    private static bool IsFinger(string name) =>
+        name.StartsWith("thumb") || name.StartsWith("index") || name.StartsWith("middle") || name.StartsWith("ring") || name.StartsWith("pinky");
+
     /// <summary>
     /// Moves the arm chains in by <paramref name="shoulderShift"/> centimetres (the clavicles half as
     /// far, so the shoulder line narrows smoothly) and then scales everything about the ground point
@@ -29,6 +32,7 @@ public static class BodyFrame
             {
                 "clavicle" => 0.5f,
                 "upperarm" or "lowerarm" or "hand" => 1f,
+                _ when design[bone.Parent < 0 ? 0 : bone.Parent].Name.StartsWith("hand") || IsFinger(name) => 1f,
                 _ => 0f,
             };
             shifts[bone.Index] = new Vector3(-side * shoulderShift * amount, 0, 0);
@@ -36,7 +40,7 @@ public static class BodyFrame
 
         Vector3 Move(Vector3 p) => p * heightScale;
 
-        var skeleton = Skeleton.CreateMannequinTPose(includeIkBones);
+        var skeleton = design.Clone();
         foreach (var bone in skeleton.Bones)
         {
             // The IK bones copy the bone they stand in for.

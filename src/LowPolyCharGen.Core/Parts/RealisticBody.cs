@@ -16,6 +16,7 @@ internal static class RealisticBody
     {
         var human = c.Human ?? throw new InvalidOperationException("No fitted body.");
         var source = HumanBody.Default;
+        PoseHands(c, human);
         var bones = source.Bones;
         var m = c.Mesh;
 
@@ -40,7 +41,7 @@ internal static class RealisticBody
             var slot = SlotOf(v);
             var p = human.Positions[v];
             if (slot == Slot.Head) return p.Y < c.HeadCenter.Y - 2f ? 6f : 1.5f;
-            if (slot == Slot.Hand) return 2.5f;
+            if (slot == Slot.Hand) return 3.5f;
             if (slot == Slot.Foot) return 1.5f;
             return 1f;
         }
@@ -75,6 +76,99 @@ internal static class RealisticBody
         c.Paint.HandOrigin = Vector3.Zero;
         c.Paint.HandScale = 1f;
         c.Paint.Nails = nails;
+    }
+
+    /// <summary>
+    /// Joint bends (degrees) for each hand pose: per finger (index, middle, ring, little) the knuckle,
+    /// middle and end joints; for the thumb its base, middle and end joints and how far its base
+    /// swings in across the palm.
+    /// </summary>
+    private static (float[][] Fingers, float[] Thumb, float ThumbAcross) PoseAngles(HandPose pose) => pose switch
+    {
+        HandPose.Open => ([[0, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]], [0, 0, 0], -6f),
+        HandPose.Closed => ([[42, 58, 34], [48, 64, 38], [54, 68, 40], [60, 70, 42]], [12, 22, 24], 14f),
+        HandPose.Fist => ([[86, 102, 62], [90, 104, 64], [92, 104, 64], [94, 104, 62]], [24, 46, 42], 26f),
+        _ => ([[10, 20, 12], [14, 24, 14], [18, 28, 16], [22, 32, 18]], [4, 10, 12], 4f),   // relaxed
+    };
+
+    /// <summary>
+    /// Bends the fingers of the dense body into <see cref="CharacterSpec.HandPose"/> (each finger bone
+    /// turns about the axis across the back of the finger, carrying the bones beyond it, and the
+    /// vertices follow by their finger weights), then puts the skeleton's finger bones on the bent
+    /// joints. The bones keep the mannequin's orientations, turned by the same bends, so the bind
+    /// pose holds the hand pose and the mannequin's finger animations still drive the fingers.
+    /// </summary>
+    private static void PoseHands(BuildContext c, HumanBody.Fitted human)
+    {
+        var skeleton = c.Skeleton;
+        if (!skeleton.HasFingers) return;
+        var source = HumanBody.Default;
+        var bones = source.Bones;
+        var boneIndex = bones.Select((b, i) => (b.Name, i)).ToDictionary(x => x.Name, x => x.i);
+        var (fingerAngles, thumbAngles, thumbAcross) = PoseAngles(c.Spec.HandPose);
+        var moves = new Dictionary<int, Matrix4x4>();     // source bone -> its move
+        var turns = new Dictionary<string, Quaternion>(); // mannequin bone -> its turn
+        var original = (Vector3[])human.Positions.Clone();
+        string[] names = ["thumb", "index", "middle", "ring", "pinky"];
+
+        foreach (var (s, side) in new[] { ("l", "_l"), ("r", "_r") })
+        {
+            var sign = side == "_l" ? 1f : -1f;
+            var hand = human.Joint($"joint-{s}-hand");
+            for (var f = 1; f <= 5; f++)
+            {
+                var thumb = f == 1;
+                var joints = Enumerable.Range(1, 4).Select(k => human.Joint($"joint-{s}-finger-{f}-{k}")).ToArray();
+                var angles = thumb ? thumbAngles : fingerAngles[f - 2];
+                // The back of the finger faces up (palm down in the T-pose); the thumb's nail faces out to the front.
+                var up = thumb ? Vector3.Normalize(new Vector3(0, -0.75f, 0.66f)) : Vector3.UnitZ;
+                var move = Matrix4x4.Identity;
+                var turn = Quaternion.Identity;
+                if (thumb && thumbAcross != 0f)
+                {
+                    // Swing the thumb in across the palm about the hand's up axis.
+                    var q = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, sign * thumbAcross * MathF.PI / 180f);
+                    move = Matrix4x4.CreateTranslation(-joints[0]) * Matrix4x4.CreateFromQuaternion(q) * Matrix4x4.CreateTranslation(joints[0]);
+                    turn = q;
+                }
+                var posed = new Vector3[4];
+                for (var k = 0; k < 3; k++)
+                {
+                    posed[k] = Vector3.Transform(joints[k], move);
+                    var next = Vector3.Transform(joints[k + 1], move);
+                    var d = Vector3.Normalize(next - posed[k]);
+                    var u = Vector3.Transform(up, turn);
+                    var axis = Vector3.Normalize(Vector3.Cross(u, d));
+                    var q = Quaternion.CreateFromAxisAngle(axis, angles[k] * MathF.PI / 180f);
+                    move = move * Matrix4x4.CreateTranslation(-posed[k]) * Matrix4x4.CreateFromQuaternion(q) * Matrix4x4.CreateTranslation(posed[k]);
+                    turn = q * turn;
+                    var name = $"{names[f - 1]}_0{k + 1}{side}";
+                    moves[boneIndex[name]] = move;
+                    turns[name] = turn;
+                    // The bone sits on its (bent) joint and is turned with it.
+                    var bone = skeleton[name];
+                    bone.Position = posed[k];
+                    bone.Rotation = Quaternion.Normalize(turn * bone.Rotation);
+                }
+                if (!thumb)
+                {
+                    // The metacarpal sits in the palm on the way from the wrist to the knuckle.
+                    skeleton[$"{names[f - 1]}_metacarpal{side}"].Position = Vector3.Lerp(hand, joints[0], 0.35f);
+                }
+            }
+        }
+
+        // Skin the dense body's fingers to the bent bones.
+        for (var v = 0; v < original.Length; v++)
+        {
+            var list = human.SourceWeights[v];
+            if (!list.Any(x => moves.ContainsKey(x.Bone))) continue;
+            var total = list.Sum(x => x.Weight);
+            var p = Vector3.Zero;
+            foreach (var (b, w) in list)
+                p += (moves.TryGetValue(b, out var m) ? Vector3.Transform(original[v], m) : original[v]) * (w / total);
+            human.Positions[v] = p;
+        }
     }
 
     private static void BuildClothing(BuildContext c, HumanBody.Fitted human, Func<int, Slot> slotOf)

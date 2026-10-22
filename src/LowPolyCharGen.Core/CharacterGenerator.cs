@@ -37,6 +37,8 @@ public static class CharacterGenerator
         // The painter keeps reading the options while it bakes, possibly on another thread.
         spec = spec.Clone();
         var skeleton = Skeleton.CreateMannequinTPose(includeIkBones);
+        // The realistic body has modelled fingers, so it gets the mannequin's finger bones.
+        if (spec.Rig == RigTarget.Mannequin && spec.Body == BodyModel.Realistic) skeleton.AddFingers();
         var context = new BuildContext(spec, skeleton);
 
         BodyBuilder.Build(context);

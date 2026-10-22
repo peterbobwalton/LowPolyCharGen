@@ -13,6 +13,8 @@ public enum Gender { Male, Female }
 /// the MakeHuman base mesh (CC0) and decimates it to the triangle budget.
 /// </summary>
 public enum BodyModel { Generated, Realistic }
+/// <summary>How the realistic body's hands are posed in the exported bind pose (the finger bones follow).</summary>
+public enum HandPose { Relaxed, Open, Closed, Fist }
 
 /// <summary>Uniform edition: a theatre palette for the clothes, gear and camouflage. Custom keeps your own colours.</summary>
 public enum Edition { Custom, Desert, Snow, Jungle, Civilian, Militia }
@@ -43,6 +45,7 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     private RigTarget _rig = RigTarget.ToonSoldiers;
     private Gender _gender = Gender.Male;
     private BodyModel _body = BodyModel.Generated;
+    private HandPose _handPose = HandPose.Relaxed;
     private float _build = 0.5f;
     private float _headSize = 1.0f;
     private HeadShape _headShape = HeadShape.Standard;
@@ -83,6 +86,7 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     /// </summary>
     public RigTarget Rig { get => _rig; set => Set(ref _rig, value); }
     public BodyModel Body { get => _body; set => Set(ref _body, value); }
+    public HandPose HandPose { get => _handPose; set => Set(ref _handPose, value); }
 
     public Gender Gender { get => _gender; set => Set(ref _gender, value); }
 

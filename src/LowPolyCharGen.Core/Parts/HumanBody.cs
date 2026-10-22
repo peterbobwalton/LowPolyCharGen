@@ -139,7 +139,8 @@ public sealed class HumanBody
     // ---- fit to the mannequin -----------------------------------------------------------------
 
     /// <summary>The shaped body on the mannequin skeleton: positions in model space and weights on its bones.</summary>
-    public sealed record Fitted(Vector3[] Positions, Influence[][] Weights, int[] DominantSourceBone, Func<string, Vector3> Joint, float Scale);
+    public sealed record Fitted(Vector3[] Positions, Influence[][] Weights, int[] DominantSourceBone, Func<string, Vector3> Joint, float Scale,
+        (int Bone, float Weight)[][] SourceWeights);
 
     /// <summary>
     /// Moves every source bone onto the matching mannequin bone (turned onto its direction, stretched
@@ -251,7 +252,7 @@ public sealed class HumanBody
             {
                 var name = Bones[b].Name;
                 if (trunkBones.Contains(name)) trunkWeight += w;
-                else Put(skeleton.IndexOf(MapName(name)), w);
+                else Put(skeleton.Contains(name) ? skeleton.IndexOf(name) : skeleton.IndexOf(MapName(name)), w);
             }
             if (trunkWeight > 0f)
                 foreach (var inf in trunkChain(positions[v])) Put(inf.Bone, inf.Weight * trunkWeight);
@@ -266,7 +267,7 @@ public sealed class HumanBody
             foreach (var v in members) sum += positions[v];
             return sum / members.Length;
         }
-        return new Fitted(positions, weights, dominant, FittedJoint, girth);
+        return new Fitted(positions, weights, dominant, FittedJoint, girth, sourceWeights.Select(l => l.ToArray()).ToArray());
     }
 
     private static Matrix4x4 OuterProduct(Vector3 v, float k) => new(

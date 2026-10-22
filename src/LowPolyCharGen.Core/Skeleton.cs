@@ -86,6 +86,37 @@ public sealed class Skeleton
 
     private static Vector3 MirrorPosition(Vector3 p) => new(-p.X, p.Y, p.Z);
 
+    /// <summary>
+    /// Adds the mannequin's finger bones (metacarpals, three bones per finger, three for the thumb)
+    /// to both hands, with Manny's offsets and orientations relative to the hand, so its finger
+    /// animations apply. Their positions are usually moved onto the mesh's own joints afterwards.
+    /// </summary>
+    public void AddFingers()
+    {
+        foreach (var e in MannequinFingers.Bones)
+        {
+            var parent = this[e.Parent];
+            Add(e.Name, e.Parent, parent.Position + Vector3.Transform(e.Offset, parent.Rotation), parent.Rotation * e.Rotation);
+        }
+        foreach (var e in MannequinFingers.Bones)
+        {
+            var left = this[e.Name];
+            Add(e.Name[..^2] + "_r", e.Parent[..^2] + "_r", MirrorPosition(left.Position), MirrorRotation(left.Rotation));
+        }
+    }
+
+    /// <summary>True when the skeleton has finger bones.</summary>
+    public bool HasFingers => _index.ContainsKey("index_01_l");
+
+    /// <summary>A copy with the same bones, which can then be moved without touching this one.</summary>
+    public Skeleton Clone()
+    {
+        var s = new Skeleton { Target = Target };
+        foreach (var b in _bones)
+            s.Add(b.Name, b.Parent < 0 ? null : _bones[b.Parent].Name, b.Position, b.Rotation, b.Scale);
+        return s;
+    }
+
     public static Skeleton CreateMannequinTPose(bool includeIkBones = true)
     {
         var s = new Skeleton();

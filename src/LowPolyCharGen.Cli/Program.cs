@@ -4,7 +4,8 @@ using LowPolyCharGen.Fbx;
 
 // Headless generator: exports characters without the UI and runs the consistency checks.
 //
-//   lowpolychargen --out soldier.fbx [--preset soldier.json] [--set Hat=Helmet --set Gender=Female ...]
+//   lowpolychargen --out soldier.fbx [--preset soldier.json] [--set Hat=Helmet --set Gender=Female ...] [--hand-poses]
+//                                          --hand-poses writes one file per hand pose (realistic body)
 //   lowpolychargen --random 12 --out-dir out [--seed 7]
 //   lowpolychargen --variants out          one FBX per option value
 //   lowpolychargen --check                 validate every option combination's mesh and rig
@@ -127,6 +128,18 @@ static int Run(string[] args)
         // Named after the file unless a preset or a Name= override names it (else every export is "Character").
         var named = args.Any(a => a.StartsWith("Name=", StringComparison.OrdinalIgnoreCase));
         if (Option("--preset") is null && !named) spec.Name = Path.GetFileNameWithoutExtension(outPath);
+        if (args.Contains("--hand-poses"))
+        {
+            // One file per hand pose: <name>_Relaxed.fbx, <name>_Open.fbx, ...
+            var baseName = spec.Name;
+            foreach (var pose in Enum.GetValues<HandPose>())
+            {
+                spec.HandPose = pose;
+                spec.Name = $"{baseName}_{pose}";
+                Export(spec, Path.Combine(Path.GetDirectoryName(outPath) ?? "", spec.Name + ".fbx"));
+            }
+            return 0;
+        }
         Export(spec, outPath);
         return 0;
     }
@@ -208,7 +221,9 @@ static int Check()
     }
 
     // Skeleton: the Euler angles written to the FBX must reproduce every bone's bind matrix.
-    foreach (var skeleton in new[] { Skeleton.CreateMannequinTPose(), Skeleton.CreateToonSoldier() })
+    var withFingers = Skeleton.CreateMannequinTPose();
+    withFingers.AddFingers();
+    foreach (var skeleton in new[] { Skeleton.CreateMannequinTPose(), withFingers, Skeleton.CreateToonSoldier() })
     {
     var rebuilt = new Matrix4x4[skeleton.Bones.Count];
     for (var i = 0; i < skeleton.Bones.Count; i++)
