@@ -23,6 +23,27 @@ public readonly record struct ScalpEdge(float Front, float Temple, float BehindE
 }
 
 /// <summary>
+/// The lips of a modelled mouth, measured from the face in columns out from the middle: the height of
+/// the line where the lips meet, of the upper lip's top edge and of the lower lip's bottom edge.
+/// </summary>
+public sealed class LipProfile(float step, float[] seam, float[] upper, float[] lower, float corner, float frontY)
+{
+    /// <summary>Distance out from the middle where the lips end, in centimetres.</summary>
+    public float Corner { get; } = corner;
+
+    /// <summary>Depth just behind the lips: texels further back (inside the mouth) are not lips.</summary>
+    public float FrontY { get; } = frontY;
+
+    public (float Seam, float Upper, float Lower) At(float x)
+    {
+        var f = Math.Clamp(MathF.Abs(x) / step, 0f, seam.Length - 1.001f);
+        var i = (int)f;
+        var t = f - i;
+        return (Geo.Lerp(seam[i], seam[i + 1], t), Geo.Lerp(upper[i], upper[i + 1], t), Geo.Lerp(lower[i], lower[i + 1], t));
+    }
+}
+
+/// <summary>
 /// The landmarks the texture painter needs: where the eyes, hems, cuffs and boot tops are on this
 /// particular character. Filled in while the mesh is built.
 /// </summary>
@@ -45,7 +66,10 @@ public sealed class PaintContext
 
     /// <summary>Left nostril in face centimetres (across, above the chin), set from the nose mesh.</summary>
     public Vector2 Nostril { get; set; } = new(0.85f, 8.45f);
-    public float MouthZ { get; init; }
+    public float MouthZ { get; set; }
+
+    /// <summary>The modelled mouth's lips, measured off the face (null: the lips are painted to a fixed shape).</summary>
+    public LipProfile? Lips { get; set; }
 
     /// <summary>Hair painted straight onto the scalp (null when bald).</summary>
     public ScalpEdge? ScalpHair { get; set; }

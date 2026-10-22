@@ -38,6 +38,12 @@ public sealed class Face(int[] vertices, Slot slot, PaintDetail detail, int char
 
     /// <summary>Corner positions inside the chart, in centimetres.</summary>
     public Vector2[] ChartUv { get; } = chartUv;
+
+    /// <summary>
+    /// Shading normals carried over from a denser surface (the realistic body's), used instead of the
+    /// normals of the reduced mesh so it shades as smoothly as the surface it was reduced from.
+    /// </summary>
+    public Vector3[]? CornerNormals { get; internal set; }
 }
 
 /// <summary>Finished, skinned, UV-mapped polygon mesh.</summary>
@@ -100,6 +106,9 @@ public sealed class MeshData
                             && Vector3.Dot(unitNormals[f], unitNormals[g]) >= (faces[f].Slot == Slot.Head && faces[g].Slot == Slot.Head ? headCos : cos))
                             sum += faceNormals[g];
                 corner[i] = sum.LengthSquared() > 1e-12f ? Vector3.Normalize(sum) : unitNormals[f];
+                // A carried-over normal, unless the reduced face turned too far from it.
+                if (creaseDegrees > 0 && faces[f].CornerNormals is { } carried && Vector3.Dot(carried[i], unitNormals[f]) > 0.2f)
+                    corner[i] = carried[i];
             }
             result[f] = corner;
         }
@@ -129,6 +138,9 @@ public sealed class MeshBuilder(Skeleton skeleton)
 
     /// <summary>Smoothing group of the faces created from now on; edges between groups are hard.</summary>
     public byte SmoothGroup { get; set; }
+
+    /// <summary>Shading normals for vertices (see <see cref="Face.CornerNormals"/>); faces made from three of them carry them.</summary>
+    public Dictionary<int, Vector3> VertexNormals { get; } = [];
 
     public int AddVertex(Vector3 position, WeightFn weights)
     {
@@ -166,8 +178,14 @@ public sealed class MeshBuilder(Skeleton skeleton)
             us.Reverse();
         }
 
-        void Tri(int a, int b, int c) =>
-            Faces.Add(new Face([vs[a], vs[b], vs[c]], slot, Detail, chart, [us[a], us[b], us[c]], SmoothGroup));
+        void Tri(int a, int b, int c)
+        {
+            var face = new Face([vs[a], vs[b], vs[c]], slot, Detail, chart, [us[a], us[b], us[c]], SmoothGroup);
+            if (VertexNormals.Count > 0 && VertexNormals.TryGetValue(vs[a], out var na) && VertexNormals.TryGetValue(vs[b], out var nb)
+                && VertexNormals.TryGetValue(vs[c], out var nc))
+                face.CornerNormals = [na, nb, nc];
+            Faces.Add(face);
+        }
 
         switch (vs.Count)
         {
@@ -621,7 +639,13 @@ public sealed class MeshBuilder(Skeleton skeleton)
                 Array.Reverse(v);
                 Array.Reverse(uv);
             }
-            Faces.Add(new Face(v, f.Slot, f.Detail, f.Chart + chartOffset, uv, f.SmoothGroup));
+            Vector3[]? normals = null;
+            if (f.CornerNormals is { } cn)
+            {
+                normals = mirror ? Array.ConvertAll(cn, n => n with { X = -n.X }) : (Vector3[])cn.Clone();
+                if (mirror) Array.Reverse(normals);
+            }
+            Faces.Add(new Face(v, f.Slot, f.Detail, f.Chart + chartOffset, uv, f.SmoothGroup) { CornerNormals = normals });
         }
     }
 
@@ -656,7 +680,7 @@ public sealed class MeshBuilder(Skeleton skeleton)
                 chartMap[f.Chart] = charts.Count;
                 charts.Add(Charts[f.Chart]);
             }
-            Faces.Add(new Face(v, f.Slot, f.Detail, chartMap[f.Chart], f.ChartUv, f.SmoothGroup));
+            Faces.Add(new Face(v, f.Slot, f.Detail, chartMap[f.Chart], f.ChartUv, f.SmoothGroup) { CornerNormals = f.CornerNormals });
         }
         Positions.Clear();
         Positions.AddRange(positions);

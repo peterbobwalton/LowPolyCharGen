@@ -55,6 +55,8 @@ internal sealed partial class Painter
 
         // ---- facial hair (under the lips, so the mouth stays visible) ----
         var beard = FacialHair(ax, fz, angle, mouthZ, p, under);
+        // On a modelled jaw the beard ends in a line across the throat (the neck carries on to it).
+        if (modelled) beard *= SmoothStep(_c.ChinZ + 0.5f * s, _c.ChinZ + 1.3f * s, p.Z);
         if (beard > 0f)
         {
             var strands = Noise.Value(new Vector3(p.X * 5f, p.Y * 5f, p.Z * 1.2f));
@@ -62,7 +64,31 @@ internal sealed partial class Painter
         }
 
         // ---- lips ----
-        if (face > 0f)
+        if (_c.Lips is { } lips)
+        {
+            // The modelled lips, as measured: colour between their edges, a dark line where they meet.
+            var ex = MathF.Abs(p.X);
+            if (ex < lips.Corner + 0.3f * s && p.Y < lips.FrontY)
+            {
+                var (seam, top, bottom) = lips.At(ex);
+                var dz = p.Z - seam;
+                var soft = 0.06f * s;
+                var onUpper = SmoothStep(-soft, soft, dz) * (1f - SmoothStep(top - seam - soft, top - seam + soft, dz));
+                var onLower = (1f - SmoothStep(-soft, soft, dz)) * SmoothStep(bottom - seam - soft, bottom - seam + soft, dz);
+                var fade = 1f - SmoothStep(lips.Corner - 0.25f * s, lips.Corner + 0.1f * s, ex);
+                var strength = fade * (beard > 0.5f ? 0.75f : 1f);
+                var lowerShine = 1f + (male ? 0.04f : 0.12f) * Blob(ex / (0.5f * lips.Corner), (dz - 0.45f * (bottom - seam)) / (0.25f * (seam - bottom) + 0.05f));
+                // A man's lips are closer to his skin.
+                var lipColour = male ? Mix(_skin, _lips, 0.55f) : _lips;
+                color = Mix(color, lipColour * 0.88f, onUpper * strength);
+                color = Mix(color, lipColour * lowerShine * (male ? 0.94f : 1f), onLower * strength);
+                // Upper lip's edge catches the light; the meeting line is dark, deepest in the middle.
+                color *= 1f + 0.06f * strength * Line(dz - (top - seam), 0.05f * s, 0.05f * s);
+                color = Mix(color, new Vector3(0.24f, 0.11f, 0.10f), (male ? 0.55f : 0.75f) * Line(dz, (male ? 0.025f : 0.035f) * s, 0.035f * s) * (1f - SmoothStep(lips.Corner - 0.1f * s, lips.Corner + 0.25f * s, ex)));
+            }
+            color *= 1f - 0.12f * face * Blob((ex - lips.Corner) / (0.45f * s), (p.Z - lips.At(lips.Corner).Seam) / (0.4f * s));   // corners
+        }
+        else if (face > 0f)
         {
             var halfWidth = male ? 2.5f : 2.3f;
             var q = ax / halfWidth;
@@ -101,18 +127,7 @@ internal sealed partial class Painter
             color = Eyebrow(color, ax, fz, (_c.BrowZ - _c.ChinZ) / s, eyeX, face, male, p);
 
         // ---- hair on the scalp ----
-        if (_c.ScalpHair is { } scalp)
-        {
-            var edge = scalp.At(frontness) + (Noise.Value(p * 1.6f) - 0.5f) * 0.03f;
-            var mask = SmoothStep(edge - 0.012f, edge + 0.014f, th);
-            if (_c.ScalpHairDensity >= 0.7f)
-            {
-                // Sideburn in front of the ear.
-                var sideburn = Line(angle - 74f, 5f, 4f) * Band(th, 0.44f, edge + 0.02f, 0.035f);
-                mask = MathF.Max(mask, sideburn);
-            }
-            color = Mix(color, HairStrands(p), mask * _c.ScalpHairDensity);
-        }
+        color = ScalpHair(color, t, th, frontness, angle);
 
         // ---- fatigue and stress ----
         var fatigue = _spec.Fatigue * face;
@@ -317,7 +332,8 @@ internal sealed partial class Painter
         var jawTop = 4.3f + 1.6f * SmoothStep(20f, 70f, angle) + 5.0f * SmoothStep(58f, 86f, angle) + wobble;
         var jaw = (1f - SmoothStep(jawTop - 0.3f, jawTop + 0.3f, fz)) * (1f - SmoothStep(96f, 104f, angle));
         var throat = 1f - SmoothStep(_c.HeadCenter.Y - 5.5f * _c.HeadScale, _c.HeadCenter.Y - 2.5f * _c.HeadScale, p.Y);
-        jaw = MathF.Max(jaw * (1f - under), under * throat);
+        // A modelled jaw keeps its beard on the underside too, so the edge does not follow its triangles.
+        jaw = _c.ModelledFace ? MathF.Max(jaw, under * throat) : MathF.Max(jaw * (1f - under), under * throat);
 
         switch (style)
         {
@@ -361,6 +377,32 @@ internal sealed partial class Painter
         return color;
     }
 
+    /// <summary>Hair painted on the scalp, growing out of the hairline (the shell covers what is above it).</summary>
+    private Vector3 ScalpHair(Vector3 color, in Texel t, float th, float frontness, float angle)
+    {
+        var p = t.P;
+        var s = _c.HeadScale;
+        var modelled = _c.ModelledFace;
+        if (_c.ScalpHair is { } scalp)
+        {
+            var edge = scalp.At(frontness) + (Noise.Value(p * 1.6f) - 0.5f) * 0.03f;
+            var mask = SmoothStep(edge - 0.012f, edge + 0.014f, th);
+            if (_c.ScalpHairDensity >= 0.7f)
+            {
+                // Sideburn in front of the ear.
+                var sideburn = modelled
+                    // Just in front of the modelled ear, narrowing down to about its middle.
+                    ? Line(p.Y - (_c.EarCenter.Y - 1.2f * s), (0.15f + 0.45f * SmoothStep(_c.EarCenter.Z - 0.5f * s, _c.EarCenter.Z + 2f * s, p.Z)) * s, 0.3f * s)
+                        * Band(p.Z, _c.EarCenter.Z - 0.5f * s, _c.EarCenter.Z + 4f * s, 0.5f * s) * 0.85f * SmoothStep(0.5f, 0.8f, MathF.Abs(t.N.X))
+                    : Line(angle - 74f, 5f, 4f) * Band(th, 0.44f, edge + 0.02f, 0.035f);
+                mask = MathF.Max(mask, sideburn);
+            }
+            color = Mix(color, HairStrands(p), mask * _c.ScalpHairDensity);
+        }
+
+        return color;
+    }
+
     private Vector3 Neck(in Texel t)
     {
         var p = t.P;
@@ -398,6 +440,23 @@ internal sealed partial class Painter
                     return collar * (1f - 0.3f * Line(h - 3.2f, 0.12f));
                 }
                 break;
+        }
+        if (_c.ModelledFace)
+        {
+            // The realistic neck runs up behind the ears: hair at the nape is painted on it too.
+            var radial = new Vector2(p.X, p.Y - _c.HeadCenter.Y);
+            var frontness = radial.LengthSquared() > 1e-6f ? radial.Y / radial.Length() : -1f;
+            var angle = MathF.Acos(Math.Clamp(-frontness, -1f, 1f)) * 180f / MathF.PI;
+            skin = ScalpHair(skin, t, (p.Z - _c.ChinZ) / _c.HeadScale / HeadHeightCm, frontness, angle);
+            // A beard carries on down under the jaw.
+            // Painted as if under the jaw, front half only, ending in a line across the throat.
+            var beard = FacialHair(MathF.Abs(p.X) / _c.HeadScale, (p.Z - _c.ChinZ) / _c.HeadScale, angle, (_c.MouthZ - _c.ChinZ) / _c.HeadScale, p, 1f)
+                * SmoothStep(_c.ChinZ + 0.5f * _c.HeadScale, _c.ChinZ + 1.3f * _c.HeadScale, p.Z) * (1f - SmoothStep(-0.3f, 0.1f, frontness));
+            if (beard > 0f)
+            {
+                var strands = Noise.Value(new Vector3(p.X * 5f, p.Y * 5f, p.Z * 1.2f));
+                skin = Mix(skin, _hair * (0.7f + 0.5f * strands), beard);
+            }
         }
         return skin;
     }

@@ -296,6 +296,8 @@ internal static class HeadBuilder
     /// <summary>Point on the skull at head height t, pushed out by offset (and up, near the crown).</summary>
     private static Vector3 ScalpPoint(BuildContext c, float t, float degreesFromFront, float offset)
     {
+        // The realistic skull bulges a little past its measured outline in places: hats stand clear of it.
+        if (c.Realistic && offset > 0) offset += 0.6f * c.HeadScale;
         var p = c.Head.Surface(c.HeadZ(t), BuildContext.HeadTheta(degreesFromFront), offset);
         if (offset > 0) p.Z += offset * SmoothStep((t - 0.6f) / 0.4f);
         return p;
@@ -417,6 +419,14 @@ internal static class HeadBuilder
 
         if (c.Spec.FaceCover == FaceCover.Balaclava) return;   // all of it is under the knit
 
+        // The realistic head gets hair shaped over its own skull.
+        void Scalp(ScalpEdge edge, float volume, bool hangs)
+        {
+            // Under a hat the realistic head's hair is painted only: the hat sits on the skull.
+            if (c.Realistic) { if (!hat) RealisticBody.BuildHair(c, edge, volume, hangs); }
+            else AddScalp(c, edge, volume, Slot.Hair);
+        }
+
         switch (style)
         {
             case HairStyle.Bald:
@@ -435,15 +445,15 @@ internal static class HeadBuilder
                 return;
             case HairStyle.Short or HairStyle.Ponytail or HairStyle.Bun:
                 paint.ScalpHair = shortCut;
-                AddScalp(c, shortCut, Volume(0.7f), Slot.Hair);
+                Scalp(shortCut, Volume(0.7f), false);
                 break;
             case HairStyle.Bob:
                 paint.ScalpHair = shortCut;
-                AddScalp(c, new ScalpEdge(0.78f, 0.30f, 0.10f, 0.04f), Volume(1.2f), Slot.Hair);
+                Scalp(new ScalpEdge(0.78f, c.Realistic ? 0.42f : 0.30f, 0.10f, 0.04f), Volume(1.2f), !hat);
                 break;
             case HairStyle.Long:
                 paint.ScalpHair = shortCut;
-                AddScalp(c, new ScalpEdge(0.78f, 0.28f, 0.06f, 0.02f), Volume(1.2f), Slot.Hair);
+                Scalp(new ScalpEdge(0.78f, c.Realistic ? 0.40f : 0.28f, 0.06f, 0.02f), Volume(1.2f), !hat);
                 break;
         }
 

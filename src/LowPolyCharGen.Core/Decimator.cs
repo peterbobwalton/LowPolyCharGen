@@ -40,6 +40,12 @@ public static class Decimator
 
         /// <summary>Weight of the planes that hold open borders, relative to the surface.</summary>
         public float BorderWeight { get; init; } = 10f;
+
+        /// <summary>
+        /// Vertices on a mirror plane at x = 0 (the open edge of half a symmetric mesh): they only
+        /// merge with each other and stay on the plane, so the mirrored half meets this one exactly.
+        /// </summary>
+        public Func<int, bool>? OnMiddle { get; init; }
     }
 
     /// <summary>The simplified mesh. <c>Source[i]</c> is the original vertex that vertex i was kept from.</summary>
@@ -79,6 +85,9 @@ public static class Decimator
         var locked = new bool[n];
         if (options.Locked is not null)
             foreach (var v in options.Locked) locked[v] = true;
+        var middle = new bool[n];
+        if (options.OnMiddle is { } onMiddle)
+            for (var v = 0; v < n; v++) middle[v] = onMiddle(v);
         var dead = new bool[n];
         var version = new int[n];
 
@@ -135,6 +144,11 @@ public static class Decimator
             var sum = q[a] + q[b];
             if (locked[a]) return (sum.Error(pos[a]), pos[a]);
             if (locked[b]) return (sum.Error(pos[b]), pos[b]);
+            if (middle[a] != middle[b])
+            {
+                var keep = middle[a] ? pos[a] : pos[b];
+                return (sum.Error(keep), keep);
+            }
             var best = pos[a];
             var bestError = sum.Error(pos[a]);
             void Try(Vector3 p)
@@ -148,6 +162,11 @@ public static class Decimator
                 Try((pos[a] + pos[b]) / 2);
                 if (sum.Minimum(out var optimal) && Vector3.DistanceSquared(optimal, (pos[a] + pos[b]) / 2) < 4 * Vector3.DistanceSquared(pos[a], pos[b]))
                     Try(optimal);
+            }
+            if (middle[a] && middle[b] && best.X != 0f)
+            {
+                best.X = 0f;
+                bestError = sum.Error(best);
             }
             return (bestError, best);
         }
@@ -178,7 +197,7 @@ public static class Decimator
             if (dead[a] || dead[b] || version[a] != va || version[b] != vb) continue;
             // Keep the locked one, or the one the target sits on when the original points are kept.
             var (_, target) = Evaluate(a, b);
-            if (locked[b] || (!locked[a] && !options.OptimalPlacement && target == pos[b])) (a, b) = (b, a);
+            if (locked[b] || (!locked[a] && middle[b] && !middle[a]) || (!locked[a] && middle[a] == middle[b] && !options.OptimalPlacement && target == pos[b])) (a, b) = (b, a);
 
             // Link condition: the vertices next to both a and b must be exactly the third corners of
             // the faces on the edge, or the collapse would pinch the surface.

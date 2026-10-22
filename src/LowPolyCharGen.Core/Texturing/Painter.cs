@@ -299,9 +299,22 @@ internal sealed partial class Painter
 
     private Vector3 HairStrands(Vector3 p)
     {
-        var strands = Noise.Value(new Vector3(p.X * 3.2f, p.Y * 3.2f, p.Z * 0.45f));
-        var clumps = Noise.Fbm(new Vector3(p.X * 0.5f, p.Y * 0.5f, p.Z * 0.15f));
-        return _hair * (0.72f + 0.38f * strands + 0.25f * (clumps - 0.5f));
+        // Strands run down from the crown: fine across (round the head), long along (crown to ends).
+        var crown = _c.HeadCenter + new Vector3(0f, 0.08f * _c.HeadHeight, 0.18f * _c.HeadHeight);
+        var d = p - crown;
+        var length = d.Length();
+        if (length < 1e-4f) return _hair;
+        var around = MathF.Atan2(d.X, d.Y);
+        var down = MathF.Acos(Math.Clamp(d.Z / length, -1f, 1f));    // 0 at the crown
+        var radius = 0.45f * _c.HeadHeight;
+        var along = down * radius + MathF.Max(0f, crown.Z - 0.5f * _c.HeadHeight - p.Z) * 0.5f;
+        var (sin, cos) = MathF.SinCos(around);
+        var fine = Noise.Value(new Vector3(cos * radius * 3.0f, sin * radius * 3.0f, along * 0.35f));
+        var clumps = Noise.Fbm(new Vector3(cos * radius * 0.6f, sin * radius * 0.6f, along * 0.12f));
+        var color = _hair * (0.70f + 0.36f * fine + 0.3f * (clumps - 0.5f));
+        // A soft sheen round the top of the head, broken up by the clumps.
+        var sheen = Line(down - 0.75f, 0.12f, 0.18f) * (0.6f + 0.8f * (clumps - 0.5f));
+        return color * (1f + 0.22f * sheen) + new Vector3(0.025f) * sheen;
     }
 
     private Vector3 Leather(Vector3 color, Vector3 p)

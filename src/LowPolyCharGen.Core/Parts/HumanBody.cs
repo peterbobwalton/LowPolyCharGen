@@ -141,7 +141,8 @@ public sealed class HumanBody
         ("nose-scale-horiz-decr", "nose-scale-horiz-incr"), ("nose-scale-vert-decr", "nose-scale-vert-incr"), ("nose-scale-depth-decr", "nose-scale-depth-incr"),
         ("nose-point-width-decr", "nose-point-width-incr"), ("nose-hump-decr", "nose-hump-incr"), ("nose-volume-decr", "nose-volume-incr"),
         ("nose-nostrils-width-decr", "nose-nostrils-width-incr"),
-        ("mouth-scale-horiz-decr", "mouth-scale-horiz-incr"), ("mouth-lowerlip-volume-decr", "mouth-lowerlip-volume-incr"),
+        ("mouth-scale-horiz-decr", "mouth-scale-horiz-incr"), ("mouth-angles-down", "mouth-angles-up"),
+        ("mouth-lowerlip-volume-decr", "mouth-lowerlip-volume-incr"),
         ("mouth-upperlip-volume-decr", "mouth-upperlip-volume-incr"),
         ("l-eye-scale-decr", "l-eye-scale-incr"), ("r-eye-scale-decr", "r-eye-scale-incr"),
         ("l-eye-height2-decr", "l-eye-height2-incr"), ("r-eye-height2-decr", "r-eye-height2-incr"),
@@ -179,6 +180,8 @@ public sealed class HumanBody
             Add("nose-scale-horiz", -0.3f); Add("nose-scale-vert", -0.2f); Add("nose-volume", -0.3f); Add("nose-point-width", -0.3f);
             Add("nose-nostrils-width", -0.25f); Add("nose-hump", -0.3f);
             Add("mouth-lowerlip-volume", 0.2f); Add("mouth-upperlip-volume", 0.12f);
+            // Relaxed, not down-turned: the corners of the mouth lifted a little.
+            Add("mouth-angles", 0.35f);
             Add("l-eye-scale", 0.12f); Add("r-eye-scale", 0.12f);
             Add("l-cheek-bones", 0.25f); Add("r-cheek-bones", 0.25f); Add("eyebrows-trans", 0.25f);
             // Petite: narrow shoulders, a small waist and trim hips.
@@ -197,6 +200,7 @@ public sealed class HumanBody
             Add("nose-scale-horiz", 0.15f); Add("nose-volume", 0.15f);
             Add("mouth-upperlip-volume", -0.2f); Add("mouth-lowerlip-volume", -0.1f);
             Add("l-cheek-bones", 0.2f); Add("r-cheek-bones", 0.2f); Add("eyebrows-trans", -0.25f);
+            Add("mouth-angles", 0.15f);
         }
         switch (shape)
         {

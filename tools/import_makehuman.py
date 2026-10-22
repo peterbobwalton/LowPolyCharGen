@@ -48,7 +48,7 @@ FACE_PAIRS = [(folder, f"{name}-{lo}", f"{name}-{hi}") for folder, name, lo, hi 
     ("nose", "nose-scale-horiz", "decr", "incr"), ("nose", "nose-scale-vert", "decr", "incr"), ("nose", "nose-scale-depth", "decr", "incr"),
     ("nose", "nose-point-width", "decr", "incr"), ("nose", "nose-hump", "decr", "incr"), ("nose", "nose-volume", "decr", "incr"),
     ("nose", "nose-nostrils-width", "decr", "incr"),
-    ("mouth", "mouth-scale-horiz", "decr", "incr"), ("mouth", "mouth-lowerlip-volume", "decr", "incr"), ("mouth", "mouth-upperlip-volume", "decr", "incr"),
+    ("mouth", "mouth-scale-horiz", "decr", "incr"), ("mouth", "mouth-angles", "down", "up"), ("mouth", "mouth-lowerlip-volume", "decr", "incr"), ("mouth", "mouth-upperlip-volume", "decr", "incr"),
     ("eyes", "l-eye-scale", "decr", "incr"), ("eyes", "r-eye-scale", "decr", "incr"),
     ("eyes", "l-eye-height2", "decr", "incr"), ("eyes", "r-eye-height2", "decr", "incr"),
     ("cheek", "l-cheek-bones", "decr", "incr"), ("cheek", "r-cheek-bones", "decr", "incr"),

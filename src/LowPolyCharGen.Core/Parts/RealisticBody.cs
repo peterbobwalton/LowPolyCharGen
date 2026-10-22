@@ -1,4 +1,5 @@
 using System.Numerics;
+using LowPolyCharGen.Texturing;
 
 namespace LowPolyCharGen.Parts;
 
@@ -36,12 +37,22 @@ internal static class RealisticBody
         }
 
         // The face and hands hold their shape best if their error counts for more.
+        var mouth = MouthCentre(human);
+        var hs = c.HeadScale;
         float Importance(int v)
         {
             var slot = SlotOf(v);
             var p = human.Positions[v];
             if (slot == Slot.Head)
             {
+                // The lips and nostrils most of all: they are small and the face is read by them.
+                if (p.Y < mouth.Y + 1.2f * hs)
+                {
+                    var dx = p.X / (3.4f * hs);
+                    var dz = (p.Z - mouth.Z) / (1.8f * hs);
+                    if (dx * dx + dz * dz < 1f) return 90f;
+                    if (MathF.Abs(p.X) < 2.2f * hs && p.Z > mouth.Z + 1f * hs && p.Z < mouth.Z + 4.2f * hs) return 60f;
+                }
                 // The face carries the character: it keeps by far the most detail, the ears next.
                 if (MathF.Abs(p.X) > c.HeadHalfWidth * 0.92f && MathF.Abs(p.Y - c.HeadCenter.Y) < 4f) return 10f;
                 return p.Y < c.HeadCenter.Y - 2f ? 30f : 3f;
@@ -52,15 +63,17 @@ internal static class RealisticBody
         }
 
         var bodyTris = Triangulate(source.BodyFaces);
-        var body = Decimator.Simplify(human.Positions, bodyTris, new Decimator.Options { TargetTriangles = BodyTriangles, Importance = Importance });
-        Emit(c, m, body, SlotOf);
+        var body = SymmetricSimplify(human.Positions, bodyTris, BodyTriangles, Importance);
+        // The reduced body shades with the dense body's normals, so its flat facets do not show.
+        var denseNormals = VertexNormals(human.Positions, bodyTris, smoothing: 12);
+        Emit(c, m, body, SlotOf, Array.ConvertAll(body.Source, v => denseNormals[v]));
 
         // Clothing that stands off the skin: shells offset from the dense body, smoothed, cut at their
         // hems and decimated. The skin they cover is dropped later as hidden.
         BuildClothing(c, human, SlotOf);
 
         // Eyeballs: small already; reduced a little.
-        var eyes = Decimator.Simplify(human.Positions, Triangulate(source.EyeFaces), new Decimator.Options { TargetTriangles = 120 });
+        var eyes = SymmetricSimplify(human.Positions, Triangulate(source.EyeFaces), 120, null);
         Emit(c, m, eyes, _ => Slot.Eye);
         var eyeCentre = human.Joint("joint-l-eye");
         var eyeVerts = source.EyeFaces.SelectMany(f => f).Distinct().Where(v => human.Positions[v].X > 0).ToArray();
@@ -81,11 +94,178 @@ internal static class RealisticBody
             var radius = 0.62f * human.Scale;
             nails.Add(new HandTemplate.Nail(f == 1 ? "thumb" : $"finger{f}", tip - along * radius * 0.6f, along, up, radius));
         }
+        // The left ear, for the painted sideburn in front of it.
+        var ear = Enumerable.Range(0, human.Positions.Length).Where(v =>
+        {
+            var p = human.Positions[v];
+            var t = (p.Z - c.ChinZ) / c.HeadHeight;
+            return SlotOf(v) == Slot.Head && p.X > c.HeadHalfWidth * 0.9f && MathF.Abs(p.Y - c.HeadCenter.Y) < 4f * c.HeadScale && t > 0.3f && t < 0.68f;
+        }).ToArray();
+        if (ear.Length > 0)
+        {
+            var centre = Vector3.Zero;
+            foreach (var v in ear) centre += human.Positions[v];
+            c.Paint.EarCenter = centre / ear.Length;
+        }
+        if (MeasureLips(c, human, bodyTris) is { } lips)
+        {
+            c.Paint.Lips = lips;
+            c.Paint.MouthZ = lips.At(0f).Seam;
+        }
         c.Paint.Nostril = new Vector2(0.9f / c.HeadScale, (c.Paint.NoseTipZ - 0.045f * c.HeadHeight - c.ChinZ) / c.HeadScale);
         c.Paint.ModelledHands = true;
         c.Paint.HandOrigin = Vector3.Zero;
         c.Paint.HandScale = 1f;
         c.Paint.Nails = nails;
+    }
+
+    /// <summary>The middle of the mouth: where the vertices the lip targets move most are.</summary>
+    private static Vector3 MouthCentre(HumanBody.Fitted human)
+    {
+        var targets = HumanBody.Default.Targets;
+        var pos = human.Positions;
+        Vector3 Centre(string name)
+        {
+            if (!targets.TryGetValue(name, out var t) || t.Deltas.Length == 0) return Vector3.Zero;
+            var max = t.Deltas.Max(d => d.Length());
+            var sum = Vector3.Zero;
+            var n = 0;
+            for (var i = 0; i < t.Vertices.Length; i++)
+                if (t.Deltas[i].Length() > 0.5f * max)
+                {
+                    sum += pos[t.Vertices[i]];
+                    n++;
+                }
+            return n > 0 ? sum / n : Vector3.Zero;
+        }
+        return (Centre("mouth-upperlip-volume-incr") + Centre("mouth-lowerlip-volume-incr")) / 2f;
+    }
+
+    /// <summary>
+    /// Measures the lips off the dense face so the painted lips sit on the modelled ones: the face is
+    /// rasterised as a depth map seen from the front, and in each column out from the middle the
+    /// deepest groove between the two bulges of the lips is where they meet; each lip's edge is where
+    /// the surface has fallen back a little from the lip's most forward point.
+    /// </summary>
+    private static LipProfile? MeasureLips(BuildContext c, HumanBody.Fitted human, int[][] tris)
+    {
+        var targets = HumanBody.Default.Targets;
+        if (!targets.TryGetValue("mouth-upperlip-volume-incr", out var upperTarget)
+            || !targets.TryGetValue("mouth-lowerlip-volume-incr", out var lowerTarget)) return null;
+        var pos = human.Positions;
+        var mouth = MouthCentre(human);
+        var s = c.HeadScale;
+
+        // Depth map of the front of the face round the mouth (left half; the face is symmetric).
+        var step = 0.04f * s;
+        var width = 4.2f * s;
+        var zLo = mouth.Z - 3f * s;
+        var cols = (int)(width / step) + 1;
+        var rows = (int)(6f * s / step) + 1;
+        var depth = new float[cols, rows];
+        for (var i = 0; i < cols; i++)
+            for (var j = 0; j < rows; j++) depth[i, j] = float.MaxValue;
+        foreach (var t in tris)
+        {
+            Vector3 a = pos[t[0]], b = pos[t[1]], d = pos[t[2]];
+            if (MathF.Max(a.X, MathF.Max(b.X, d.X)) < -step || MathF.Min(a.X, MathF.Min(b.X, d.X)) > width + step) continue;
+            if (MathF.Max(a.Z, MathF.Max(b.Z, d.Z)) < zLo || MathF.Min(a.Z, MathF.Min(b.Z, d.Z)) > zLo + rows * step) continue;
+            if (MathF.Min(a.Y, MathF.Min(b.Y, d.Y)) > mouth.Y + 2.5f * s) continue;
+            var den = (b.Z - d.Z) * (a.X - d.X) + (d.X - b.X) * (a.Z - d.Z);
+            if (MathF.Abs(den) < 1e-9f) continue;
+            var i0 = Math.Max(0, (int)MathF.Floor(MathF.Min(a.X, MathF.Min(b.X, d.X)) / step));
+            var i1 = Math.Min(cols - 1, (int)MathF.Ceiling(MathF.Max(a.X, MathF.Max(b.X, d.X)) / step));
+            var j0 = Math.Max(0, (int)MathF.Floor((MathF.Min(a.Z, MathF.Min(b.Z, d.Z)) - zLo) / step));
+            var j1 = Math.Min(rows - 1, (int)MathF.Ceiling((MathF.Max(a.Z, MathF.Max(b.Z, d.Z)) - zLo) / step));
+            for (var i = i0; i <= i1; i++)
+                for (var j = j0; j <= j1; j++)
+                {
+                    float x = i * step, z = zLo + j * step;
+                    var w0 = ((b.Z - d.Z) * (x - d.X) + (d.X - b.X) * (z - d.Z)) / den;
+                    var w1 = ((d.Z - a.Z) * (x - d.X) + (a.X - d.X) * (z - d.Z)) / den;
+                    var w2 = 1f - w0 - w1;
+                    if (w0 < -1e-4f || w1 < -1e-4f || w2 < -1e-4f) continue;
+                    var y = w0 * a.Y + w1 * b.Y + w2 * d.Y;
+                    if (y < depth[i, j]) depth[i, j] = y;
+                }
+        }
+
+        var reach = (int)(1.3f * s / step);
+        // The line between the lips is a narrow, sharp crease; a groove found over a short span picks
+        // it out from the broad, shallow hollows above and below the mouth.
+        var narrow = Math.Max(2, (int)(0.3f * s / step));
+        var seam = new float[cols];
+        var upper = new float[cols];
+        var lower = new float[cols];
+        var groove = new float[cols];
+        var mid = (int)((mouth.Z - zLo) / step);
+        var previous = mid;
+        var fallBack = 0.12f * s;
+        for (var i = 0; i < cols; i++)
+        {
+            // The deepest groove near the last column's, so the line follows the mouth out to its corners.
+            var best = previous;
+            var bestDepth = float.MinValue;
+            // The middle column looks over the whole mouth; the others close to their neighbour.
+            var search = (int)((i == 0 ? 1.2f : 0.12f) * s / step);
+            for (var j = Math.Max(reach, previous - search); j <= Math.Min(rows - 1 - reach, previous + search); j++)
+            {
+                if (depth[i, j] == float.MaxValue) continue;
+                float above = float.MaxValue, below = float.MaxValue;
+                for (var k = 1; k <= narrow; k++)
+                {
+                    above = MathF.Min(above, depth[i, j + k]);
+                    below = MathF.Min(below, depth[i, j - k]);
+                }
+                var g = MathF.Min(depth[i, j] - above, depth[i, j] - below);
+                if (g > bestDepth)
+                {
+                    bestDepth = g;
+                    best = j;
+                }
+            }
+            previous = best;
+            groove[i] = bestDepth;
+            seam[i] = zLo + best * step;
+
+            // Each lip's edge: past its most forward point, where the surface has fallen back.
+            int Edge(int dir)
+            {
+                var front = best + dir;
+                for (var k = 1; k <= reach; k++)
+                    if (depth[i, best + dir * k] < depth[i, front]) front = best + dir * k;
+                var j = front;
+                while (MathF.Abs(j - best) < reach + 6 && j + dir >= 0 && j + dir < rows && depth[i, j + dir] < depth[i, front] + fallBack) j += dir;
+                return j;
+            }
+            upper[i] = zLo + Edge(1) * step;
+            lower[i] = zLo + Edge(-1) * step;
+        }
+
+        // The corner: where the groove between the lips fades out.
+        var corner = cols - 1;
+        for (var i = (int)(1.2f * s / step); i < cols; i++)
+            if (groove[i] < 0.03f * s)
+            {
+                corner = i;
+                break;
+            }
+        var cornerX = Math.Clamp(corner * step, 1.6f * s, 3.4f * s);
+        for (var pass = 0; pass < 3; pass++)
+            foreach (var a in new[] { seam, upper, lower })
+            {
+                var copy = (float[])a.Clone();
+                for (var i = 1; i < cols - 1; i++) a[i] = 0.25f * copy[i - 1] + 0.5f * copy[i] + 0.25f * copy[i + 1];
+            }
+        for (var i = 0; i < cols; i++)
+        {
+            // Lips taper to nothing at the corners, and never grow past a believable height.
+            var x = i * step;
+            var taper = MathF.Sqrt(MathF.Max(0f, 1f - MathF.Pow(x / cornerX, 4f)));
+            upper[i] = seam[i] + taper * Math.Clamp(upper[i] - seam[i], 0.35f * s, (c.Female ? 0.85f : 0.65f) * s);
+            lower[i] = seam[i] - taper * Math.Clamp(seam[i] - lower[i], 0.45f * s, (c.Female ? 1.1f : 0.9f) * s);
+        }
+        return new LipProfile(step, seam, upper, lower, cornerX, mouth.Y + 0.9f * s);
     }
 
     /// <summary>
@@ -238,6 +418,196 @@ internal static class RealisticBody
     }
 
     /// <summary>
+    /// Hair as a shell over the dense head: everything above <paramref name="edge"/> pushed out by
+    /// <paramref name="volume"/>, thinning to almost nothing at the hairline (so it grows out of the
+    /// painted hair instead of sitting on the head like a helmet) and fuller at the crown. Hair that
+    /// reaches below the widest part of the skull (<paramref name="hangs"/>) falls straight down from
+    /// it instead of following the head in under the jaw and round the neck.
+    /// </summary>
+    internal static void BuildHair(BuildContext c, ScalpEdge edge, float volume, bool hangs)
+    {
+        var human = c.Human!;
+        var pos = human.Positions;
+        var bones = HumanBody.Default.Bones;
+        var centre = c.HeadCenter;
+        float Height(Vector3 p) => (p.Z - c.ChinZ) / c.HeadHeight;
+        float Frontness(Vector3 p)
+        {
+            var r = new Vector2(p.X, p.Y - centre.Y);
+            return r.LengthSquared() > 1e-6f ? r.Y / r.Length() : -1f;
+        }
+        // Above the hairline, by how much (in head heights).
+        float Above(Vector3 p) => Height(p) - edge.At(Frontness(p));
+        bool IsEar(Vector3 p) => MathF.Abs(p.X) > c.HeadHalfWidth * 0.9f && MathF.Abs(p.Y - centre.Y) < 4f * c.HeadScale
+            && Height(p) > 0.3f && Height(p) < 0.68f;
+        bool Region(int v)
+        {
+            var bone = bones[human.DominantSourceBone[v]].Name;
+            if (bone != "head" && bone != "neck_01") return false;
+            var p = pos[v];
+            // Short hair stops round the ears; hanging hair covers them.
+            if (!hangs && IsEar(p)) return false;
+            // Starts just inside the painted hairline, which hides the shell's stepped edge.
+            return Above(p) > 0.01f;
+        }
+        float Offset(Vector3 p)
+        {
+            var grow = Geo.SmoothStep(Above(p) / 0.13f);
+            var crown = Geo.SmoothStep((Height(p) - 0.72f) / 0.25f);
+            return volume * (0.18f + 0.82f * grow) * (1f + 0.35f * crown);
+        }
+
+        var tris = KeepLargePieces(Triangulate(HumanBody.Default.BodyFaces).Where(f => Region(f[0]) && Region(f[1]) && Region(f[2])).ToArray(), 40);
+        if (tris.Length == 0) return;
+        var used = tris.SelectMany(f => f).Distinct().ToArray();
+        // The edge of the hair stays thin: smoothing would otherwise lift it off the skin in a ledge.
+        var edgeCount = new Dictionary<(int, int), int>();
+        foreach (var f in tris)
+            for (var k = 0; k < 3; k++)
+            {
+                var (a, b) = (f[k], f[(k + 1) % 3]);
+                var key = a < b ? (a, b) : (b, a);
+                edgeCount[key] = edgeCount.GetValueOrDefault(key) + 1;
+            }
+        var rim = edgeCount.Where(e => e.Value == 1).SelectMany(e => new[] { e.Key.Item1, e.Key.Item2 }).ToHashSet();
+        var neighbours = new Dictionary<int, HashSet<int>>();
+        foreach (var f in tris)
+            for (var k = 0; k < 3; k++)
+            {
+                if (!neighbours.TryGetValue(f[k], out var set)) neighbours[f[k]] = set = [];
+                set.Add(f[(k + 1) % 3]);
+                set.Add(f[(k + 2) % 3]);
+            }
+        // The skin the hair lies on. Hair over the ears does not follow their folds: they are
+        // replaced by a smooth membrane across them, and the hair is made to clear them later.
+        var skin = used.ToDictionary(v => v, v => pos[v]);
+        var ears = used.Where(v => IsEar(pos[v])).ToArray();
+        for (var pass = 0; pass < 40 && ears.Length > 0; pass++)
+            foreach (var v in ears)
+            {
+                var avg = Vector3.Zero;
+                foreach (var w in neighbours[v]) avg += skin[w];
+                skin[v] = avg / neighbours[v].Count;
+            }
+        var normals = new Dictionary<int, Vector3>();
+        foreach (var f in tris)
+        {
+            var n = Vector3.Cross(skin[f[1]] - skin[f[0]], skin[f[2]] - skin[f[0]]);
+            foreach (var v in f) normals[v] = normals.GetValueOrDefault(v) + n;
+        }
+        var moved = used.ToDictionary(v => v, v => skin[v] + Vector3.Normalize(normals[v]) * Offset(pos[v]));
+
+        if (hangs)
+        {
+            // Below the widest part of the skull the hair falls straight: no closer to the middle than
+            // the shell is there in the same direction, drawing in a little towards the ends.
+            var widestZ = c.HeadZ(0.55f);
+            const int bins = 48;
+            var reach = new float[bins];
+            int Bin(Vector3 p) => (int)((MathF.Atan2(p.X, p.Y - centre.Y) / MathF.Tau + 0.5f) * bins) % bins;
+            foreach (var (_, q) in moved)
+                if (MathF.Abs(q.Z - widestZ) < 1.5f * c.HeadScale)
+                {
+                    var b = Bin(q);
+                    reach[b] = MathF.Max(reach[b], new Vector2(q.X, q.Y - centre.Y).Length());
+                }
+            for (var pass = 0; pass < 2; pass++)
+            {
+                var copy = (float[])reach.Clone();
+                for (var b = 0; b < bins; b++)
+                    reach[b] = MathF.Max(copy[b], 0.5f * (copy[(b + bins - 1) % bins] + copy[(b + 1) % bins]));
+            }
+            // How far out the ears reach, so the hair falls clear of them.
+            var earReach = new float[bins];
+            float earTop = float.MinValue, earBottom = float.MaxValue;
+            foreach (var v in ears)
+            {
+                var p = pos[v];
+                var b = Bin(p);
+                earReach[b] = MathF.Max(earReach[b], new Vector2(p.X, p.Y - centre.Y).Length() + 0.5f * c.HeadScale);
+                earTop = MathF.Max(earTop, p.Z);
+                earBottom = MathF.Min(earBottom, p.Z);
+            }
+            for (var pass = 0; pass < 3; pass++)
+            {
+                var copy = (float[])earReach.Clone();
+                for (var b = 0; b < bins; b++)
+                    earReach[b] = MathF.Max(copy[b], 0.9f * MathF.Max(copy[(b + bins - 1) % bins], copy[(b + 1) % bins]));
+            }
+            var lowest = moved.Values.Min(q => q.Z);
+            foreach (var v in used)
+            {
+                var q = moved[v];
+                var overEar = ears.Length > 0
+                    ? Geo.SmoothStep((q.Z - (earBottom - 2f)) / 2f) * (1f - Geo.SmoothStep((q.Z - earTop) / 2.5f))
+                    : 0f;
+                if (q.Z >= widestZ && overEar <= 0f) continue;
+                var r = new Vector2(q.X, q.Y - centre.Y);
+                var length = r.Length();
+                var drop = Geo.SmoothStep((widestZ - q.Z) / MathF.Max(1f, widestZ - lowest));
+                var want = q.Z < widestZ ? reach[Bin(q)] * (1f - 0.07f * drop) : 0f;
+                want = MathF.Max(want, earReach[Bin(q)] * overEar);
+                // Only where the hair is: the face stays open at the front.
+                var front = Frontness(q);
+                want *= Geo.SmoothStep((front + 0.85f) / 0.3f);
+                if (length < want && length > 1e-4f)
+                {
+                    var blend = MathF.Max(Geo.SmoothStep((widestZ - q.Z) / (2f * c.HeadScale)), overEar);
+                    var target = r * (want / length);
+                    moved[v] = new Vector3(Geo.Lerp(q.X, target.X, blend), centre.Y + Geo.Lerp(r.Y, target.Y, blend), q.Z);
+                }
+            }
+        }
+
+        // Smooth it into one soft mass, never sinking closer to the skin than the offset asks.
+        var hung = moved.ToDictionary(x => x.Key, x => x.Value);
+        for (var pass = 0; pass < 6; pass++)
+        {
+            var next = new Dictionary<int, Vector3>(moved.Count);
+            foreach (var (v, q) in moved)
+            {
+                var avg = Vector3.Zero;
+                foreach (var w in neighbours[v]) avg += moved[w];
+                avg /= neighbours[v].Count;
+                var r = Vector3.Lerp(q, avg, 0.5f);
+                var n = Vector3.Normalize(normals[v]);
+                var depth = Vector3.Dot(r - skin[v], n);
+                var want = Offset(pos[v]);
+                if (depth < want) r += n * (want - depth);
+                else if (!hangs || pos[v].Z > c.HeadZ(0.55f))
+                {
+                    // Not much fuller than asked for, and the rim right down on the skin.
+                    var most = rim.Contains(v) ? want : want + 0.35f * volume;
+                    if (depth > most) r -= n * (depth - most);
+                }
+                // Hanging hair stays out where it fell.
+                if (hangs)
+                {
+                    var h = hung[v];
+                    var outward = new Vector2(h.X, h.Y - centre.Y);
+                    var length = outward.Length();
+                    var now = new Vector2(r.X, r.Y - centre.Y);
+                    if (length > 1e-4f && now.Length() < length - 0.3f * c.HeadScale)
+                    {
+                        var fixedR = now * ((length - 0.3f * c.HeadScale) / MathF.Max(now.Length(), 1e-4f));
+                        r = new Vector3(fixedR.X, centre.Y + fixedR.Y, r.Z);
+                    }
+                }
+                next[v] = r;
+            }
+            moved = next;
+        }
+
+        var local = used.Select((v, i) => (v, i)).ToDictionary(x => x.v, x => x.i);
+        var points = used.Select(v => moved[v]).ToArray();
+        var localTris = tris.Select(f => new[] { local[f[0]], local[f[1]], local[f[2]] }).ToArray();
+        var piece = Decimator.Simplify(points, localTris, new Decimator.Options { TargetTriangles = hangs ? 700 : 420 });
+        var shellNormals = VertexNormals(points, localTris, smoothing: 2);
+        var pieceNormals = Array.ConvertAll(piece.Source, i => shellNormals[i]);
+        Emit(c, c.Mesh, piece with { Source = piece.Source.Select(i => used[i]).ToArray() }, _ => Slot.Hair, pieceNormals);
+    }
+
+    /// <summary>
     /// A garment as a shell over part of the dense body: the faces whose corners all pass
     /// <paramref name="region"/>, pushed out along the surface normal by <paramref name="offset"/>,
     /// smoothed (so it skims over toes and creases instead of following them, but never sinks below
@@ -299,9 +669,178 @@ internal static class RealisticBody
             return i;
         }).ToArray()).ToArray();
         var piece = Decimator.Simplify(points, tris, new Decimator.Options { TargetTriangles = triangles });
+        var shellNormals = VertexNormals(points, tris);
+        var pieceNormals = Array.ConvertAll(piece.Source, i => shellNormals[i]);
         // Back to the body's vertex numbering, for the weights.
         var result = piece with { Source = piece.Source.Select(i => source[i]).ToArray() };
-        Emit(c, c.Mesh, result, v => armSlot is { } a && isArm!(v) ? a : slot);
+        Emit(c, c.Mesh, result, v => armSlot is { } a && isArm!(v) ? a : slot, pieceNormals);
+    }
+
+    /// <summary>
+    /// Reduces a left-right symmetric mesh symmetrically: the left half is reduced and mirrored onto
+    /// the right, so the two sides of the face (and body) match exactly instead of each side
+    /// collapsing its own way. Vertices on the middle stay on it. Falls back to reducing the whole
+    /// mesh if it is not symmetric.
+    /// </summary>
+    private static Decimator.Result SymmetricSimplify(Vector3[] positions, int[][] tris, int target, Func<int, float>? importance)
+    {
+        // The fitted middle line wanders by a fraction of a millimetre.
+        const float middle = 0.05f;
+        var options = new Decimator.Options { TargetTriangles = target, Importance = importance };
+        // Each vertex's mirror image.
+        // The fitted halves match to within a few millimetres (the skeleton's sides differ slightly).
+        const float cell = 0.3f;
+        static (long, long, long) Key(Vector3 p) => ((long)MathF.Floor(p.X / cell), (long)MathF.Floor(p.Y / cell), (long)MathF.Floor(p.Z / cell));
+        var used = tris.SelectMany(t => t).Distinct().ToArray();
+        var grid = new Dictionary<(long, long, long), List<int>>();
+        foreach (var v in used)
+        {
+            var k = Key(positions[v]);
+            if (!grid.TryGetValue(k, out var list)) grid[k] = list = [];
+            list.Add(v);
+        }
+        var mirror = new Dictionary<int, int>();
+        var misses = 0;
+        foreach (var v in used)
+        {
+            var p = positions[v] with { X = -positions[v].X };
+            var (kx, ky, kz) = Key(p);
+            var best = -1;
+            var bestD = cell * cell;
+            for (var dx = -1; dx <= 1; dx++)
+                for (var dy = -1; dy <= 1; dy++)
+                    for (var dz = -1; dz <= 1; dz++)
+                        if (grid.TryGetValue((kx + dx, ky + dy, kz + dz), out var list))
+                            foreach (var w in list)
+                            {
+                                var d = Vector3.DistanceSquared(positions[w], p);
+                                if (d < bestD) { bestD = d; best = w; }
+                            }
+            if (best < 0) misses++;
+            mirror[v] = best < 0 ? v : best;
+        }
+        if (misses > used.Length / 50) return Decimator.Simplify(positions, tris, options);
+
+        var left = tris.Where(t => t.All(v => positions[v].X >= -middle)).ToArray();
+        if (left.Length * 2 < tris.Length * 0.95f) return Decimator.Simplify(positions, tris, options);
+        var half = Decimator.Simplify(positions, left, new Decimator.Options
+        {
+            TargetTriangles = target / 2, Importance = importance, OnMiddle = v => MathF.Abs(positions[v].X) <= middle,
+        });
+
+        var points = new List<Vector3>(half.Positions.Length * 2);
+        var source = new List<int>(half.Positions.Length * 2);
+        var onMiddle = new bool[half.Positions.Length];
+        for (var i = 0; i < half.Positions.Length; i++)
+        {
+            var p = half.Positions[i];
+            // The middle line is the open edge of the half: keep it exactly on the middle.
+            onMiddle[i] = MathF.Abs(positions[half.Source[i]].X) <= middle;
+            if (onMiddle[i]) p.X = 0f;
+            points.Add(p);
+            source.Add(half.Source[i]);
+        }
+        var mirrored = new int[half.Positions.Length];
+        for (var i = 0; i < half.Positions.Length; i++)
+        {
+            if (onMiddle[i])
+            {
+                mirrored[i] = i;
+                continue;
+            }
+            mirrored[i] = points.Count;
+            var p = points[i];
+            points.Add(p with { X = -p.X });
+            source.Add(mirror[half.Source[i]]);
+        }
+        var triangles = new List<int[]>(half.Triangles.Length * 2);
+        foreach (var t in half.Triangles)
+        {
+            triangles.Add(t);
+            triangles.Add([mirrored[t[0]], mirrored[t[2]], mirrored[t[1]]]);
+        }
+        return new Decimator.Result(points.ToArray(), triangles.ToArray(), source.ToArray());
+    }
+
+    /// <summary>The triangles of the connected pieces with at least <paramref name="min"/> triangles (drops stray scraps).</summary>
+    private static int[][] KeepLargePieces(int[][] tris, int min)
+    {
+        var byVertex = new Dictionary<int, List<int>>();
+        for (var f = 0; f < tris.Length; f++)
+            foreach (var v in tris[f])
+            {
+                if (!byVertex.TryGetValue(v, out var list)) byVertex[v] = list = [];
+                list.Add(f);
+            }
+        var piece = new int[tris.Length];
+        Array.Fill(piece, -1);
+        var sizes = new List<int>();
+        for (var f0 = 0; f0 < tris.Length; f0++)
+        {
+            if (piece[f0] >= 0) continue;
+            var id = sizes.Count;
+            var count = 0;
+            var stack = new Stack<int>([f0]);
+            piece[f0] = id;
+            while (stack.Count > 0)
+            {
+                var f = stack.Pop();
+                count++;
+                foreach (var v in tris[f])
+                    foreach (var g in byVertex[v])
+                        if (piece[g] < 0)
+                        {
+                            piece[g] = id;
+                            stack.Push(g);
+                        }
+            }
+            sizes.Add(count);
+        }
+        return tris.Where((_, f) => sizes[piece[f]] >= min).ToArray();
+    }
+
+    /// <summary>
+    /// Area-weighted smooth vertex normals of a triangle mesh, then averaged with their neighbours'
+    /// <paramref name="smoothing"/> times: the reduced mesh samples them at a few of the vertices, so
+    /// detail finer than its triangles (creases, wrinkles) is filtered out first rather than smeared
+    /// across a triangle as a stray shadow.
+    /// </summary>
+    private static Vector3[] VertexNormals(IReadOnlyList<Vector3> positions, int[][] tris, int smoothing = 0)
+    {
+        var normals = new Vector3[positions.Count];
+        foreach (var t in tris)
+        {
+            var n = Vector3.Cross(positions[t[1]] - positions[t[0]], positions[t[2]] - positions[t[0]]);
+            normals[t[0]] += n;
+            normals[t[1]] += n;
+            normals[t[2]] += n;
+        }
+        for (var i = 0; i < normals.Length; i++)
+            normals[i] = normals[i].LengthSquared() > 1e-12f ? Vector3.Normalize(normals[i]) : Vector3.UnitZ;
+        if (smoothing > 0)
+        {
+            var neighbours = new HashSet<int>?[positions.Count];
+            foreach (var t in tris)
+                for (var k = 0; k < 3; k++)
+                {
+                    var set = neighbours[t[k]] ??= [];
+                    set.Add(t[(k + 1) % 3]);
+                    set.Add(t[(k + 2) % 3]);
+                }
+            for (var pass = 0; pass < smoothing; pass++)
+            {
+                var next = new Vector3[normals.Length];
+                for (var i = 0; i < normals.Length; i++)
+                {
+                    var sum = normals[i];
+                    if (neighbours[i] is { } set)
+                        foreach (var j in set) sum += normals[j];
+                    next[i] = sum.LengthSquared() > 1e-12f ? Vector3.Normalize(sum) : normals[i];
+                }
+                normals = next;
+            }
+        }
+        return normals;
     }
 
     private static int[][] Triangulate(int[][] faces)
@@ -317,10 +856,11 @@ internal static class RealisticBody
     /// the triangles in UV patches - grouped by slot and by the axis they face, split into connected
     /// pieces, each flattened along its axis.
     /// </summary>
-    private static void Emit(BuildContext c, MeshBuilder m, Decimator.Result piece, Func<int, Slot> slotOf)
+    private static void Emit(BuildContext c, MeshBuilder m, Decimator.Result piece, Func<int, Slot> slotOf, Vector3[]? normals = null)
     {
         var human = c.Human!;
         var ids = new int[piece.Positions.Length];
+        m.VertexNormals.Clear();
         for (var i = 0; i < ids.Length; i++)
         {
             var w = human.Weights[piece.Source[i]];
@@ -328,6 +868,7 @@ internal static class RealisticBody
             var at = piece.Positions[i];
             if (at.Z < 0f) at.Z = 0f;
             ids[i] = m.AddVertex(at, _ => w);
+            if (normals is not null) m.VertexNormals[ids[i]] = normals[i];
         }
 
         var axes = new[] { Vector3.UnitX, -Vector3.UnitX, Vector3.UnitY, -Vector3.UnitY, Vector3.UnitZ, -Vector3.UnitZ };
@@ -385,5 +926,6 @@ internal static class RealisticBody
             m.AddPatch(slot[f0], axes[axis[f0]], patch);
             m.Density = 1f;
         }
+        m.VertexNormals.Clear();
     }
 }
