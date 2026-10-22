@@ -455,7 +455,7 @@ internal sealed partial class Painter
             // A beard carries on down under the jaw.
             // Painted as if under the jaw, front half only, ending in a line across the throat.
             var beard = FacialHair(MathF.Abs(p.X) / _c.HeadScale, (p.Z - _c.ChinZ) / _c.HeadScale, angle, (_c.MouthZ - _c.ChinZ) / _c.HeadScale, p, 1f)
-                * SmoothStep(_c.ChinZ + 0.5f * _c.HeadScale, _c.ChinZ + 1.3f * _c.HeadScale, p.Z) * (1f - SmoothStep(-0.3f, 0.1f, frontness));
+                * SmoothStep(_c.ChinZ + 0.5f * _c.HeadScale, _c.ChinZ + 1.3f * _c.HeadScale, p.Z) * (1f - SmoothStep(96f, 104f, angle));
             if (beard > 0f)
             {
                 var strands = Noise.Value(new Vector3(p.X * 5f, p.Y * 5f, p.Z * 1.2f));

@@ -522,9 +522,12 @@ internal static class RealisticBody
         }
         float Offset(Vector3 p)
         {
-            var grow = Geo.SmoothStep(Above(p) / 0.13f);
+            // Over the forehead the hair lies flatter and thickens more slowly, swept back rather
+            // than standing out over the brow in a fringe.
+            var front = Geo.SmoothStep((-Frontness(p) - 0.5f) / 0.4f);
+            var grow = Geo.SmoothStep(Above(p) / Geo.Lerp(0.13f, 0.22f, front));
             var crown = Geo.SmoothStep((Height(p) - 0.72f) / 0.25f);
-            return volume * (0.18f + 0.82f * grow) * (1f + 0.35f * crown);
+            return volume * (0.18f + 0.82f * grow) * (1f + 0.35f * crown) * Geo.Lerp(1f, 0.6f, front * (1f - crown));
         }
 
         var tris = KeepLargePieces(Triangulate(HumanBody.Default.BodyFaces).Where(f => Region(f[0]) && Region(f[1]) && Region(f[2])).ToArray(), 40);

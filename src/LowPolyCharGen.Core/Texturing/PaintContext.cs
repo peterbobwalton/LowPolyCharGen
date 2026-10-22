@@ -10,10 +10,23 @@ public readonly record struct ScalpEdge(float Front, float Temple, float BehindE
 {
     public ScalpEdge(float all) : this(all, all, all, all) { }
 
+    /// <summary>
+    /// How far (head heights) the hairline recedes at the corners of the forehead, above the outer
+    /// ends of the eyebrows: a little for most men, a touch for women. It breaks up the straight
+    /// line across the forehead that made short hair look like a bowl cut.
+    /// </summary>
+    public float Recession { get; init; }
+
     /// <param name="frontness">-1 at the very front of the head to +1 at the very back.</param>
     public float At(float frontness)
     {
         var s = frontness;
+        var corners = Recession * MathF.Exp(-MathF.Pow((s + 0.8f) / 0.1f, 2f));
+        return Edge(s) + corners;
+    }
+
+    private float Edge(float s)
+    {
         if (s <= -0.92f) return Front;
         if (s <= -0.38f) return Geo.Lerp(Front, Temple, (s + 0.92f) / 0.54f);
         if (s <= 0.38f) return Geo.Lerp(Temple, BehindEar, (s + 0.38f) / 0.76f);

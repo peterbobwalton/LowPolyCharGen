@@ -415,7 +415,9 @@ internal static class HeadBuilder
         float Volume(float offset) => hat ? MathF.Min(offset, 0.5f) : offset;
 
         var cropped = new ScalpEdge(0.80f, 0.63f, 0.50f, 0.30f);
-        var shortCut = new ScalpEdge(0.78f, 0.60f, 0.46f, 0.26f);
+        // The realistic face's hairline recedes at the corners of the forehead, more for men.
+        var recession = c.Realistic ? (c.Female ? 0.015f : 0.04f) : 0f;
+        var shortCut = new ScalpEdge(0.78f, 0.60f, 0.46f, 0.26f) { Recession = recession };
 
         if (c.Spec.FaceCover == FaceCover.Balaclava) return;   // all of it is under the knit
 
@@ -449,11 +451,11 @@ internal static class HeadBuilder
                 break;
             case HairStyle.Bob:
                 paint.ScalpHair = shortCut;
-                Scalp(new ScalpEdge(0.78f, c.Realistic ? 0.42f : 0.30f, 0.10f, 0.04f), Volume(1.2f), !hat);
+                Scalp(new ScalpEdge(0.78f, c.Realistic ? 0.42f : 0.30f, 0.10f, 0.04f) { Recession = recession }, Volume(1.2f), !hat);
                 break;
             case HairStyle.Long:
                 paint.ScalpHair = shortCut;
-                Scalp(new ScalpEdge(0.78f, c.Realistic ? 0.40f : 0.28f, 0.06f, 0.02f), Volume(1.2f), !hat);
+                Scalp(new ScalpEdge(0.78f, c.Realistic ? 0.40f : 0.28f, 0.06f, 0.02f) { Recession = recession }, Volume(1.2f), !hat);
                 break;
         }
 
