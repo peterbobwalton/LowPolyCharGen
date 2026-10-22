@@ -49,9 +49,10 @@ def layered_material():
     """
     if unreal.EditorAssetLibrary.does_asset_exist(LAYERED_MATERIAL):
         mat = unreal.load_asset(LAYERED_MATERIAL)
-        if not mat.get_editor_property("used_with_skeletal_mesh"):
+        if not mat.get_editor_property("used_with_skeletal_mesh") or mat.get_editor_property("two_sided"):
             # older copies lacked the flag: the meshes then render with the default grey material
             mat.set_editor_property("used_with_skeletal_mesh", True)
+            mat.set_editor_property("two_sided", False)
             unreal.MaterialEditingLibrary.recompile_material(mat)
             unreal.EditorAssetLibrary.save_loaded_asset(mat)
         return mat
@@ -60,6 +61,7 @@ def layered_material():
         "M_LPCG_Character", LAYERED_MATERIAL_DIR, unreal.Material, unreal.MaterialFactoryNew())
     # set up front: without it some imported meshes get the default material in game and in thumbnails
     mat.set_editor_property("used_with_skeletal_mesh", True)
+    mat.set_editor_property("two_sided", False)   # the meshes have no back faces to show
     tex = mel.create_material_expression(mat, unreal.MaterialExpressionTextureSampleParameter2D, -700, -200)
     tex.set_editor_property("parameter_name", "Texture")
     tex.set_editor_property("texture", unreal.load_asset("/Engine/EngineResources/WhiteSquareTexture"))
@@ -83,6 +85,18 @@ def layered_material():
     mel.recompile_material(mat)
     unreal.EditorAssetLibrary.save_loaded_asset(mat)
     return mat
+
+
+def single_sided(mi):
+    """
+    Back faces culled whatever the parent says: the meshes are closed and single sided (hidden
+    triangles are left out by the generator), so drawing back faces would only cost.
+    """
+    overrides = mi.get_editor_property("base_property_overrides")
+    overrides.set_editor_property("override_two_sided", True)
+    overrides.set_editor_property("two_sided", False)
+    mi.set_editor_property("base_property_overrides", overrides)
+    unreal.MaterialEditingLibrary.update_material_instance(mi)
 
 
 def add_lods(mesh, count):
@@ -146,6 +160,7 @@ def import_character(fbx, destination, mannequin, lods=DEFAULT_LODS):
         if grime is not None:
             mel.set_material_instance_texture_parameter_value(mi, "GrimeTexture", grime)
             mel.set_material_instance_scalar_parameter_value(mi, "GrimeAmount", amount)
+        single_sided(mi)
         unreal.EditorAssetLibrary.save_loaded_asset(mi)
 
         mesh.set_editor_property("materials", [

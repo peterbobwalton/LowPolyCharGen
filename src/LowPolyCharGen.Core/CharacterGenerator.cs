@@ -44,10 +44,42 @@ public static class CharacterGenerator
         GearBuilder.Build(context);
 
         var crease = spec.FlatShaded ? 0f : SmoothCreaseDegrees;
-        var design = context.Mesh.Build(crease);
-        var (outSkeleton, outMesh) = spec.Rig == RigTarget.ToonSoldiers
-            ? ToonRig.Convert(skeleton, design, crease)
-            : (skeleton, design);
+        (MeshData Design, Skeleton Skeleton, MeshData Mesh) Finish()
+        {
+            var built = context.Mesh.Build(crease);
+            var (rig, mesh) = spec.Rig == RigTarget.ToonSoldiers
+                ? ToonRig.Convert(skeleton, built, crease)
+                : (skeleton, built);
+            return (built, rig, mesh);
+        }
+
+        // Leave out the triangles hidden inside other parts. The toon proportions move parts against
+        // each other, so a triangle goes only if it is hidden in both shapes.
+        var (design, outSkeleton, outMesh) = Finish();
+        bool[] Hidden(bool[]? occluders, bool[]? candidates)
+        {
+            var hidden = HiddenFaces.Find(design.Positions, design.Faces, occluders, candidates);
+            if (outMesh != design)
+            {
+                var hiddenOut = HiddenFaces.Find(outMesh.Positions, outMesh.Faces, occluders, candidates);
+                for (var f = 0; f < hidden.Length; f++) hidden[f] &= hiddenOut[f];
+            }
+            return hidden;
+        }
+        var hidden = Hidden(null, null);
+        // A triangle hidden only behind other hidden triangles would show once they are gone: check
+        // again against what stays, putting back the ones that see out, until nothing changes.
+        while (hidden.Contains(true))
+        {
+            var again = Hidden(Array.ConvertAll(hidden, h => !h), hidden);
+            if (again.AsSpan().SequenceEqual(hidden)) break;
+            hidden = again;
+        }
+        if (hidden.Contains(true))
+        {
+            context.Mesh.RemoveFaces(hidden);
+            (design, outSkeleton, outMesh) = Finish();
+        }
 
         return new CharacterModel
         {

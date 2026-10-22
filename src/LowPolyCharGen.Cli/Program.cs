@@ -202,7 +202,23 @@ static int Check()
         if (min.Z < -0.05f) Fail(label, $"mesh goes below the ground ({min.Z:F2})");
         if (MathF.Abs(min.X + max.X) > 6f) Fail(label, $"mesh is not centred ({min.X:F1}..{max.X:F1})");
         foreach (var face in mesh.Faces)
-            if (face.Vertices.Distinct().Count() < 3) { Fail(label, "degenerate face"); break; }
+            if (face.Vertices.Length != 3 || face.Vertices.Distinct().Count() < 3) { Fail(label, "face is not a triangle"); break; }
+        // Single sided: no triangle may have a twin over the same corners facing the other way.
+        var corners = new HashSet<(Vector3, Vector3, Vector3)>();
+        (Vector3, Vector3, Vector3) Key(Vector3 a, Vector3 b, Vector3 c) =>
+            a.X < b.X || (a.X == b.X && (a.Y < b.Y || (a.Y == b.Y && a.Z < b.Z)))
+                ? (a.X < c.X || (a.X == c.X && (a.Y < c.Y || (a.Y == c.Y && a.Z < c.Z))) ? (a, b, c) : (c, a, b))
+                : (b.X < c.X || (b.X == c.X && (b.Y < c.Y || (b.Y == c.Y && b.Z < c.Z))) ? (b, c, a) : (c, a, b));
+        foreach (var face in mesh.Faces)
+        {
+            var (a, b, c) = (mesh.Positions[face.Vertices[0]], mesh.Positions[face.Vertices[1]], mesh.Positions[face.Vertices[2]]);
+            corners.Add(Key(a, b, c));
+        }
+        foreach (var face in mesh.Faces)
+        {
+            var (a, b, c) = (mesh.Positions[face.Vertices[0]], mesh.Positions[face.Vertices[1]], mesh.Positions[face.Vertices[2]]);
+            if (corners.Contains(Key(a, c, b))) { Fail(label, "double-sided triangle"); break; }
+        }
         foreach (var normals in mesh.Normals)
             if (normals.Any(n => MathF.Abs(n.Length() - 1f) > 1e-3f)) { Fail(label, "bad normal"); break; }
 

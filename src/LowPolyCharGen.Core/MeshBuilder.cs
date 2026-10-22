@@ -138,7 +138,10 @@ public sealed class MeshBuilder(Skeleton skeleton)
         return Charts.Count - 1;
     }
 
-    /// <summary>Adds a face, collapsing repeated vertices; faces with fewer than three corners are dropped.</summary>
+    /// <summary>
+    /// Adds a polygon as triangles, collapsing repeated vertices; polygons with fewer than three corners
+    /// are dropped. Every face of the mesh is a triangle.
+    /// </summary>
     private void Emit(Slot slot, int chart, bool flip, ReadOnlySpan<int> v, ReadOnlySpan<Vector2> uv)
     {
         var vs = new List<int>(v.Length);
@@ -155,8 +158,65 @@ public sealed class MeshBuilder(Skeleton skeleton)
             vs.Reverse();
             us.Reverse();
         }
-        Faces.Add(new Face(vs.ToArray(), slot, Detail, chart, us.ToArray(), SmoothGroup));
+
+        void Tri(int a, int b, int c) =>
+            Faces.Add(new Face([vs[a], vs[b], vs[c]], slot, Detail, chart, [us[a], us[b], us[c]], SmoothGroup));
+
+        switch (vs.Count)
+        {
+            case 3:
+                Tri(0, 1, 2);
+                break;
+            case 4:
+                if (SplitAlongFirstDiagonal(vs[0], vs[1], vs[2], vs[3]))
+                {
+                    Tri(0, 1, 2);
+                    Tri(0, 2, 3);
+                }
+                else
+                {
+                    Tri(0, 1, 3);
+                    Tri(1, 2, 3);
+                }
+                break;
+            default:
+                // Zig-zag strip across the (convex) polygon: no long fan of slivers from one corner.
+                int lo = 0, hi = vs.Count - 1;
+                var front = true;
+                while (hi - lo >= 2)
+                {
+                    if (front) { Tri(lo, lo + 1, hi); lo++; }
+                    else { Tri(lo, hi - 1, hi); hi--; }
+                    front = !front;
+                }
+                break;
+        }
     }
+
+    /// <summary>
+    /// Chooses the diagonal a quad a-b-c-d is split along: true for a-c, false for b-d. A clearly bent
+    /// quad folds outward (a ridge, never a dent); a nearly flat one picks a diagonal from its corner
+    /// indices, so the triangles run in varied directions like hand-built low poly rather than a grid.
+    /// </summary>
+    private bool SplitAlongFirstDiagonal(int a, int b, int c, int d)
+    {
+        Vector3 pa = Positions[a], pb = Positions[b], pc = Positions[c], pd = Positions[d];
+        var size = MathF.Max(Vector3.Distance(pa, pc), Vector3.Distance(pb, pd));
+        var nAbc = Vector3.Cross(pb - pa, pc - pa);
+        if (size > 1e-5f && nAbc.LengthSquared() > 1e-12f)
+        {
+            // Height of d above the plane through a, b, c (outward positive): above means splitting
+            // along a-c would crease the quad into a valley.
+            var bend = Vector3.Dot(Vector3.Normalize(nAbc), pd - pa) / size;
+            if (bend > BendThreshold) return false;
+            if (bend < -BendThreshold) return true;
+        }
+        var hash = (uint)(Math.Min(a, c) * 73856093) ^ (uint)(Math.Max(a, c) * 19349663) ^ (uint)((b + d) * 83492791);
+        return ((hash >> 7) & 1) == 0;
+    }
+
+    /// <summary>Bend (height over diagonal) above which a quad's split follows its fold.</summary>
+    private const float BendThreshold = 0.04f;
 
     private Vector3 PolygonNormal(ReadOnlySpan<int> v)
     {
@@ -521,6 +581,45 @@ public sealed class MeshBuilder(Skeleton skeleton)
     }
 
     // ---- output --------------------------------------------------------------------------
+
+    /// <summary>Removes the flagged faces, then the vertices and charts nothing uses any more.</summary>
+    public void RemoveFaces(bool[] remove)
+    {
+        var faces = Faces.Where((_, f) => !remove[f]).ToList();
+        var vertexMap = new int[Positions.Count];
+        var chartMap = new int[Charts.Count];
+        Array.Fill(vertexMap, -1);
+        Array.Fill(chartMap, -1);
+        var positions = new List<Vector3>();
+        var weights = new List<Influence[]>();
+        var charts = new List<UvChart>();
+        Faces.Clear();
+        foreach (var f in faces)
+        {
+            var v = Array.ConvertAll(f.Vertices, i =>
+            {
+                if (vertexMap[i] < 0)
+                {
+                    vertexMap[i] = positions.Count;
+                    positions.Add(Positions[i]);
+                    weights.Add(Weights[i]);
+                }
+                return vertexMap[i];
+            });
+            if (chartMap[f.Chart] < 0)
+            {
+                chartMap[f.Chart] = charts.Count;
+                charts.Add(Charts[f.Chart]);
+            }
+            Faces.Add(new Face(v, f.Slot, f.Detail, chartMap[f.Chart], f.ChartUv, f.SmoothGroup));
+        }
+        Positions.Clear();
+        Positions.AddRange(positions);
+        Weights.Clear();
+        Weights.AddRange(weights);
+        Charts.Clear();
+        Charts.AddRange(charts);
+    }
 
     public MeshData Build(float creaseDegrees)
     {

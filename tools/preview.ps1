@@ -13,6 +13,7 @@ param(
     [switch] $Head,
     [switch] $Feet,
     [switch] $Report,
+    [switch] $Wire,
     [string] $Blender = "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
 )
 
@@ -41,6 +42,7 @@ if ($Pose) { $blenderArgs += "--pose" }
 if ($Head) { $blenderArgs += "--head" }
 if ($Feet) { $blenderArgs += "--feet" }
 if ($Report) { $blenderArgs += "--report" }
+if ($Wire) { $blenderArgs += "--wire" }
 Remove-Item $Out -ErrorAction SilentlyContinue   # so the check below sees this run's sheet
 $ErrorActionPreference = "Continue"
 & $Blender @blenderArgs 2>&1 | ForEach-Object { "$_" } |

@@ -1,10 +1,11 @@
 ﻿"""Imports generated FBX files into Blender and renders a contact sheet for visual checking.
 
 usage: blender -b --factory-startup --python blender_preview.py -- <out.png> <a.fbx> [<b.fbx> ...]
-           [--views front,three_quarter,side,back] [--pose] [--head] [--feet] [--size 560x600] [--report]
+           [--views front,three_quarter,side,back] [--pose] [--head] [--feet] [--size 560x600] [--report] [--wire]
 
 Each FBX becomes one row, each view one column. --pose rotates a few bones so the skin weights can
-be judged; --report prints what Blender found in the file (objects, bones, bounds).
+be judged; --report prints what Blender found in the file (objects, bones, bounds); --wire draws the
+triangle edges over the texture. Back faces are culled, as in the game, so holes show as background.
 """
 import math
 import sys
@@ -27,10 +28,13 @@ pose = "--pose" in argv
 head_only = "--head" in argv
 feet_only = "--feet" in argv
 report = "--report" in argv
+wire = "--wire" in argv
 
 VIEW_ANGLES = {  # camera azimuth around Z, degrees; 0 = looking at the character's front
     "front": 0, "three_quarter": 35, "side": 90, "back": 180, "back_quarter": 145, "left_quarter": -35,
+    "top": 35, "top_back": 215,   # from high above, as a strategy camera sees them
 }
+HIGH_VIEWS = {"top", "top_back"}
 
 
 def reset():
@@ -61,11 +65,11 @@ def setup_scene():
     return scene, cam
 
 
-def frame(cam, azimuth_deg, lo, hi):
+def frame(cam, azimuth_deg, lo, hi, high=False):
     centre = (lo + hi) / 2
     extent = hi - lo
     a = math.radians(azimuth_deg)
-    direction = Vector((math.sin(a), -math.cos(a), 0.12))   # where the camera sits, relative to the centre
+    direction = Vector((math.sin(a), -math.cos(a), 1.4 if high else 0.12))   # where the camera sits, relative to the centre
     cam.location = centre + direction.normalized() * 10
     cam.rotation_euler = (centre - cam.location).to_track_quat("-Z", "Y").to_euler()
     aspect = size[0] / size[1]
@@ -75,6 +79,23 @@ def frame(cam, azimuth_deg, lo, hi):
         cam.data.ortho_scale = max(across * 1.06, extent.z * 1.1 * aspect)
     else:
         cam.data.ortho_scale = max(extent.z * 1.1, across * 1.06 / aspect)
+
+
+def add_wireframes(scene):
+    """A thin dark wireframe copy of each mesh, following the same armature."""
+    mat = bpy.data.materials.new("wire")
+    mat.diffuse_color = (0.02, 0.02, 0.02, 1)
+    for ob in [o for o in scene.objects if o.type == "MESH"]:
+        copy = ob.copy()
+        copy.data = ob.data.copy()
+        copy.data.materials.clear()
+        copy.data.materials.append(mat)
+        scene.collection.objects.link(copy)
+        mod = copy.modifiers.new("wire", "WIREFRAME")
+        mod.thickness = 0.005 / max(ob.matrix_world.to_scale().x, 1e-6)   # 5 mm whatever the import scale
+        mod.offset = 1.0
+        mod.use_relative_offset = False
+        mod.use_even_offset = False
 
 
 def apply_pose(arm):
@@ -145,6 +166,8 @@ for row, path in enumerate(files):
     arm = next((o for o in scene.objects if o.type == "ARMATURE"), None)
     if pose and arm:
         apply_pose(arm)
+    if wire:
+        add_wireframes(scene)
     deps = bpy.context.evaluated_depsgraph_get()
     lo = Vector((1e9, 1e9, 1e9))
     hi = Vector((-1e9, -1e9, -1e9))
@@ -166,7 +189,7 @@ for row, path in enumerate(files):
         hi = Vector((0.24, 0.22, lo.z + 0.30))
     row_tiles = []
     for col, view in enumerate(views):
-        frame(cam, VIEW_ANGLES[view], lo, hi)
+        frame(cam, VIEW_ANGLES[view], lo, hi, view in HIGH_VIEWS)
         tile = f"{out_path}.{row}.{col}.png"
         scene.render.filepath = tile
         bpy.ops.render.render(write_still=True)
