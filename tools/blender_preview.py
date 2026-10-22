@@ -1,7 +1,7 @@
-"""Imports generated FBX files into Blender and renders a contact sheet for visual checking.
+﻿"""Imports generated FBX files into Blender and renders a contact sheet for visual checking.
 
 usage: blender -b --factory-startup --python blender_preview.py -- <out.png> <a.fbx> [<b.fbx> ...]
-           [--views front,three_quarter,side,back] [--pose] [--head] [--size 560x600] [--report]
+           [--views front,three_quarter,side,back] [--pose] [--head] [--feet] [--size 560x600] [--report]
 
 Each FBX becomes one row, each view one column. --pose rotates a few bones so the skin weights can
 be judged; --report prints what Blender found in the file (objects, bones, bounds).
@@ -25,6 +25,7 @@ if "--size" in argv:
     size = tuple(int(v) for v in argv[argv.index("--size") + 1].split("x"))
 pose = "--pose" in argv
 head_only = "--head" in argv
+feet_only = "--feet" in argv
 report = "--report" in argv
 
 VIEW_ANGLES = {  # camera azimuth around Z, degrees; 0 = looking at the character's front
@@ -160,6 +161,9 @@ for row, path in enumerate(files):
     if head_only:
         lo = Vector((-0.24, -0.26, hi.z - 0.50))
         hi = Vector((0.24, 0.22, hi.z + 0.02))
+    elif feet_only:
+        lo = Vector((-0.24, -0.30, lo.z - 0.02))
+        hi = Vector((0.24, 0.22, lo.z + 0.30))
     row_tiles = []
     for col, view in enumerate(views):
         frame(cam, VIEW_ANGLES[view], lo, hi)

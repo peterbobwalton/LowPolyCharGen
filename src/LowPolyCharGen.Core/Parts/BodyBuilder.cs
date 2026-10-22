@@ -332,14 +332,17 @@ internal static class BodyBuilder
         var k = c.LegScale;
         var ankleFront = -ankle.Y;
         var ballFront = -ball.Y;
-        Ring FootRing(float front, float halfWidth, float top)
+        Ring FootRing(float front, float halfWidth, float top, float bottom = 0f, float exp = 3.4f)
         {
             var t = (front - ankleFront) / (ballFront - ankleFront);
-            return new Ring(P(Lerp(ankle.X, ball.X, t), front, top / 2), Left, Up, halfWidth * k, top / 2, 3.4f);
+            return new Ring(P(Lerp(ankle.X, ball.X, t), front, (top + bottom) / 2), Left, Up, halfWidth * k, (top - bottom) / 2, exp);
         }
         m.AddLoft(
             [
-                FootRing(-8.6f, 3.7f, 7.0f), FootRing(-6.5f, 4.9f, 10.2f), FootRing(-0.5f, 5.3f, 11.4f),
+                // The heel narrows and curves up off the ground over its last few centimetres, so it reads
+                // as a heel rather than a square block. The back still ends at -8.6.
+                FootRing(-8.6f, 1.5f, 5.6f, 3.4f, 2.2f), FootRing(-8.35f, 2.7f, 7.0f, 2.0f, 2.3f), FootRing(-7.7f, 3.8f, 8.4f, 0.8f, 2.6f),
+                FootRing(-6.6f, 4.6f, 9.8f, 0.2f, 3.0f), FootRing(-4.5f, 5.1f, 10.8f), FootRing(-0.5f, 5.3f, 11.4f),
                 FootRing(5f, 5.4f, 8.6f), FootRing(11f, 5.6f, 6.6f), FootRing(17f, 5.4f, 5.4f), FootRing(20.8f, 4.3f, 4.0f),
             ],
             LimbSides, MathF.PI / LimbSides, Slot.Foot, weights, Cap.Flat, Cap.Flat, 0.6f, 1.1f);

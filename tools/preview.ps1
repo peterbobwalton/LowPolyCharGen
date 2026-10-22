@@ -1,4 +1,4 @@
-# Builds the CLI, exports characters and renders a Blender contact sheet of them.
+﻿# Builds the CLI, exports characters and renders a Blender contact sheet of them.
 #
 #   .\preview.ps1 -Out sheet.png -Sets "Hat=Helmet,Backpack=Rucksack", "Gender=Female,Hair=Bob" [-Pose] [-Views front,back]
 #
@@ -11,6 +11,7 @@ param(
     [string] $Size = "560x600",
     [switch] $Pose,
     [switch] $Head,
+    [switch] $Feet,
     [switch] $Report,
     [string] $Blender = "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"
 )
@@ -38,6 +39,7 @@ foreach ($set in $Sets) {
 $blenderArgs = @("-b", "--factory-startup", "--python", "$PSScriptRoot\blender_preview.py", "--", $Out) + $files + @("--views", $Views, "--size", $Size)
 if ($Pose) { $blenderArgs += "--pose" }
 if ($Head) { $blenderArgs += "--head" }
+if ($Feet) { $blenderArgs += "--feet" }
 if ($Report) { $blenderArgs += "--report" }
 Remove-Item $Out -ErrorAction SilentlyContinue   # so the check below sees this run's sheet
 $ErrorActionPreference = "Continue"
