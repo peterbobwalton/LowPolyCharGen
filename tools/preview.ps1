@@ -11,6 +11,7 @@ param(
     [string] $Size = "560x600",
     [switch] $Pose,
     [switch] $Head,
+    [switch] $Face,
     [switch] $Feet,
     [switch] $Report,
     [switch] $Wire,
@@ -40,6 +41,7 @@ foreach ($set in $Sets) {
 $blenderArgs = @("-b", "--factory-startup", "--python", "$PSScriptRoot\blender_preview.py", "--", $Out) + $files + @("--views", $Views, "--size", $Size)
 if ($Pose) { $blenderArgs += "--pose" }
 if ($Head) { $blenderArgs += "--head" }
+if ($Face) { $blenderArgs += "--face" }
 if ($Feet) { $blenderArgs += "--feet" }
 if ($Report) { $blenderArgs += "--report" }
 if ($Wire) { $blenderArgs += "--wire" }

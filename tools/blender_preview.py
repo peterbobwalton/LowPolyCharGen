@@ -1,7 +1,7 @@
 ﻿"""Imports generated FBX files into Blender and renders a contact sheet for visual checking.
 
 usage: blender -b --factory-startup --python blender_preview.py -- <out.png> <a.fbx> [<b.fbx> ...]
-           [--views front,three_quarter,side,back] [--pose] [--head] [--feet] [--size 560x600] [--report] [--wire]
+           [--views front,three_quarter,side,back] [--pose] [--head] [--face] [--feet] [--size 560x600] [--report] [--wire]
 
 Each FBX becomes one row, each view one column. --pose rotates a few bones so the skin weights can
 be judged; --report prints what Blender found in the file (objects, bones, bounds); --wire draws the
@@ -26,6 +26,7 @@ if "--size" in argv:
     size = tuple(int(v) for v in argv[argv.index("--size") + 1].split("x"))
 pose = "--pose" in argv
 head_only = "--head" in argv
+face_only = "--face" in argv
 feet_only = "--feet" in argv
 report = "--report" in argv
 wire = "--wire" in argv
@@ -181,7 +182,10 @@ for row, path in enumerate(files):
             lo = Vector((min(lo.x, p.x), min(lo.y, p.y), min(lo.z, p.z)))
             hi = Vector((max(hi.x, p.x), max(hi.y, p.y), max(hi.z, p.z)))
         ev.to_mesh_clear()
-    if head_only:
+    if face_only:
+        lo = Vector((-0.13, -0.26, hi.z - 0.33))
+        hi = Vector((0.13, 0.22, hi.z - 0.06))
+    elif head_only:
         lo = Vector((-0.24, -0.26, hi.z - 0.50))
         hi = Vector((0.24, 0.22, hi.z + 0.02))
     elif feet_only:

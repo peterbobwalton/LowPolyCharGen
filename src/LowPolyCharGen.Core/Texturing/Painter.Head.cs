@@ -75,58 +75,12 @@ internal sealed partial class Painter
         }
 
         // ---- eyes ----
-        if (face > 0f && MathF.Abs(ax - eyeX) < 2.2f)
-        {
-            const float halfWidth = 1.6f;
-            var u = (ax - eyeX) / halfWidth;                    // -1 inner corner .. +1 outer corner
-            var dz = fz - (eyeZ + 0.12f * u);                   // outer corner sits a little higher
-            var span = MathF.Max(0f, 1f - u * u);
-            var upper = 0.62f * MathF.Pow(span, 0.75f);
-            var lower = -0.38f * MathF.Pow(span, 0.9f);
-            const float soft = 0.035f;
-            var open = Saturate((upper - dz) / soft) * Saturate((dz - lower) / soft) * (MathF.Abs(u) < 1f ? 1f : 0f);
-
-            if (open > 0f)
-            {
-                // Eyeball: white, iris with a dark rim, pupil and a catch light.
-                var lx = fx - MathF.Sign(fx) * eyeX;            // signed, so both catch lights sit on the same side
-                var white = new Vector3(0.91f, 0.88f, 0.84f) * (0.72f + 0.28f * span);
-                white *= 1f - 0.22f * SmoothStep(upper - 0.22f, upper, dz);   // shadow of the upper lid
-                var d = MathF.Sqrt(lx * lx + (dz - 0.08f) * (dz - 0.08f));
-                var iris = _eye * (0.55f + 0.75f * (1f - d / 0.66f));
-                iris *= 1f - 0.5f * SmoothStep(0.50f, 0.64f, d);
-                var eyeball = Mix(white, iris, 1f - SmoothStep(0.63f, 0.69f, d));
-                eyeball = Mix(eyeball, new Vector3(0.03f), 1f - SmoothStep(0.24f, 0.29f, d));
-                eyeball = Mix(eyeball, Vector3.One, Disc(lx - 0.2f, dz - 0.24f, 0.085f, 0.03f));
-                color = Mix(color, eyeball, open * face);
-            }
-
-            // Lash line along the upper lid, a softer lower lid and the crease above.
-            var lash = (male ? 0.13f : 0.21f) * (0.55f + 0.45f * Saturate(u + 1f));
-            var onLash = Band(dz, upper, upper + lash, 0.03f) * (1f - SmoothStep(1.05f, 1.2f, MathF.Abs(u)));
-            color = Mix(color, new Vector3(0.11f, 0.08f, 0.07f), onLash * face);
-            color *= 1f - 0.22f * face * Band(dz, lower - 0.08f, lower, 0.03f) * (MathF.Abs(u) < 1f ? 1f : 0f);
-            color *= 1f - 0.14f * face * Line(dz - (upper + 0.4f), 0.05f, 0.04f) * span;
-        }
+        if (face > 0f && MathF.Abs(ax - eyeX) < 2.4f)
+            color = Eye(color, fx, ax, fz, eyeX, eyeZ, face, male);
 
         // ---- eyebrows ----
         if (face > 0f)
-        {
-            const float inner = 0.8f, outer = 4.75f;
-            var v = (ax - inner) / (outer - inner);
-            if (v > -0.1f && v < 1.1f)
-            {
-                var browZ = (_c.BrowZ - _c.ChinZ) / s;
-                var vs = Saturate(v);
-                var centre = male
-                    ? browZ - 0.25f * (1f - vs) + 0.30f * MathF.Sin(MathF.PI * MathF.Pow(vs, 0.8f))
-                    : browZ - 0.10f + 0.45f * MathF.Sin(MathF.PI * MathF.Pow(vs, 0.7f));
-                var half = (male ? 0.40f : 0.23f) * (1f - 0.62f * vs * vs);
-                var mask = Line(fz - centre, half, 0.07f) * SmoothStep(-0.03f, 0.06f, v) * (1f - SmoothStep(0.92f, 1.03f, v));
-                mask *= 0.72f + 0.5f * Noise.Value(new Vector3(p.X * 9f, p.Y * 2f, p.Z * 3f));
-                color = Mix(color, _hair * 0.8f, mask * face);
-            }
-        }
+            color = Eyebrow(color, ax, fz, (_c.BrowZ - _c.ChinZ) / s, eyeX, face, male, p);
 
         // ---- hair on the scalp ----
         if (_c.ScalpHair is { } scalp)
@@ -187,6 +141,114 @@ internal sealed partial class Painter
             }
         }
         return color;
+    }
+
+    /// <summary>
+    /// One eye, in face centimetres: an almond opening whose upper lid peaks towards the nose and lower
+    /// lid dips towards the ear, a shaded eyeball with the iris tucked under both lids, then the lash
+    /// lines, the lid crease, the lower lid's wet rim and the shadow under the eye.
+    /// </summary>
+    private Vector3 Eye(Vector3 color, float fx, float ax, float fz, float eyeX, float eyeZ, float face, bool male)
+    {
+        const float halfWidth = 1.5f;
+        var u = (ax - eyeX) / halfWidth;                    // -1 inner corner .. +1 outer corner
+        var dz = fz - (eyeZ + 0.10f * u);                   // outer corner sits a little higher
+        var inside = MathF.Abs(u) < 1f ? 1f : 0f;
+        var edge = 1f - SmoothStep(1.0f, 1.12f, MathF.Abs(u));
+        var span = MathF.Max(0f, 1f - u * u);
+        var uUp = u + 0.22f * span;                         // skews the upper lid's peak inwards
+        var uLo = u - 0.18f * span;                         // and the lower lid's dip outwards
+        var spanUp = MathF.Max(0f, 1f - uUp * uUp);
+        var spanLo = MathF.Max(0f, 1f - uLo * uLo);
+        var upper = (male ? 0.54f : 0.60f) * MathF.Pow(spanUp, 0.7f);
+        var lower = -0.38f * MathF.Pow(spanLo, 0.85f);
+        const float soft = 0.035f;
+        var open = Saturate((upper - dz) / soft) * Saturate((dz - lower) / soft) * inside;
+
+        if (open > 0f)
+        {
+            // The white is a ball: darker and pinker towards the corners, in the upper lid's shadow.
+            var white = new Vector3(0.80f, 0.77f, 0.73f) * (0.62f + 0.38f * MathF.Pow(span, 0.6f));
+            white = Mix(white, new Vector3(0.80f, 0.58f, 0.55f), 0.35f * SmoothStep(0.55f, 0.95f, MathF.Abs(u)));
+
+            // Iris: radial fibres, a lighter ring round the pupil and a dark rim; the lids cover its top and bottom.
+            var lx = fx - MathF.Sign(fx) * eyeX;            // signed, so both catch lights sit on the same side
+            var iy = dz - 0.02f;
+            var d = MathF.Sqrt(lx * lx + iy * iy);
+            const float radius = 0.62f;
+            var dir = d > 1e-4f ? new Vector2(lx, iy) / d : Vector2.UnitX;
+            var fibres = 0.8f + 0.4f * Noise.Value(new Vector3(dir.X * 5f, dir.Y * 5f, d * 1.5f));
+            var iris = _eye * (0.6f + 0.6f * (1f - d / radius)) * fibres;
+            iris = Mix(iris, _eye * 1.35f + new Vector3(0.04f), 0.45f * Line(d - 0.3f, 0.06f, 0.05f));
+            iris *= 1f - 0.55f * SmoothStep(radius - 0.16f, radius - 0.02f, d);
+            var eyeball = Mix(white, iris, 1f - SmoothStep(radius - 0.03f, radius + 0.02f, d));
+            eyeball = Mix(eyeball, new Vector3(0.02f), 1f - SmoothStep(0.19f, 0.23f, d));
+            eyeball *= 1f - 0.35f * SmoothStep(upper - 0.3f, upper, dz);                                        // upper lid's shadow
+            eyeball = Mix(eyeball, new Vector3(0.78f, 0.46f, 0.43f), Blob((u + 0.93f) / 0.12f, dz / 0.2f));     // tear duct
+            eyeball = Mix(eyeball, Vector3.One, 0.9f * Disc(lx - 0.18f, iy - 0.18f, 0.07f, 0.025f));            // catch light
+            color = Mix(color, eyeball, open * face);
+        }
+
+        // Upper lash line, thickening towards the outer corner and flicking up past it.
+        var lash = (male ? 0.10f : 0.15f) * (0.6f + 0.5f * Saturate((u + 1f) / 2f));
+        var onLash = Band(dz, upper - 0.01f, upper + lash, 0.025f) * edge;
+        onLash = MathF.Max(onLash, (male ? 0.5f : 0.9f) * Line(dz - (0.05f + 0.35f * (u - 0.9f)), 0.035f, 0.03f) * Band(u, 0.88f, 1.16f, 0.04f));
+        color = Mix(color, new Vector3(0.09f, 0.07f, 0.06f), onLash * face);
+
+        // Lid skin up to the crease, which follows the lid but rounder, then the shadow under the brow bone.
+        var crease = (male ? 0.30f : 0.40f) + (male ? 0.54f : 0.60f) * MathF.Pow(spanUp, 0.5f);
+        var creaseSpan = MathF.Pow(MathF.Max(0f, 1f - 0.8f * uUp * uUp), 0.5f);
+        color = Mix(color, color * new Vector3(1.02f, 0.94f, 0.93f), 0.5f * face * Band(dz, upper + lash, crease, 0.05f) * edge);
+        color *= 1f - 0.22f * face * Line(dz - crease, 0.04f, 0.06f) * creaseSpan;
+        color *= 1f - 0.08f * face * Band(dz, crease, crease + 0.4f, 0.15f) * creaseSpan;
+
+        // Lower lid: a light wet rim, a faint lash line and a soft shadow underneath.
+        color = Mix(color, color * new Vector3(1.08f, 0.95f, 0.93f) + new Vector3(0.03f), 0.6f * face * Band(dz, lower - 0.08f, lower, 0.02f) * inside);
+        color *= 1f - 0.25f * face * Line(dz - (lower - 0.1f), 0.025f, 0.025f) * Saturate((u + 0.6f) / 1.2f) * inside;
+        color *= 1f - 0.08f * face * Blob((u - 0.1f) / 1.1f, (dz - lower + 0.45f) / 0.35f);
+
+        // Corners.
+        color *= 1f - 0.20f * face * Blob((u - 1.0f) / 0.12f, dz / 0.1f);
+        color *= 1f - 0.15f * face * Blob((u + 1.05f) / 0.15f, dz / 0.2f);
+        return color;
+    }
+
+    /// <summary>
+    /// One eyebrow: a blunt, sparse head above the inner corner of the eye, a dense body rising to the arch
+    /// above the outer edge of the iris, and a tail that thins to a point past the outer corner. The lower
+    /// edge is crisp, the upper edge soft, and the hairs point up at the head and out along the rest.
+    /// </summary>
+    private Vector3 Eyebrow(Vector3 color, float ax, float fz, float browZ, float eyeX, float face, bool male, Vector3 p)
+    {
+        var inner = eyeX - 1.85f;
+        var outer = eyeX + 1.85f;
+        color *= 1f + 0.05f * face * Blob((ax - eyeX - 0.6f) / 1.6f, (fz - browZ + 0.75f) / 0.4f);   // brow bone
+
+        var v = (ax - inner) / (outer - inner);
+        if (v < -0.12f || v > 1.1f) return color;
+        var vs = Saturate(v);
+        var peak = male ? 0.66f : 0.62f;
+        var arch = male ? 0.32f : 0.55f;
+        var drop = male ? 0.95f : 1.15f;
+        var rise = vs < peak ? MathF.Sin(MathF.PI / 2f * vs / peak) : 1f - drop * MathF.Pow((vs - peak) / (1f - peak), 1.6f);
+        var centre = browZ - (male ? 0.2f : 0.18f) + arch * rise;
+        var half = (male ? 0.42f : 0.22f) * (1f - 0.15f * vs) * (1f - 0.8f * SmoothStep(peak - 0.1f, 1f, vs));
+
+        // Hair direction: up at the head, along the brow in the body, down and out in the tail.
+        var angle = v < 0.25f ? Lerp(75f, 20f, SmoothStep(0f, 0.25f, v)) : Lerp(20f, -18f, SmoothStep(peak, 1f, v));
+        var (sin, cos) = MathF.SinCos(angle * MathF.PI / 180f);
+        var across = -ax * sin + fz * cos;
+        var along = ax * cos + fz * sin;
+        var strokes = Noise.Value(new Vector3(across * 14f, along * 3f, p.X > 0f ? 7.3f : 2.1f));
+
+        var lo = centre - half;
+        var hi = centre + half + 0.06f * (strokes - 0.5f);
+        var mask = SmoothStep(lo - 0.04f, lo + 0.04f, fz) * (1f - SmoothStep(hi - 0.1f, hi + 0.08f, fz));
+        mask *= SmoothStep(-0.1f, 0.06f, v) * (1f - SmoothStep(0.93f, 1.05f, v));
+        var density = Lerp(0.5f, 0.95f, SmoothStep(0f, 0.3f, vs)) * (1f - 0.15f * SmoothStep(0.7f, 1f, vs));
+        var alpha = mask * density * (0.65f + 0.35f * SmoothStep(0.35f, 0.7f, strokes));
+        var brow = Mix(_hair * 0.7f, new Vector3(0.08f, 0.06f, 0.05f), 0.15f);
+        return Mix(color, brow, alpha * face);
     }
 
     /// <summary>How strongly facial hair covers the skin at a point of the face (0 = none).</summary>
