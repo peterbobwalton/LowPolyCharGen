@@ -49,6 +49,10 @@ internal static class RealisticBody
         var body = Decimator.Simplify(human.Positions, bodyTris, new Decimator.Options { TargetTriangles = BodyTriangles, Importance = Importance });
         Emit(c, m, body, SlotOf);
 
+        // Clothing that stands off the skin: shells offset from the dense body, smoothed, cut at their
+        // hems and decimated. The skin they cover is dropped later as hidden.
+        BuildClothing(c, human, SlotOf);
+
         // Eyeballs: small already; reduced a little.
         var eyes = Decimator.Simplify(human.Positions, Triangulate(source.EyeFaces), new Decimator.Options { TargetTriangles = 96 });
         Emit(c, m, eyes, _ => Slot.Head);
@@ -71,6 +75,129 @@ internal static class RealisticBody
         c.Paint.HandOrigin = Vector3.Zero;
         c.Paint.HandScale = 1f;
         c.Paint.Nails = nails;
+    }
+
+    private static void BuildClothing(BuildContext c, HumanBody.Fitted human, Func<int, Slot> slotOf)
+    {
+        var spec = c.Spec;
+        var paint = c.Paint;
+        var bones = HumanBody.Default.Bones;
+        string Bone(int v) => bones[human.DominantSourceBone[v]].Name;
+        bool IsTrunk(string b) => b is "pelvis" or "spine_01" or "spine_02" or "spine_03" || b.StartsWith("clavicle");
+        bool IsArm(string b) => b.StartsWith("upperarm") || b.StartsWith("lowerarm");
+        bool IsLeg(string b) => b.StartsWith("thigh") || b.StartsWith("calf");
+        var pos = human.Positions;
+
+        // Trousers (and shorts): legs and hips up to the belt; looser down the leg as the garment is.
+        if (paint.TrouserEndZ < paint.BeltBottomZ)
+        {
+            var crotch = c.Torso.Sections[0].Z;
+            Shell(c, human, v => (IsLeg(Bone(v)) || (IsTrunk(Bone(v)) && pos[v].Z < paint.BeltBottomZ)) && pos[v].Z > paint.TrouserEndZ - 3f,
+                p =>
+                {
+                    var leg = c.LegL.Clothing(p.Z);
+                    var offset = Geo.Lerp(leg, 0.3f, Geo.SmoothStep((p.Z - (crotch - 6f)) / 12f));
+                    // Less between the thighs, where the two legs would run into each other.
+                    return offset * Geo.Lerp(0.35f, 1f, Geo.SmoothStep((MathF.Abs(p.X) - 3f) / 5f));
+                },
+                smoothing: 4, keep: (a, b, d) => MathF.Min(a.Z, MathF.Min(b.Z, d.Z)) >= paint.TrouserEndZ, triangles: 640, Slot.Leg);
+        }
+
+        // Sleeves, and for a jacket or hoodie the whole loose top.
+        var jacket = spec.Torso is TorsoStyle.Jacket or TorsoStyle.Hoodie;
+        if (paint.SleeveEndX > c.ShoulderX || jacket)
+        {
+            var end = paint.SleeveEndX;
+            var neckTop = paint.NeckBaseZ;
+            Shell(c, human,
+                v => jacket
+                    ? (IsTrunk(Bone(v)) || IsArm(Bone(v))) && pos[v].Z > paint.HemZ - 2f && pos[v].Z < neckTop + 1f && MathF.Abs(pos[v].X) < end + 2f
+                    : IsArm(Bone(v)) && MathF.Abs(pos[v].X) < end + 2f,
+                p =>
+                {
+                    var x = MathF.Abs(p.X);
+                    var sleeve = c.ArmL.Clothing(MathF.Max(x, c.ShoulderX + 6f));
+                    if (jacket)
+                        return x > c.ShoulderX + 2f ? sleeve : 0.9f * (1f - Geo.SmoothStep((p.Z - (neckTop - 4f)) / 4f));
+                    return sleeve * Geo.SmoothStep((x - c.ShoulderX) / 6f);   // grows out of the painted shoulder
+                },
+                smoothing: 3,
+                keep: (a, b, d) => MathF.Max(MathF.Abs(a.X), MathF.Max(MathF.Abs(b.X), MathF.Abs(d.X))) <= end
+                    && (!jacket || MathF.Min(a.Z, MathF.Min(b.Z, d.Z)) >= paint.HemZ),
+                triangles: jacket ? 900 : 260, slot: jacket ? Slot.Body : Slot.Arm, armSlot: jacket ? Slot.Arm : null, isArm: v => IsArm(Bone(v)));
+        }
+
+        // Boot shafts above the boot (tall boots, or boots worn under bloused trousers).
+        if (paint.BootTopZ > 13f)
+            Shell(c, human, v => Bone(v).StartsWith("calf") && pos[v].Z < paint.BootTopZ + 2f,
+                _ => 0.7f, smoothing: 3, keep: (a, b, d) => MathF.Max(a.Z, MathF.Max(b.Z, d.Z)) <= paint.BootTopZ, triangles: 160, Slot.Foot);
+    }
+
+    /// <summary>
+    /// A garment as a shell over part of the dense body: the faces whose corners all pass
+    /// <paramref name="region"/>, pushed out along the surface normal by <paramref name="offset"/>,
+    /// smoothed (so it skims over toes and creases instead of following them, but never sinks below
+    /// the offset), cut to the faces <paramref name="keep"/> accepts and decimated.
+    /// </summary>
+    private static void Shell(BuildContext c, HumanBody.Fitted human, Func<int, bool> region, Func<Vector3, float> offset,
+        int smoothing, Func<Vector3, Vector3, Vector3, bool> keep, int triangles, Slot slot, Slot? armSlot = null, Func<int, bool>? isArm = null)
+    {
+        var faces = Triangulate(HumanBody.Default.BodyFaces).Where(f => region(f[0]) && region(f[1]) && region(f[2])).ToArray();
+        if (faces.Length == 0) return;
+        var pos = human.Positions;
+        var normals = new Dictionary<int, Vector3>();
+        foreach (var f in faces)
+        {
+            var n = Vector3.Cross(pos[f[1]] - pos[f[0]], pos[f[2]] - pos[f[0]]);
+            foreach (var v in f) normals[v] = normals.GetValueOrDefault(v) + n;
+        }
+        var moved = new Dictionary<int, Vector3>();
+        foreach (var (v, n) in normals) moved[v] = pos[v] + Vector3.Normalize(n) * offset(pos[v]);
+        var neighbours = new Dictionary<int, HashSet<int>>();
+        foreach (var f in faces)
+            for (var k = 0; k < 3; k++)
+            {
+                if (!neighbours.TryGetValue(f[k], out var set)) neighbours[f[k]] = set = [];
+                set.Add(f[(k + 1) % 3]);
+                set.Add(f[(k + 2) % 3]);
+            }
+        for (var i = 0; i < smoothing; i++)
+        {
+            var next = new Dictionary<int, Vector3>(moved.Count);
+            foreach (var (v, p) in moved)
+            {
+                var avg = Vector3.Zero;
+                foreach (var w in neighbours[v]) avg += moved[w];
+                avg /= neighbours[v].Count;
+                var q = Vector3.Lerp(p, avg, 0.5f);
+                // Never closer to the skin than the offset asks for.
+                var n = Vector3.Normalize(normals[v]);
+                var depth = Vector3.Dot(q - pos[v], n);
+                var want = offset(pos[v]);
+                if (depth < want) q += n * (want - depth);
+                next[v] = q;
+            }
+            moved = next;
+        }
+        var kept = faces.Where(f => keep(moved[f[0]], moved[f[1]], moved[f[2]])).ToArray();
+        if (kept.Length == 0) return;
+        var local = new Dictionary<int, int>();
+        var points = new List<Vector3>();
+        var source = new List<int>();
+        var tris = kept.Select(f => f.Select(v =>
+        {
+            if (!local.TryGetValue(v, out var i))
+            {
+                i = local[v] = points.Count;
+                points.Add(moved[v]);
+                source.Add(v);
+            }
+            return i;
+        }).ToArray()).ToArray();
+        var piece = Decimator.Simplify(points, tris, new Decimator.Options { TargetTriangles = triangles });
+        // Back to the body's vertex numbering, for the weights.
+        var result = piece with { Source = piece.Source.Select(i => source[i]).ToArray() };
+        Emit(c, c.Mesh, result, v => armSlot is { } a && isArm!(v) ? a : slot);
     }
 
     private static int[][] Triangulate(int[][] faces)

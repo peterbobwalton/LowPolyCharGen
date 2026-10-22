@@ -25,6 +25,8 @@ internal static class BodyBuilder
             // The modelled body replaces the lofted one; clothing that changes the silhouette is
             // still added on top.
             RealisticBody.Build(c);
+            // The boots are the generated ones: the bare feet inside them are dropped as hidden.
+            c.Mesh.Mirrored(m => BuildFoot(c, m));
             if (c.Spec.Legs == LegsStyle.Skirt) BuildSkirt(c);
             if (c.Spec.Legs == LegsStyle.Thobe) BuildThobe(c);
             if (c.Spec.Scarf || c.Spec.FaceCover == FaceCover.Shemagh) BuildScarf(c);

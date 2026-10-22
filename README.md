@@ -56,8 +56,14 @@ handed over to the mannequin's bones. The result is decimated to `RealisticBody.
 with the face, hands and feet keeping more of their detail, and painted like the generated body:
 clothes, landmarks (eyes, nose tip and mouth found on the mesh's profile) and gear sit on it because
 the torso and head sections are measured off it. `tools/import_makehuman.py` rebuilds the asset
-(`Assets/human_body.bin`) from a checkout of MakeHuman's MPFB2 data. Still to come: loose trousers,
-boots and fingers bones on the realistic body.
+(`Assets/human_body.bin`) from a checkout of MakeHuman's MPFB2 data.
+
+Clothing that stands off the skin is a shell over the dense body: trousers and shorts (hips and
+legs, looser down the leg exactly as the generated garment is, less between the thighs), sleeves
+(growing out of the painted shoulder), the whole loose top for a jacket or hoodie, and boot shafts.
+Each shell is the body's surface pushed out by the garment's thickness, smoothed so it skims over
+creases without sinking back, cut at its hem and decimated; the skin under it is dropped as hidden.
+Boots and trainers are the generated ones. Still to come: finger bones on the realistic body.
 
 **Hands.** On the mannequin rig the hands are modelled, not generated: `tools/make_hand.py` builds a
 dense, realistic left hand (tapered fingers with full rounded tips, knuckles, palm pads, a relaxed
