@@ -8,6 +8,7 @@ using LowPolyCharGen.Fbx;
 //   lowpolychargen --random 12 --out-dir out [--seed 7]
 //   lowpolychargen --variants out          one FBX per option value
 //   lowpolychargen --check                 validate every option combination's mesh and rig
+//   lowpolychargen --measure [--set ...]   body measurements against adult reference sizes
 //   lowpolychargen --pose-test poses.json --out-dir dir [--set ...]
 //                                          poses a Toon Soldiers character with bone poses dumped from
 //                                          the pack's animations in Unreal and writes one OBJ per frame
@@ -22,6 +23,7 @@ static int Run(string[] args)
         Console.WriteLine("       lowpolychargen --random <count> --out-dir <dir> [--seed <n>]");
         Console.WriteLine("       lowpolychargen --variants <dir>");
         Console.WriteLine("       lowpolychargen --check");
+        Console.WriteLine("       lowpolychargen --measure [--preset <file.json>] [--set Property=Value]...");
         return args.Length == 0 ? 1 : 0;
     }
 
@@ -32,6 +34,33 @@ static int Run(string[] args)
     }
 
     if (args.Contains("--check")) return Check();
+
+    if (args.Contains("--measure"))
+    {
+        // With no options: the plain male and female on the mannequin rig.
+        var specs = new List<CharacterSpec>();
+        if (Option("--preset") is not null || args.Contains("--set"))
+        {
+            var spec = Option("--preset") is { } p ? CharacterSpec.FromJson(File.ReadAllText(p)) : new CharacterSpec();
+            for (var i = 0; i + 1 < args.Length; i++)
+                if (args[i] == "--set")
+                    Apply(spec, args[i + 1]);
+            specs.Add(spec);
+        }
+        else
+        {
+            specs.AddRange(ProportionSpecs());
+        }
+        var ok = true;
+        foreach (var spec in specs)
+        {
+            var (good, lines) = Anthropometry.Compare(CharacterGenerator.Generate(spec).Mesh, spec.Gender);
+            Console.WriteLine($"{spec.Gender}, {spec.Rig} rig, build {spec.Build:F2}:");
+            foreach (var line in lines) Console.WriteLine("  " + line);
+            ok &= good;
+        }
+        return ok ? 0 : 1;
+    }
 
     if (Option("--pose-test") is { } posesPath)
     {
@@ -127,6 +156,18 @@ static IEnumerable<(string Label, CharacterSpec Spec)> Variants()
     }
 }
 
+/// <summary>Plain characters (tight T-shirt and trousers, no gear) whose body proportions are checked.</summary>
+static IEnumerable<CharacterSpec> ProportionSpecs()
+{
+    foreach (var gender in new[] { Gender.Male, Gender.Female })
+        yield return new CharacterSpec
+        {
+            Rig = RigTarget.Mannequin, Gender = gender, Build = 0.5f,
+            Torso = TorsoStyle.TShirt, Legs = LegsStyle.Trousers,
+            Hat = HatStyle.None, Vest = VestStyle.None, Backpack = BackpackStyle.None, Camouflage = Camouflage.None,
+        };
+}
+
 static int Check()
 {
     var failures = 0;
@@ -134,6 +175,13 @@ static int Check()
     {
         failures++;
         Console.WriteLine($"FAIL {label}: {message}");
+    }
+
+    // Proportions: the plain male and female must be within range of adult reference sizes.
+    foreach (var spec in ProportionSpecs())
+    {
+        var (good, lines) = Anthropometry.Compare(CharacterGenerator.Generate(spec).Mesh, spec.Gender);
+        if (!good) Fail($"proportions {spec.Gender}", string.Join("; ", lines.Where(l => l.Contains("OUT OF RANGE"))));
     }
 
     // Skeleton: the Euler angles written to the FBX must reproduce every bone's bind matrix.

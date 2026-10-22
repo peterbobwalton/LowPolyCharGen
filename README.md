@@ -39,6 +39,13 @@ weights can be judged. Poses are preview only: the export is always the T-pose b
 
 ## How the characters are made
 
+**Proportions.** The mannequin-rig bodies are tuned against adult reference measurements, not by eye:
+`lowpolychargen --measure` prints neck, chest, waist, hip and thigh sizes against the targets in
+`Anthropometry.cs`, and `--check` fails if the plain man or woman drifts more than about 8% from them.
+Men have a fit, natural build (chest only a little wider than the waist); women have their own height,
+a two-form bust, a defined waist and fuller hips and seat. The jaw has a level underside before it turns
+into the neck, so the chin stands clear of the throat. The Toon Soldiers rig keeps its own chunky trunk.
+
 **Mesh.** Hips, torso, neck, head, arms, hands and legs are one continuous surface (about 800
 vertices), so shoulders and hips deform without gaps. Only the left half is modelled; it is mirrored
 and welded along the centre line. The head is a sculpted grid whose jaw line is a hard edge over a
@@ -112,7 +119,9 @@ light, broad brush-like value patches and muted warm colours.
   joint positions and bone orientations are the UE5 mannequin's (`SK_Mannequin`). Trunk and leg
   bones are identical to its reference pose; the arms are rotated out to a T-pose with the bone
   lengths kept. Finger and twist bones are not included (fingers are painted on a mitten hand).
-* The character is the mannequin's size: same joint positions, 181 cm tall at head size 1.0.
+* Men are the mannequin's size: same joint positions, 181 cm tall at head size 1.0. Women get their own
+  frame on the same bones (as Quinn shares Manny's skeleton): 168 cm tall with narrower shoulders, made by
+  moving the joints (`BodyFrame.cs`). Pick `SK_Mannequin` on import and the animations still apply.
 
 ### Importing into Unreal
 
@@ -137,7 +146,8 @@ lowpolychargen --out soldier.fbx --set Hat=Helmet --set Backpack=Rucksack --set 
 lowpolychargen --out soldier.fbx --preset soldier.json
 lowpolychargen --random 20 --out-dir out --seed 7
 lowpolychargen --variants out        # one FBX per option value
-lowpolychargen --check               # validates both rigs and a few hundred generated meshes
+lowpolychargen --check               # validates both rigs, body proportions and a few hundred generated meshes
+lowpolychargen --measure             # body measurements of the plain man and woman against adult reference sizes
 lowpolychargen --pose-test poses.json --out-dir poses --set Hat=Boonie
                                      # skins a Toon Soldiers character with bone poses dumped from
                                      # the pack's animations in Unreal and writes one OBJ per frame
@@ -157,6 +167,8 @@ src/LowPolyCharGen.Core     generator and exporter, no UI dependencies
   MeshBuilder.cs              skinned primitives, UV charts and atlas packing, mirroring/welding, normals
   Profile.cs                  torso and head volumes that can be meshed and queried
   Skinning.cs                 weight functions (rigid, bone chains with cross-fades, blends)
+  BodyFrame.cs                gives a character its own height and shoulder width on the mannequin bones
+  Anthropometry.cs            measures a mesh (neck, chest, waist, hips, thigh) against adult reference sizes
   Parts/BodyBuilder.cs        the welded body: hips, torso, neck, arms, hands, legs, boots
   Parts/HeadBuilder.cs        skull and face shapes, ears, hair, hats, eyewear
   Parts/GearBuilder.cs        vests, backpacks, belt kit

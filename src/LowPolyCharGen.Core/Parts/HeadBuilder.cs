@@ -70,14 +70,30 @@ internal static class HeadBuilder
         for (var j = 0; j + 1 < angles.Length; j++)
             m.AddPolygonOutward(Slot.Head, c.HeadCenter, crown, grid[^1][j], grid[^1][j + 1]);
 
-        // Underside of the jaw, from the jaw line in to the neck. The sharp angle it makes with the
-        // cheek is what draws the jaw line. The head has one more column than the neck.
+        // Underside of the jaw. From the jaw line it runs back almost level to the throat (the extra row
+        // "under"), and only then turns down into the neck, so the jaw has an angle and the chin stands
+        // clear of the neck. Behind the ear the row just halves the way to the nape. The sharp angle
+        // with the cheek is what draws the jaw line. The head has one more column than the neck.
         var jaw = grid[0];
         var inside = c.HeadCenter + Up * (0.1f * c.HeadHeight);
+        var under = new int[jaw.Length];
+        for (var j = 0; j < jaw.Length; j++)
+        {
+            var from = m.Positions[jaw[j]];
+            var to = c.NeckTop(angles[j]);
+            var level = Saturate((120f - angles[j]) / 64f);          // 1 under the chin, 0 behind the ear
+            var back = Lerp(0.5f, 0.62f, level);
+            var down = Lerp(0.5f, 0.12f, level);
+            var p = Vector3.Lerp(from, to, back);
+            p.Z = Lerp(from.Z, to.Z, down);
+            under[j] = m.AddVertex(p, head);
+        }
         m.SmoothGroup = 1;   // never smoothed into the cheeks: this edge is the jaw line
-        m.AddPolygonOutward(Slot.Head, inside, jaw[0], jaw[1], neckTop[0]);
-        for (var j = 1; j + 1 < jaw.Length; j++)
-            m.AddPolygonOutward(Slot.Head, inside, jaw[j], jaw[j + 1], neckTop[j], neckTop[j - 1]);
+        for (var j = 0; j + 1 < jaw.Length; j++)
+            m.AddPolygonOutward(Slot.Head, inside, jaw[j], jaw[j + 1], under[j + 1], under[j]);
+        m.AddPolygonOutward(Slot.Head, inside, under[0], under[1], neckTop[0]);
+        for (var j = 1; j + 1 < under.Length; j++)
+            m.AddPolygonOutward(Slot.Head, inside, under[j], under[j + 1], neckTop[j], neckTop[j - 1]);
         m.SmoothGroup = 0;
 
         BuildEar(c, m);

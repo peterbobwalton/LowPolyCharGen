@@ -49,7 +49,9 @@ public static class CharacterGenerator
             var built = context.Mesh.Build(crease);
             var (rig, mesh) = spec.Rig == RigTarget.ToonSoldiers
                 ? ToonRig.Convert(skeleton, built, crease)
-                : (skeleton, built);
+                : spec.Gender == Gender.Female
+                    ? BodyFrame.Apply(skeleton, built, BuildContext.FemaleHeightScale, BuildContext.FemaleShoulderShift, includeIkBones, crease)
+                    : (skeleton, built);
             return (built, rig, mesh);
         }
 

@@ -19,6 +19,14 @@ internal sealed class BuildContext
     /// <summary>Rows of the head as heights above the jaw line (0) up to the crown ring.</summary>
     public static readonly float[] HeadRows = [0f, 0.20f, 0.33f, 0.41f, 0.52f, 0.62f, 0.76f, 0.90f, 0.975f];
 
+    /// <summary>
+    /// A woman is built on the mannequin frame and then scaled to this height (168 cm against the
+    /// mannequin's 181), with her arms moved in by <see cref="FemaleShoulderShift"/> centimetres before
+    /// scaling, so she gets her own height and narrower shoulders on the same bones (see BodyFrame).
+    /// </summary>
+    public const float FemaleHeightScale = 0.93f;
+    public const float FemaleShoulderShift = 1.4f;
+
     public CharacterSpec Spec { get; }
     public Skeleton Skeleton { get; }
     public MeshBuilder Mesh { get; }
@@ -26,6 +34,7 @@ internal sealed class BuildContext
     public PaintContext Paint { get; }
 
     public bool Female { get; }
+    public bool Toon { get; }
     public float WidthScale { get; }
     public float DepthScale { get; }
     public float ArmScale { get; }
@@ -68,6 +77,50 @@ internal sealed class BuildContext
     public float BrowRidge { get; }
     public float ChinForward { get; }
 
+    /// <summary>
+    /// Top ring of the neck at an angle round from the front (degrees): a ring tilted from the throat,
+    /// tucked under the jaw, up to the nape.
+    /// </summary>
+    public Vector3 NeckTop(float degreesFromFront)
+    {
+        var (sin, cos) = MathF.SinCos(Geo.Deg(degreesFromFront));
+        var neckFront = -HeadCenter.Y - 0.6f * HeadScale;
+        var throatZ = ChinZ - 1.1f * HeadScale;
+        var napeZ = HeadZ(0.20f);
+        return Geo.P(NeckRadius * sin, neckFront + NeckRadius * cos, Geo.Lerp(throatZ, napeZ, (1f - cos) / 2f));
+    }
+
+    /// <summary>
+    /// What the torso's smooth sections cannot do on their own: split the bust into two breasts with a
+    /// cleavage between them, mark the breastbone between the pectorals and the cleft between the
+    /// buttocks. The sections carry the full volume (so clothing and gear that wrap the sections still
+    /// cover it); this only carves into it. Returns the offset of the torso vertex at height z in
+    /// column j (0 = front centre, 30 degrees apart, 6 = back centre).
+    /// </summary>
+    public Vector3 TorsoSculpt(float z, int column)
+    {
+        if (Toon) return Vector3.Zero;   // the toon trunk keeps its own (older) shape
+        static float At(float z, float at, float[] row, int column) =>
+            MathF.Abs(z - at) < 0.1f && column < row.Length ? row[column] : 0f;
+        float forward, back;
+        if (Female)
+        {
+            forward = At(z, 121f, [-0.6f, 0.3f, 0.2f], column)
+                    + At(z, 130f, [-3.6f, 0.8f, 0.2f], column)
+                    + At(z, 137.5f, [-1.1f, 0.2f], column);
+            back = At(z, 81.5f, [0, 0, 0, 0, -0.4f, 0, -1.4f], column)
+                 + At(z, 89f, [0, 0, 0, 0, -0.4f, 0, -1.2f], column);
+        }
+        else
+        {
+            forward = At(z, 130f, [-0.5f, 0.3f], column)
+                    + At(z, 137.5f, [-0.4f, 0.2f], column);
+            back = At(z, 81.5f, [0, 0, 0, 0, -0.3f, 0, -1.0f], column)
+                 + At(z, 89f, [0, 0, 0, 0, -0.3f, 0, -0.8f], column);
+        }
+        return Geo.Front * (forward * DepthScale) + Geo.Back * (back * DepthScale);
+    }
+
     /// <summary>Height on the head; 0 = chin, 1 = crown.</summary>
     public float HeadZ(float t) => ChinZ + t * HeadHeight;
 
@@ -85,10 +138,11 @@ internal sealed class BuildContext
         Skin = new Skinning(skeleton);
 
         Female = spec.Gender == Gender.Female;
+        Toon = spec.Rig == RigTarget.ToonSoldiers;
         WidthScale = Geo.Lerp(0.92f, 1.14f, spec.Build);
         DepthScale = Geo.Lerp(0.90f, 1.20f, spec.Build);
-        ArmScale = Geo.Lerp(0.90f, 1.14f, spec.Build) * (Female ? 0.86f : 1f);
-        LegScale = Geo.Lerp(0.92f, 1.12f, spec.Build) * (Female ? 0.94f : 1f);
+        ArmScale = Geo.Lerp(0.90f, 1.14f, spec.Build) * (Female ? (Toon ? 0.86f : 0.93f) : 1f);
+        LegScale = Geo.Lerp(0.92f, 1.12f, spec.Build) * (Female ? (Toon ? 0.94f : 1.02f) : 1f);
 
         Spine = Skin.Chain(p => p.Z, 3f,
             ("pelvis", float.NegativeInfinity),
@@ -149,10 +203,15 @@ internal sealed class BuildContext
             jawExp = MathF.Min(jawExp, 2.4f);
             BrowRidge *= 0.4f; NoseLength *= 0.88f; NoseHalfWidth *= 0.86f; ChinForward *= 0.6f;
         }
+        else
+        {
+            // A man's chin comes forward about as far as his lower lip.
+            ChinForward += 0.4f;
+        }
         HeadHalfWidth = skull * s;
         HeadHalfDepth = 9.6f * s;
         HeadExp = 2.2f;
-        NeckRadius = (Female ? 4.8f : 5.5f) * Geo.Lerp(0.95f, 1.1f, spec.Build);
+        NeckRadius = (Toon ? (Female ? 4.8f : 5.5f) : Female ? 5.6f : 6.2f) * Geo.Lerp(0.95f, 1.1f, spec.Build);
         // Every chin is flat across the bottom, never a point. A man's jaw is square: the bottom of the
         // chin stays level and wide out to a hard corner below the ear. A woman's is oval: a narrower
         // flat chin that curves up round into the jaw.
@@ -223,7 +282,11 @@ internal sealed class BuildContext
         var p = new Profile();
         void Sec(float z, float centerFront, float halfWidth, float front, float back) =>
             p.Add(z, centerFront, halfWidth * WidthScale, front * DepthScale, back * DepthScale, 2.4f);
-        if (Female)
+        // Measured against adult surveys (see Anthropometry.cs): the male is a fit, natural build, not a
+        // bodybuilder; the female is built here at male scale and shrunk to her own height afterwards
+        // (FemaleHeightScale), so her numbers are larger than her final size.
+        // The Toon Soldiers rig keeps the chunky trunk its proportions were matched to.
+        if (Toon && Female)
         {
             Sec(81.5f, 2.0f, 18.6f, 9.4f, 10.8f);
             Sec(89f, 2.0f, 18.8f, 10.0f, 12.0f);
@@ -237,7 +300,7 @@ internal sealed class BuildContext
             Sec(149.5f, 0.2f, 12.6f, 8.0f, 9.0f);
             Sec(153.2f, -0.2f, 6.4f, 5.6f, 6.4f);
         }
-        else
+        else if (Toon)
         {
             // Muscular: deep chest and lats over a narrow waist (the V-taper), heavy traps.
             Sec(81.5f, 2.0f, 17.8f, 9.6f, 10.4f);
@@ -251,6 +314,34 @@ internal sealed class BuildContext
             Sec(143.6f, 0.8f, 18.4f, 12.0f, 11.8f);
             Sec(149.5f, 0.2f, 16.0f, 9.2f, 10.8f);  // traps
             Sec(153.2f, -0.2f, 7.2f, 6.2f, 7.2f);
+        }
+        else if (Female)
+        {
+            Sec(81.5f, 2.0f, 19.0f, 10.0f, 13.6f);
+            Sec(89f, 2.0f, 19.6f, 11.0f, 14.8f);    // hips and seat
+            Sec(96f, 2.1f, 18.0f, 10.8f, 11.0f);
+            Sec(102f, 2.2f, 15.8f, 10.6f, 9.8f);
+            Sec(111f, 2.4f, 14.1f, 10.6f, 9.6f);    // waist; the small of the back curves in
+            Sec(121f, 2.4f, 14.4f, 11.2f, 9.4f);    // under the bust
+            Sec(130f, 2.0f, 15.4f, 16.2f, 9.6f);    // bust (split into two breasts by TorsoSculpt)
+            Sec(137.5f, 1.4f, 15.9f, 12.6f, 9.8f);
+            Sec(143.6f, 0.8f, 15.6f, 10.4f, 9.6f);
+            Sec(149.5f, 0.2f, 13.0f, 8.4f, 8.0f);
+            Sec(153.2f, -0.2f, 6.6f, 5.8f, 6.4f);
+        }
+        else
+        {
+            Sec(81.5f, 2.0f, 17.0f, 9.8f, 12.2f);
+            Sec(89f, 2.0f, 17.2f, 10.6f, 13.0f);    // hips and seat
+            Sec(96f, 2.1f, 15.8f, 10.6f, 10.4f);
+            Sec(102f, 2.2f, 15.0f, 11.0f, 9.2f);
+            Sec(111f, 2.5f, 14.7f, 11.2f, 9.4f);    // waist: only a little narrower than the chest
+            Sec(121f, 2.4f, 15.6f, 11.8f, 10.4f);
+            Sec(130f, 2.0f, 16.4f, 12.6f, 11.0f);   // chest
+            Sec(137.5f, 1.4f, 17.6f, 12.4f, 11.0f); // lats under the arms
+            Sec(143.6f, 0.8f, 18.4f, 11.2f, 10.4f);
+            Sec(149.5f, 0.2f, 16.0f, 9.2f, 8.0f);   // traps, falling to the shoulders
+            Sec(153.2f, -0.2f, 7.4f, 6.4f, 7.0f);
         }
         return p;
     }

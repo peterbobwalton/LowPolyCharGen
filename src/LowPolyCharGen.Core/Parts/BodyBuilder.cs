@@ -209,7 +209,7 @@ internal static class BodyBuilder
             var loose = jacket ? Lerp(1.0f, 0.4f, Saturate((zs[r] - 96f) / 20f)) : 0f;
             for (var j = 0; j < HalfColumns; j++)
             {
-                var p = c.Torso.Surface(zs[r], Deg(270f + 30f * j), jacket && zs[r] > 92f ? loose : 0f);
+                var p = c.Torso.Surface(zs[r], Deg(270f + 30f * j), jacket && zs[r] > 92f ? loose : 0f) + c.TorsoSculpt(zs[r], j);
                 var cell = Array.IndexOf(holeCells, (r, j));
                 if (cell >= 0) p = hole[cell];
                 // The vertex in the middle of the arm hole is never used; it reuses its neighbour.
@@ -218,16 +218,9 @@ internal static class BodyBuilder
         }
 
         // Top of the neck: a tilted ring from the throat under the chin up to the nape.
-        var neckFront = -c.HeadCenter.Y - 0.6f * c.HeadScale;
-        var throatZ = c.ChinZ - 0.3f * c.HeadScale;
-        var napeZ = c.HeadZ(0.20f);
         grid[zs.Length] = new int[HalfColumns];
         for (var j = 0; j < HalfColumns; j++)
-        {
-            var (sin, cos) = MathF.SinCos(Deg(30f * j));
-            var p = P(c.NeckRadius * sin, neckFront + c.NeckRadius * cos, Lerp(throatZ, napeZ, (1f - cos) / 2f));
-            grid[zs.Length][j] = m.AddVertex(p, c.Spine);
-        }
+            grid[zs.Length][j] = m.AddVertex(c.NeckTop(30f * j), c.Spine);
 
         var slots = Enumerable.Repeat(Slot.Body, zs.Length - 1).Append(Slot.Neck).ToArray();
         m.AddGridFacesOutward(grid, false, slots, new Vector3(0, c.Torso.At(120f).CenterY, 120f),
