@@ -252,14 +252,18 @@ internal static class BodyBuilder
             slots.Add(Slot.Arm);
         }
 
-        // Hand: a flat palm and finger block; the fingers themselves are painted on. Toon characters
-        // get the pack's closed block fist instead.
         var toon = c.Spec.Rig == RigTarget.ToonSoldiers;
+        if (!toon)
+        {
+            m.AddGridFacesOutward(rows.ToArray(), true, slots, new Vector3(c.ElbowX, c.ArmY, c.ArmZ));
+            BuildModelledHand(c, m, rows[^1]);
+            return;
+        }
+
+        // Toon characters get the pack's closed block fist, with the fingers painted on.
         Ring HandRing(float dx, float halfWidth, float halfThickness, float drop, float exp = 3f) =>
             new(new Vector3(w + dx * k, c.ArmY - 0.3f * k, c.ArmZ - drop * k), Back, Up, halfWidth * k, halfThickness * k, exp);
-        Ring[] hand = toon
-            ? [HandRing(2.5f, 4.2f, 3.4f, 0f, 3.2f), HandRing(5.5f, 5.4f, 5.0f, 0.3f, 3.6f), HandRing(10f, 5.6f, 5.2f, 0.5f, 3.6f), HandRing(13.2f, 4.8f, 4.4f, 0.6f, 3.2f)]
-            : [HandRing(4.5f, 4.4f, 1.7f, 0.2f), HandRing(9.5f, 4.5f, 1.45f, 0.4f), HandRing(14.5f, 4.1f, 1.15f, 1.0f), HandRing(18.2f, 3.1f, 0.85f, 1.8f)];
+        Ring[] hand = [HandRing(2.5f, 4.2f, 3.4f, 0f, 3.2f), HandRing(5.5f, 5.4f, 5.0f, 0.3f, 3.6f), HandRing(10f, 5.6f, 5.2f, 0.5f, 3.6f), HandRing(13.2f, 4.8f, 4.4f, 0.6f, 3.2f)];
         foreach (var ring in hand)
         {
             rows.Add(Array.ConvertAll(ring.Points(LimbSides, 0), p => m.AddVertex(p, weights)));
@@ -270,24 +274,126 @@ internal static class BodyBuilder
         m.Density = 1.3f;
         var tip = m.AddVertex(hand[^1].Center + Left * 0.9f * k, weights);
         m.AddFan(tip, rows[^1], true, Slot.Hand, FanFacesAway(m, rows[^1], tip, hand[^2].Center));
+        m.Density = 1f;
+    }
 
-        if (toon)
+    /// <summary>Triangles each modelled hand is reduced to.</summary>
+    public const int HandTriangles = 440;
+
+    /// <summary>
+    /// The modelled hand (see <see cref="HandTemplate"/>), reduced to <see cref="HandTriangles"/>,
+    /// placed on the wrist and joined to the end of the arm by a strip of triangles.
+    /// </summary>
+    private static void BuildModelledHand(BuildContext c, MeshBuilder m, int[] wristRing)
+    {
+        var template = HandTemplate.Left;
+        var hand = template.Decimated(HandTriangles);
+        var s = c.ArmScale;
+        var origin = new Vector3(c.WristX + 0.6f * s, c.ArmY, c.ArmZ);
+        var rigid = c.Skin.Rigid("hand_l");
+        var ids = Array.ConvertAll(hand.Positions, p => m.AddVertex(origin + p * s, rigid));
+
+        c.Paint.ModelledHands = true;
+        c.Paint.HandOrigin = origin;
+        c.Paint.HandScale = s;
+        c.Paint.Nails = template.Nails;
+
+        // UVs: the triangles in groups facing the same way (by their main axis), split into connected
+        // patches, each flattened along that axis.
+        var axes = new[] { Vector3.UnitX, -Vector3.UnitX, Vector3.UnitY, -Vector3.UnitY, Vector3.UnitZ, -Vector3.UnitZ };
+        var group = new int[hand.Triangles.Length];
+        for (var f = 0; f < group.Length; f++)
         {
-            m.Density = 1f;
-            return;
+            var t = hand.Triangles[f];
+            var n = Vector3.Cross(hand.Positions[t[1]] - hand.Positions[t[0]], hand.Positions[t[2]] - hand.Positions[t[0]]);
+            var best = 0;
+            for (var x = 1; x < axes.Length; x++)
+                if (Vector3.Dot(n, axes[x]) > Vector3.Dot(n, axes[best])) best = x;
+            group[f] = best;
+        }
+        var byEdge = new Dictionary<(int, int), List<int>>();
+        for (var f = 0; f < group.Length; f++)
+        {
+            var t = hand.Triangles[f];
+            for (var e = 0; e < 3; e++)
+            {
+                var key = t[e] < t[(e + 1) % 3] ? (t[e], t[(e + 1) % 3]) : (t[(e + 1) % 3], t[e]);
+                if (!byEdge.TryGetValue(key, out var list)) byEdge[key] = list = [];
+                list.Add(f);
+            }
+        }
+        var done = new bool[group.Length];
+        for (var f0 = 0; f0 < group.Length; f0++)
+        {
+            if (done[f0]) continue;
+            var patch = new List<int[]>();
+            var stack = new Stack<int>([f0]);
+            done[f0] = true;
+            while (stack.Count > 0)
+            {
+                var f = stack.Pop();
+                var t = hand.Triangles[f];
+                patch.Add([ids[t[0]], ids[t[1]], ids[t[2]]]);
+                for (var e = 0; e < 3; e++)
+                {
+                    var key = t[e] < t[(e + 1) % 3] ? (t[e], t[(e + 1) % 3]) : (t[(e + 1) % 3], t[e]);
+                    foreach (var g in byEdge[key])
+                        if (!done[g] && group[g] == group[f0])
+                        {
+                            done[g] = true;
+                            stack.Push(g);
+                        }
+                }
+            }
+            m.AddPatch(Slot.Hand, axes[group[f0]], patch);
         }
 
-        // Thumb.
-        var hand0 = c.Skin.Rigid("hand_l");
-        var thumb = new List<Vector3>
+        // Join the arm's last ring to the hand's wrist: walk both loops round the arm axis together,
+        // always closing the triangle that advances less far.
+        var axis = new Vector3(origin.X, c.ArmY, c.ArmZ);
+        float Angle(int v) => MathF.Atan2(m.Positions[v].Z - c.ArmZ, m.Positions[v].Y - c.ArmY);
+        int[] Sorted(IEnumerable<int> loop) => loop.OrderBy(Angle).ToArray();
+        var a = Sorted(wristRing.Distinct());
+        var b = Sorted(hand.Wrist.Select(i => ids[i]));
+        var start = Angle(a[0]);
+        float Unwrapped(int v)
         {
-            new(w + 2.4f * k, c.ArmY - 3.4f * k, c.ArmZ - 0.5f * k),
-            new(w + 5.6f * k, c.ArmY - 6.2f * k, c.ArmZ - 0.9f * k),
-            new(w + 8.8f * k, c.ArmY - 7.4f * k, c.ArmZ - 1.5f * k),
-        };
-        float[] radius = [1.4f, 1.25f, 0.95f];
-        m.AddPathLoft(thumb, i => (radius[i] * k, radius[i] * k * 0.85f), Up, 5, 0, Slot.Hand, hand0, 2.4f, Cap.None, Cap.Flat, 0.7f * k);
-        m.Density = 1f;
+            var d = Angle(v) - start;
+            while (d < -MathF.PI) d += MathF.Tau;
+            while (d >= MathF.PI) d -= MathF.Tau;
+            return d;
+        }
+        // b from the vertex nearest a[0] in angle, angles made continuous from there.
+        var b0 = Enumerable.Range(0, b.Length).MinBy(j => MathF.Abs(Unwrapped(b[j])));
+        b = b.Skip(b0).Concat(b.Take(b0)).ToArray();
+        var aAngles = a.Select(v => Unwrapped(v) < 0 && v != a[0] ? Unwrapped(v) + MathF.Tau : Unwrapped(v)).ToArray();
+        var bAngles = new float[b.Length];
+        bAngles[0] = Unwrapped(b[0]);
+        for (var j = 1; j < b.Length; j++)
+        {
+            var d = Angle(b[j]) - Angle(b[j - 1]);
+            while (d < 0) d += MathF.Tau;
+            bAngles[j] = bAngles[j - 1] + d;
+        }
+        float AngleA(int i) => i < a.Length ? aAngles[i] : aAngles[0] + MathF.Tau;
+        float AngleB(int j) => j < b.Length ? bAngles[j] : bAngles[0] + MathF.Tau;
+        int A(int i) => a[i % a.Length];
+        int B(int j) => b[j % b.Length];
+        int ia = 0, ib = 0;
+        while (ia < a.Length || ib < b.Length)
+        {
+            var advanceA = ib >= b.Length || (ia < a.Length && AngleA(ia + 1) <= AngleB(ib + 1));
+            if (advanceA)
+            {
+                m.AddPolygonOutward(Slot.Hand, axis, A(ia), A(ia + 1), B(ib));
+                ia++;
+            }
+            else
+            {
+                m.AddPolygonOutward(Slot.Hand, axis, A(ia), B(ib + 1), B(ib));
+                ib++;
+            }
+        }
     }
 
     /// <summary>Whether a fan (centre, ring[i], ring[i+1]) has to be reversed to face away from a point.</summary>

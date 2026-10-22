@@ -366,7 +366,7 @@ internal sealed class BuildContext
            .Add(ElbowX + 3.5f, 4.8f, 4.6f, 4.8f)
            .Add(57f, 4.9f, 4.4f, 4.6f)
            .Add(67.5f, 3.8f, 3.1f, 3.2f)
-           .Add(WristX, 3.3f, 2.5f, 2.6f, 2.4f);
+           .Add(WristX, Toon ? 3.3f : 3.1f, Toon ? 2.5f : 1.95f, Toon ? 2.6f : 1.95f, Toon ? 2.4f : 2.2f);   // the modelled hand's wrist is 6.2 x 3.9 cm
         return arm;
     }
 

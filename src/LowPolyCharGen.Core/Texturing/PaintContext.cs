@@ -65,6 +65,14 @@ public sealed class PaintContext
     public float NeckRadius { get; init; }
     public float ArmScale { get; init; }
 
+    // ---- realistic hands (mannequin rig): hand space is the template's, see HandTemplate ----
+    /// <summary>True when the hands are the modelled hand with fingers (not the toon fist).</summary>
+    public bool ModelledHands { get; set; }
+    /// <summary>Where the left hand's space starts (its wrist) and how much it is scaled.</summary>
+    public Vector3 HandOrigin { get; set; }
+    public float HandScale { get; set; } = 1f;
+    public IReadOnlyList<Parts.HandTemplate.Nail> Nails { get; set; } = [];
+
     /// <summary>Left ankle joint.</summary>
     public Vector3 Ankle { get; init; }
 

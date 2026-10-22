@@ -9,6 +9,8 @@ using LowPolyCharGen.Fbx;
 //   lowpolychargen --variants out          one FBX per option value
 //   lowpolychargen --check                 validate every option combination's mesh and rig
 //   lowpolychargen --measure [--set ...]   body measurements against adult reference sizes
+//   lowpolychargen --make-hand dense.obj [--triangles 6000]
+//                                          reduces tools/make_hand.py's dense hand into the hand template
 //   lowpolychargen --pose-test poses.json --out-dir dir [--set ...]
 //                                          poses a Toon Soldiers character with bone poses dumped from
 //                                          the pack's animations in Unreal and writes one OBJ per frame
@@ -34,6 +36,27 @@ static int Run(string[] args)
     }
 
     if (args.Contains("--check")) return Check();
+
+    if (Option("--make-hand") is { } denseHand)
+    {
+        // The dense hand from tools/make_hand.py (or touched up in Blender), reduced to the template
+        // that ships in the Core assembly. Its comment lines (the nails) are kept.
+        var triangles = int.Parse(Option("--triangles") ?? "6000");
+        var lines = File.ReadAllLines(denseHand);
+        var hand = LowPolyCharGen.Parts.HandTemplate.Parse(new StringReader(string.Join("\n", lines)));
+        var result = Decimator.Simplify(hand.Positions, hand.Triangles, new Decimator.Options { TargetTriangles = triangles });
+        var ci = System.Globalization.CultureInfo.InvariantCulture;
+        var templatePath = Option("--out") ?? Path.Combine("src", "LowPolyCharGen.Core", "Assets", "hand_l.obj");
+        using (var writer = new StreamWriter(templatePath) { NewLine = "\n" })
+        {
+            foreach (var line in lines.Where(l => l.StartsWith('#'))) writer.WriteLine(line);
+            writer.WriteLine($"# reduced to {result.Triangles.Length} triangles by lowpolychargen --make-hand");
+            foreach (var p in result.Positions) writer.WriteLine(string.Format(ci, "v {0:F3} {1:F3} {2:F3}", p.X, p.Y, p.Z));
+            foreach (var t in result.Triangles) writer.WriteLine($"f {t[0] + 1} {t[1] + 1} {t[2] + 1}");
+        }
+        Console.WriteLine($"{templatePath}: {hand.Triangles.Length} -> {result.Triangles.Length} triangles");
+        return 0;
+    }
 
     if (args.Contains("--measure"))
     {

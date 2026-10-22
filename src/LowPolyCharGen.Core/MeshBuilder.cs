@@ -291,6 +291,24 @@ public sealed class MeshBuilder(Skeleton skeleton)
     }
 
     /// <summary>
+    /// Adds polygons that are already wound counter-clockwise from outside as one chart, flattened
+    /// along <paramref name="view"/> (for pieces of a modelled mesh, such as the hand).
+    /// </summary>
+    public void AddPatch(Slot slot, Vector3 view, IReadOnlyList<int[]> polygons)
+    {
+        var all = polygons.SelectMany(p => p).Distinct().ToArray();
+        var (flat, w, h) = Flatten(all, Vector3.Normalize(view));
+        var chart = NewChart(w, h);
+        var lookup = new Dictionary<int, int>(all.Length);
+        for (var i = 0; i < all.Length; i++) lookup[all[i]] = i;
+        foreach (var v in polygons)
+        {
+            var uv = Array.ConvertAll(v, i => flat[lookup[i]]);
+            Emit(slot, chart, false, v, uv);
+        }
+    }
+
+    /// <summary>
     /// Adds the quads of a vertex grid (rows of equal length) and unwraps them into one rectangular
     /// chart. Repeated vertices are allowed: the affected quads become triangles or vanish.
     /// </summary>

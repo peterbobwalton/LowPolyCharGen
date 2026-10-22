@@ -270,6 +270,7 @@ internal sealed partial class Painter
 
     private Vector3 Hand(in Texel t)
     {
+        if (_c.ModelledHands) return ModelledHand(t);
         var p = t.P;
         var k = _c.ArmScale;
         var along = (MathF.Abs(p.X) - _c.WristX) / k;        // from the wrist to the fingertips
@@ -303,6 +304,45 @@ internal sealed partial class Painter
             {
                 color *= 1f - 0.12f * Line(along - 5.2f + 0.25f * across, 0.08f, 0.07f);   // palm crease
             }
+        }
+        return color;
+    }
+
+    /// <summary>
+    /// The modelled hand: skin (or glove) with a lighter, pinker palm, and nails on the fingertips,
+    /// found from the template's nail landmarks in hand space.
+    /// </summary>
+    private Vector3 ModelledHand(in Texel t)
+    {
+        var s = _c.HandScale;
+        var side = MathF.Sign(t.P.X);
+        var q = new Vector3((MathF.Abs(t.P.X) - _c.HandOrigin.X) / s, (t.P.Y - _c.HandOrigin.Y) / s, (t.P.Z - _c.HandOrigin.Z) / s);
+        var n = t.N with { X = t.N.X * side };
+        var gloved = _spec.Gloves;
+        var color = gloved ? GloveColor(t.P) : SkinTone(t.P);
+        if (gloved) return color;
+
+        // Palm and the undersides of the fingers: lighter and a little pinker.
+        var palm = SmoothStep(-0.2f, -0.6f, n.Z);
+        color = Mix(color, color * new Vector3(1.06f, 0.97f, 0.95f) + new Vector3(0.025f), palm);
+
+        foreach (var nail in _c.Nails)
+        {
+            var d = q - nail.Tip;
+            var along = Vector3.Dot(d, nail.Along) / nail.Radius;        // 0 at the tip's centre, about +1 at the very end
+            var across = Vector3.Dot(d, Vector3.Normalize(Vector3.Cross(nail.Along, nail.Up))) / nail.Radius;
+            var facing = Vector3.Dot(n, nail.Up);
+            if (facing < 0.25f || along < -1.9f || along > 1.2f) continue;
+            // A rounded rectangle on the back of the last bone, from just short of the end back about a centimetre.
+            var u = (along + 0.45f) / 0.95f;                              // -1 .. 1 over the nail's length
+            var v = across / 0.62f;                                        // -1 .. 1 over its width
+            var r = MathF.Pow(MathF.Pow(MathF.Abs(u), 4f) + MathF.Pow(MathF.Abs(v), 2.5f), 1f / 4f);
+            if (r > 1.12f) continue;
+            var nailColor = _skin * new Vector3(1.05f, 0.92f, 0.92f) + new Vector3(0.09f, 0.07f, 0.07f);
+            var inside = SmoothStep(1.0f, 0.9f, r);
+            color = Mix(color, color * 0.82f, SmoothStep(1.12f, 1.0f, r) * (1f - inside));   // cuticle edge
+            color = Mix(color, nailColor, inside);
+            if (u > 0.55f) color = Mix(color, color + new Vector3(0.10f), inside * SmoothStep(0.55f, 0.8f, u));   // free edge
         }
         return color;
     }

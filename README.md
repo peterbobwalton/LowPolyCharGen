@@ -46,6 +46,16 @@ Men have a fit, natural build (chest only a little wider than the waist); women 
 a two-form bust, a defined waist and fuller hips and seat. The jaw has a level underside before it turns
 into the neck, so the chin stands clear of the throat. The Toon Soldiers rig keeps its own chunky trunk.
 
+**Hands.** On the mannequin rig the hands are modelled, not generated: `tools/make_hand.py` builds a
+dense, realistic left hand (tapered fingers with full rounded tips, knuckles, palm pads, a relaxed
+thumb) as a distance field meshed with marching cubes, about 174,000 triangles. Look at it or touch
+it up in Blender, then `lowpolychargen --make-hand hand_dense.obj` reduces it to the 6,000-triangle
+template in `src/LowPolyCharGen.Core/Assets/hand_l.obj`. Each character's hands are decimated from
+that template to `BodyBuilder.HandTriangles` (440) by the generator's own decimator (`Decimator.cs`,
+quadric edge collapse: triangles go where the surface curves), placed on the wrist and stitched to
+the arm. The painter adds nails from landmarks stored in the template. Toon characters keep the
+pack's block fist.
+
 **Mesh.** Hips, torso, neck, head, arms, hands and legs are one continuous surface (about 800
 vertices), so shoulders and hips deform without gaps. Only the left half is modelled; it is mirrored
 and welded along the centre line. The head is a sculpted grid whose jaw line is a hard edge over a
@@ -118,7 +128,8 @@ light, broad brush-like value patches and muted warm colours.
   thigh/calf/foot/ball_l/r` plus the optional `ik_foot_*` / `ik_hand_*` bones. Names, hierarchy,
   joint positions and bone orientations are the UE5 mannequin's (`SK_Mannequin`). Trunk and leg
   bones are identical to its reference pose; the arms are rotated out to a T-pose with the bone
-  lengths kept. Finger and twist bones are not included (fingers are painted on a mitten hand).
+  lengths kept. Finger and twist bones are not included: the modelled hands are rigid on `hand_l/r`,
+  in a relaxed pose.
 * Men are the mannequin's size: same joint positions, 181 cm tall at head size 1.0. Women get their own
   frame on the same bones (as Quinn shares Manny's skeleton): 168 cm tall with narrower shoulders, made by
   moving the joints (`BodyFrame.cs`). Pick `SK_Mannequin` on import and the animations still apply.
@@ -148,6 +159,7 @@ lowpolychargen --random 20 --out-dir out --seed 7
 lowpolychargen --variants out        # one FBX per option value
 lowpolychargen --check               # validates both rigs, body proportions and a few hundred generated meshes
 lowpolychargen --measure             # body measurements of the plain man and woman against adult reference sizes
+lowpolychargen --make-hand out/hand_dense.obj   # rebuild the hand template from tools/make_hand.py's dense hand
 lowpolychargen --pose-test poses.json --out-dir poses --set Hat=Boonie
                                      # skins a Toon Soldiers character with bone poses dumped from
                                      # the pack's animations in Unreal and writes one OBJ per frame
@@ -169,7 +181,10 @@ src/LowPolyCharGen.Core     generator and exporter, no UI dependencies
   Skinning.cs                 weight functions (rigid, bone chains with cross-fades, blends)
   BodyFrame.cs                gives a character its own height and shoulder width on the mannequin bones
   Anthropometry.cs            measures a mesh (neck, chest, waist, hips, thigh) against adult reference sizes
+  Decimator.cs                quadric edge-collapse decimator (dense model -> triangle budget)
+  Assets/hand_l.obj           the hand template (from tools/make_hand.py via --make-hand)
   Parts/BodyBuilder.cs        the welded body: hips, torso, neck, arms, hands, legs, boots
+  Parts/HandTemplate.cs       loads, decimates (cached) and describes the modelled hand
   Parts/HeadBuilder.cs        skull and face shapes, ears, hair, hats, eyewear
   Parts/GearBuilder.cs        vests, backpacks, belt kit
   Texturing/Painter*.cs       the procedural painter (face, clothes, materials)
