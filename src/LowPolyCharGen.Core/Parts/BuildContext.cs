@@ -49,8 +49,8 @@ internal sealed class BuildContext
     public Profile Torso { get; }
     public Profile Hips => Torso;
     public Profile Head { get; }
-    public Limb ArmL { get; }
-    public Limb LegL { get; }
+    public Limb ArmL { get; private set; }
+    public Limb LegL { get; private set; }
 
     /// <summary>Pelvis, spine, neck and head blended by height.</summary>
     public WeightFn Spine { get; }
@@ -288,7 +288,24 @@ internal sealed class BuildContext
             var trunkNames = new[] { "pelvis", "spine_01", "spine_02", "spine_03", "clavicle_l", "clavicle_r" };
             var headVerts = used.Where(v => Is(v, "head")).ToArray();
 
-            Torso = MeasuredProfile(Torso.Sections.Select(x => x.Z), used.Where(v => Is(v, trunkNames)).Select(v => pos[v]).ToArray(), 2.4f, false);
+            // The hips take the tops of the thighs in too, or the bottom of the torso narrows to a point.
+            var measured = MeasuredProfile(Torso.Sections.Select(x => x.Z),
+                used.Where(v => Is(v, trunkNames) || (Is(v, "thigh_l", "thigh_r") && pos[v].Z > 77f)).Select(v => pos[v]).ToArray(), 2.4f, false);
+            // Its widths and depths, on the designed torso's upright centre line: the fitted body's
+            // own posture leaned the chest back and the neck forward.
+            var design = Torso;
+            Torso = new Profile();
+            foreach (var m in measured.Sections)
+            {
+                var d = design.At(m.Z);
+                // Under the arms the measurement takes in the shoulder muscles the arm rings
+                // already make: no wider than a little over the design there.
+                var width = m.Z > 115f ? MathF.Min(m.HalfWidth, d.HalfWidth * 1.06f) : m.HalfWidth;
+                Torso.Add(m.Z, -d.CenterY, width, m.Front, m.Back, m.Exp);
+            }
+            // Arms and legs: the same rings as the generated body, measured off the realistic one.
+            ArmL = MeasuredLimb(ArmL, used.Where(v => Is(v, "upperarm_l", "lowerarm_l") && pos[v].X > 0f).Select(v => pos[v]).ToArray(), true);
+            LegL = MeasuredLimb(LegL, used.Where(v => Is(v, "thigh_l", "calf_l") && pos[v].X > 0f).Select(v => pos[v]).ToArray(), false);
             var chinZ = headVerts.Where(v => MathF.Abs(pos[v].X) < 1.5f && pos[v].Y < Human.Joint("joint-head").Y - 3f).Min(v => pos[v].Z);
             var topZ = headVerts.Max(v => pos[v].Z);
             ChinZ = chinZ;
@@ -375,6 +392,56 @@ internal sealed class BuildContext
     /// Sections measured off a mesh: at each height, the extent of the points within a centimetre of
     /// it. With <paramref name="skipEars"/> the width is taken from the front and back of the head only.
     /// </summary>
+    /// <summary>
+    /// A limb with the same stations as <paramref name="design"/>, its centre and radii measured
+    /// from <paramref name="points"/> (an arm along x, a leg along z).
+    /// </summary>
+    private static Limb MeasuredLimb(Limb design, Vector3[] points, bool arm)
+    {
+        var stations = design.Stations.ToArray();
+        var centres = new List<(float T, Vector3 C)>();
+        var radii = new List<(float T, float Ru, float RvPos, float RvNeg)>();
+        foreach (var t in stations)
+        {
+            Vector3[] near = [];
+            for (var band = 0.8f; band < 8f && near.Length < 8; band *= 1.6f)
+                near = points.Where(p => MathF.Abs((arm ? p.X : p.Z) - t) < band).ToArray();
+            if (near.Length < 4) continue;
+            float minX = near.Min(p => p.X), maxX = near.Max(p => p.X);
+            float minY = near.Min(p => p.Y), maxY = near.Max(p => p.Y);
+            float minZ = near.Min(p => p.Z), maxZ = near.Max(p => p.Z);
+            if (arm)
+            {
+                var cy = (minY + maxY) / 2f;
+                var cz = (minZ + maxZ) / 2f;
+                centres.Add((t, new Vector3(t, cy, cz)));
+                radii.Add((t, (maxY - minY) / 2f, maxZ - cz, cz - minZ));
+            }
+            else
+            {
+                var cx = (minX + maxX) / 2f;
+                var cy = (minY + maxY) / 2f;
+                centres.Add((t, new Vector3(cx, cy, t)));
+                radii.Add((t, (maxX - minX) / 2f, maxY - cy, cy - minY));
+            }
+        }
+        if (centres.Count < 2) return design;
+        var designCentre = design.Center;
+        Vector3 Centre(float t)
+        {
+            if (t <= centres[0].T) return centres[0].C + (designCentre(t) - designCentre(centres[0].T));
+            if (t >= centres[^1].T) return centres[^1].C + (designCentre(t) - designCentre(centres[^1].T));
+            for (var i = 0; i + 1 < centres.Count; i++)
+                if (t <= centres[i + 1].T)
+                    return Vector3.Lerp(centres[i].C, centres[i + 1].C, (t - centres[i].T) / (centres[i + 1].T - centres[i].T));
+            return centres[^1].C;
+        }
+        var limb = new Limb { Center = Centre, U = design.U, V = design.V, Scale = 1f, Clothing = design.Clothing };
+        foreach (var (t, ru, rvp, rvn) in radii)
+            limb.Add(t, MathF.Max(0.5f, ru), MathF.Max(0.5f, rvp), MathF.Max(0.5f, rvn), 2.2f);
+        return limb;
+    }
+
     private static Profile MeasuredProfile(IEnumerable<float> heights, Vector3[] points, float exp, bool skipEars)
     {
         var profile = new Profile();

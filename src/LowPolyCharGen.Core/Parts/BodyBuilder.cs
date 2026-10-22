@@ -20,17 +20,9 @@ internal static class BodyBuilder
         var legRings = ConfigureLegs(c);
         var armRings = ConfigureArms(c);
 
-        if (c.Realistic)
-        {
-            // The modelled body replaces the lofted one; clothing that changes the silhouette is
-            // still added on top.
-            RealisticBody.Build(c);
-            if (c.Spec.Legs == LegsStyle.Skirt) BuildSkirt(c);
-            if (c.Spec.Legs == LegsStyle.Thobe) BuildThobe(c);
-            if (c.Spec.Scarf || c.Spec.FaceCover == FaceCover.Shemagh) BuildScarf(c);
-            return;
-        }
-
+        // The realistic body is built the same way as the generated one, from the same few designed
+        // rings and planes: its torso, head, arms and legs are measured off the MakeHuman body (see
+        // BuildContext), so it has realistic proportions with the generator's clean low-poly layout.
         c.Mesh.MirroredWelded(m =>
         {
             var torso = BuildTorsoHalf(c, m);
@@ -291,6 +283,9 @@ internal static class BodyBuilder
     /// <summary>Triangles each modelled hand is reduced to.</summary>
     public const int HandTriangles = 440;
 
+    /// <summary>Triangles each hand of the realistic body is reduced to.</summary>
+    public const int RealisticHandTriangles = 180;
+
     /// <summary>
     /// The modelled hand (see <see cref="HandTemplate"/>), reduced to <see cref="HandTriangles"/>,
     /// placed on the wrist and joined to the end of the arm by a strip of triangles.
@@ -298,11 +293,37 @@ internal static class BodyBuilder
     private static void BuildModelledHand(BuildContext c, MeshBuilder m, int[] wristRing)
     {
         var template = HandTemplate.Left;
-        var hand = template.Decimated(HandTriangles);
+        // With finger bones (the realistic body) the hand is lighter, like the rest of that body, and
+        // each finger follows its own bones.
+        var fingers = c.Skeleton.HasFingers;
+        var hand = template.Decimated(fingers ? RealisticHandTriangles : HandTriangles);
         var s = c.ArmScale;
         var origin = new Vector3(c.WristX + 0.6f * s, c.ArmY, c.ArmZ);
         var rigid = c.Skin.Rigid("hand_l");
-        var ids = Array.ConvertAll(hand.Positions, p => m.AddVertex(origin + p * s, rigid));
+        WeightFn WeightAt(Vector3 p)
+        {
+            if (!fingers) return rigid;
+            // The nearest finger bone segment, once past the knuckles; the palm stays on the hand.
+            var bestName = "hand_l";
+            var bestD = float.MaxValue;
+            foreach (var bone in c.Skeleton.Bones)
+            {
+                var n = bone.Name;
+                if (!n.EndsWith("_l") || n.Contains("metacarpal") || !(n.StartsWith("thumb") || n.StartsWith("index") || n.StartsWith("middle") || n.StartsWith("ring") || n.StartsWith("pinky"))) continue;
+                var child = c.Skeleton.Bones.FirstOrDefault(b => b.Parent == bone.Index);
+                var a = bone.Position;
+                var b2 = child?.Position ?? a + (a - c.Skeleton.Bones[bone.Parent].Position) * 0.8f;
+                var ab = b2 - a;
+                var t = Math.Clamp(Vector3.Dot(p - a, ab) / MathF.Max(ab.LengthSquared(), 1e-6f), 0f, 1f);
+                var d = Vector3.DistanceSquared(p, a + ab * t);
+                // Before the start of a finger's first bone is palm, not finger.
+                if (Vector3.Dot(p - a, ab) < -0.3f && (n.EndsWith("_01_l"))) d += 4f;
+                if (d < bestD) { bestD = d; bestName = n; }
+            }
+            if (bestD > 2.5f * 2.5f) bestName = "hand_l";
+            return c.Skin.Rigid(bestName);
+        }
+        var ids = Array.ConvertAll(hand.Positions, p => { var at = origin + p * s; return m.AddVertex(at, WeightAt(at)); });
 
         c.Paint.ModelledHands = true;
         c.Paint.HandOrigin = origin;
