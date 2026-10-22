@@ -57,11 +57,14 @@ internal static class HeadBuilder
                 if (j == 1 && r == 4) p.X = c.NoseHalfWidth * 0.55f * s;
                 // Cheekbone.
                 if (j == 3 && r == 3) p += Vector3.Normalize(new Vector3(p.X, p.Y - c.HeadCenter.Y, 0)) * (0.3f * s);
+                // The middle of the eye is the middle of BuildEyePlate's plate.
+                if (j == 2 && r == 4) p = EyePlate(c).Centre;
                 grid[r][j] = m.AddVertex(p, head);
             }
         }
-        m.AddGridFacesOutward(grid, false, Slot.Head, c.HeadCenter, (r, j) => j == 0 && r is 2 or 3);
+        m.AddGridFacesOutward(grid, false, Slot.Head, c.HeadCenter, (r, j) => (j == 0 && r is 2 or 3) || (j is 1 or 2 && r is 3 or 4));
         BuildNose(c, m, grid);
+        BuildEyePlate(c, m, grid);
 
         var crown = m.AddVertex(new Vector3(0, c.HeadCenter.Y, c.HeadZ(1f)), head);
         for (var j = 0; j + 1 < angles.Length; j++)
@@ -129,6 +132,51 @@ internal static class HeadBuilder
         // The painter puts the nostrils on the underside of the tip, a little in from the back.
         var nostril = Vector3.Lerp(m.Positions[b1], m.Positions[t1], 0.3f) with { X = m.Positions[b1].X * 0.75f };
         c.Paint.Nostril = new Vector2(nostril.X / s, (nostril.Z - c.ChinZ) / s);
+    }
+
+    /// <summary>
+    /// Where the flat plate the eye is painted on sits: from the inner corner of the eye out past the
+    /// iris, set into the skull at the depth of the eye. Its X and Z are the painter's eye, so the
+    /// paint lines up with it.
+    /// </summary>
+    private static (Vector3 Centre, float Inner, float Outer, float Low, float High, float Y) EyePlate(BuildContext c)
+    {
+        var s = c.HeadScale;
+        var x = c.Paint.EyeX;
+        var z = c.Paint.EyeZ;
+        // Halfway between the cheek vertex under the eye and the skull vertex beside the bridge of the
+        // nose, so neither the cheek below nor the side of the nose makes a ledge that catches the light.
+        var cheek = c.Head.Surface(c.HeadZ(c.HeadRowT(3, 2)), BuildContext.HeadTheta(BuildContext.HeadAngles[2])).Y - 0.15f * s;
+        var bridge = c.Head.Surface(c.HeadZ(c.HeadRowT(4, 1)), BuildContext.HeadTheta(BuildContext.HeadAngles[1])).Y + 0.2f * s;
+        var y = (cheek + bridge) / 2f;
+        return (new Vector3(x, y, z), x - 1.65f * s, x + 1.0f * s, z - 0.45f * s, z + 0.75f * s, y);
+    }
+
+    /// <summary>
+    /// The eye: a flat plate facing straight forward in place of the four skull quads round the middle
+    /// of the eye, so the two eyes are parallel and look ahead instead of following the skull round
+    /// (which made them look cross-eyed). The outer corner of the eye wraps round on the ring of
+    /// polygons that joins the plate to the skull's own vertices, so there are no cracks.
+    /// </summary>
+    private static void BuildEyePlate(BuildContext c, MeshBuilder m, int[][] grid)
+    {
+        var e = EyePlate(c);
+        int Corner(float x, float z) => m.AddVertex(new Vector3(x, e.Y, z), c.HeadRigid);
+        var p0 = Corner(e.Inner, e.Low);
+        var p1 = Corner(e.Outer, e.Low);
+        var p2 = Corner(e.Outer, e.High);
+        var p3 = Corner(e.Inner, e.High);
+        int g31 = grid[3][1], g32 = grid[3][2], g33 = grid[3][3], g41 = grid[4][1], g42 = grid[4][2], g43 = grid[4][3];
+        int g51 = grid[5][1], g52 = grid[5][2], g53 = grid[5][3];
+
+        m.AddPatchOutward(Slot.Head, c.HeadCenter, Front + Left * 0.35f,
+            [g42, p0, p1], [g42, p1, p2], [g42, p2, p3], [g42, p3, p0],   // the plate
+            // The skull's middle row sits level with the top of the plate, so each side is a fan
+            // from that row's vertex rather than a quad that would twist.
+            [g41, g31, p0], [g31, g32, p1, p0], [g32, g33, p1],           // below
+            [g33, g43, p1], [g43, p2, p1], [g43, g53, p2],                // outer corner
+            [g53, g52, p3, p2], [g52, g51, p3],                           // above
+            [g41, p0, p3], [g51, g41, p3]);                               // beside the nose
     }
 
     /// <summary>
