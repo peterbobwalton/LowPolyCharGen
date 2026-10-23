@@ -44,6 +44,24 @@ ROWS = [
         (KIT + "Mil_Balaclava", MW + "SM_weapon_mac10", "Militia", "balaclava"),
     ],
 ]
+# The pack's 44 prebuilt characters, each with its kit rebuild (tools/pack_prebuilts.txt, imported to
+# /Game/LowPolyCharGen/Kit/Pack) right behind it: rows of 11, original in front.
+PACK_KIT = "/Game/LowPolyCharGen/Kit/Pack/SK_LPCG_Pack_"
+PREBUILTS = (["Armies_" + n for n in ("Engineer", "OffDuty", "Officer", "Recon_A", "Recon_B", "Sniper_A", "Sniper_B",
+                                      "Soldier_A", "Soldier_B", "Soldier_C")]
+             + ["SpecOps_" + n for n in ("Officer", "Recon_A", "Recon_B", "Recon_C", "Sniper_A", "Sniper_B",
+                                         "Soldier_A", "Soldier_B", "Soldier_C", "Support")]
+             + ["Militia%02d" % i for i in range(1, 25)])
+for start in range(0, len(PREBUILTS), 11):
+    names = PREBUILTS[start:start + 11]
+    original, rebuilt = [], []
+    for n in names:
+        militia = n.startswith("Militia")
+        folder = (MILITIA if militia else ARMIES) + "/Meshes/Characters_Prebuilt/SK_"
+        weapon = MW + "SM_weapon_ak47" if militia else AW + "SM_m4"
+        original.append((folder + n, weapon, n, "pack prebuilt"))
+        rebuilt.append((PACK_KIT + n, weapon, n, "kit rebuild"))
+    ROWS += [original, rebuilt]
 ANIMS = ARMIES + "/Animations/"
 # Weapons that aren't held like a rifle get the pack's own idle for them (rifles use the C++ locomotion idle).
 WEAPON_IDLE = {
