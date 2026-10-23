@@ -8,12 +8,15 @@ namespace LowPolyCharGen.Kit;
 /// </summary>
 public static class HairPieces
 {
-    public static bool IsHair(PackPart part) => part.Name is "Ponytail" or "Bun" or "LongHair";
+    public static bool IsHair(PackPart part) => part.Name is "Ponytail" or "Bun" or "LongHair" or "Turban" or "Keffiyeh" or "Thobe";
+
+    /// <summary>True if the head has no headgear: nothing above the skull or wider than the ears.</summary>
+    public static bool IsBare(PackPart head) => !head.Positions.Any(p => p.Z > 181.5f || MathF.Abs(p.X) > 12.5f);
 
     public static PackPart? For(CharacterSpec spec, PackPart head)
     {
         // Long hair and bobs fit bare heads only; under headgear they fall back to a ponytail (women).
-        var bare = !head.Positions.Any(p => p.Z > 181.5f || MathF.Abs(p.X) > 12.5f);
+        var bare = IsBare(head);
         if (bare && spec.Hair is HairStyle.Long or HairStyle.Bob)
             return LongHair(head, spec.Hair == HairStyle.Long ? 146f : 155.5f);
         if (spec.Gender != Gender.Female) return null;
@@ -34,7 +37,7 @@ public static class HairPieces
     /// casting rays at it) with a straight fringe, open round the face, hanging straight down to
     /// <paramref name="bottomZ"/> with a slight flare, and given thickness below the fringe.
     /// </summary>
-    private static PackPart LongHair(PackPart head, float bottomZ)
+    internal static PackPart LongHair(PackPart head, float bottomZ, string name = "LongHair", float u0 = FacePainter.HairStripU, float u1 = FacePainter.HatStripU, float thickness = 1.5f)
     {
         const int columns = 14;
         var origin = new Vector3(0, -1.5f, 166f);
@@ -74,7 +77,7 @@ public static class HairPieces
             {
                 var theta = start + (MathF.Tau - 2 * start) * c / columns;
                 var dir = Dir(theta, phi);
-                var offset = 1.5f + 0.5f * (1 - MathF.Abs(MathF.Cos(theta)));   // fuller at the sides
+                var offset = thickness + 0.5f * (1 - MathF.Abs(MathF.Cos(theta)));   // fuller at the sides
                 row[c] = origin + dir * (Hit(dir) + offset);
             }
             rows.Add(row);
@@ -100,10 +103,10 @@ public static class HairPieces
         var normals = new List<Vector3>();
         var uvs = new List<Vector2>();
         var tris = new List<int[]>();
-        float U(int c) => FacePainter.HairStripU + 0.02f + (0.97f - FacePainter.HairStripU) * c / columns;
-        float V(int r) => 0.98f - 0.96f * r / rows.Count;
+        float U(int c) => u0 + 0.01f + (u1 - u0 - 0.02f) * c / columns;
+        float V(int r) => 0.98f - 0.88f * r / rows.Count;
         // Crown point and outer shell.
-        var crown = origin + Vector3.UnitZ * (Hit(Vector3.UnitZ) + 1.5f);
+        var crown = origin + Vector3.UnitZ * (Hit(Vector3.UnitZ) + thickness);
         positions.Add(crown); normals.Add(Vector3.UnitZ); uvs.Add(new Vector2(U(columns / 2), 0.99f));
         var outer = new int[rows.Count, columns + 1];
         for (var r = 0; r < rows.Count; r++)
@@ -157,7 +160,7 @@ public static class HairPieces
         var weights = positions.Select(p => p.Z > 152f
             ? new[] { ("Bip001-Head", 1f) }
             : new[] { ("Bip001-Head", 0.6f), ("Bip001-Neck", 0.4f) }).ToList();
-        return new PackPart { Name = "LongHair", Positions = positions, Normals = normals, Uvs = uvs, Triangles = tris, Weights = weights };
+        return new PackPart { Name = name, Positions = positions, Normals = normals, Uvs = uvs, Triangles = tris, Weights = weights };
     }
 
     /// <summary>A tapering tube of rings along a path (closed at the tip, open at the root inside the head).</summary>
@@ -178,7 +181,7 @@ public static class HairPieces
                 var dir = side * MathF.Cos(a) + up * MathF.Sin(a);
                 positions.Add(path[r] + dir * radii[r]);
                 normals.Add(dir);
-                uvs.Add(new Vector2(FacePainter.HairStripU + 0.02f + (0.97f - FacePainter.HairStripU) * s / sides, 0.98f - 0.96f * r / (path.Length - 1)));
+                uvs.Add(new Vector2(FacePainter.HairStripU + 0.01f + (FacePainter.HatStripU - FacePainter.HairStripU - 0.02f) * s / sides, 0.98f - 0.88f * r / (path.Length - 1)));
             }
         }
         var row = sides + 1;

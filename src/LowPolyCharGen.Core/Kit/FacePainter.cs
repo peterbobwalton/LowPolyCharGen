@@ -19,6 +19,10 @@ public sealed class FacePainter
     public const int Size = 512;
     /// <summary>Left edge (texture u) of the hair strip.</summary>
     public const float HairStripU = 0.8f;
+    /// <summary>Left edge of the headwear cloth strip (turban, keffiyeh); its bottom (v &lt; 0.06) is black.</summary>
+    public const float HatStripU = 0.87f;
+    /// <summary>Left edge of the garment cloth strip (thobe).</summary>
+    public const float GarmentStripU = 0.935f;
 
     private static readonly Rgb DefaultSkin = Rgb.FromHex("#D9A274");
     private static readonly Rgb DefaultHair = Rgb.FromHex("#4A3222");
@@ -262,6 +266,7 @@ public sealed class FacePainter
                 c = Mix(c, _hair * shade, hairness);
             }
 
+            if (!_female) FacialHair(ref c, u, z, y, skinness * (1 - hairness));
             var k = front * skinness * (1 - hairness);
             if (k <= 0.001f) return Vector3.Clamp(c, Vector3.Zero, Vector3.One);
 
@@ -299,32 +304,36 @@ public sealed class FacePainter
         {
             // Lighter eye sockets, so the eyes read; the brow keeps its weight.
             c = Mix(c, _skin * 0.9f, Ellipse(u, z, 4.1f, 166.4f, 2.6f, 1.3f, 0.6f) * k * 0.55f);
+        }
 
+        /// <summary>
+        /// Facial hair, over the jaw, chin and cheeks and up the sideburns to the ears (beyond the front
+        /// of the face), in the hair colour shaded by the pack's own face shading, with strands.
+        /// </summary>
+        private void FacialHair(ref Vector3 c, float u, float z, float y, float skin)
+        {
             var facial = _spec.FacialHair;
-            if (facial == FacialHair.None) return;
-            var beardColor = _hair * 0.85f;
-            var noise = 0.75f + 0.25f * MathF.Sin(u * 37.1f + z * 11.3f) * MathF.Sin(u * 13.7f - z * 29.9f);
+            if (facial == LowPolyCharGen.FacialHair.None || skin <= 0.001f) return;
+            var bushy = facial == LowPolyCharGen.FacialHair.BushyBeard;
+            var side = S((y + 11f) / 6f);                                          // 0 on the face, 1 on the side of the head
+            var top = 158.4f + 1.8f * S((u - 2.8f) / 2.5f) + side * 5.2f + (bushy ? 0.5f : 0f);
+            var bottom = float.Lerp(bushy ? 146f : 147.6f, 151.5f, side);
+            var behindEar = S((1.5f - y) / 1.5f);
             var lips = Ellipse(u, z, 0, 156.7f, 2.5f, 0.75f, 0.4f);
-            var jawArea = S((158.2f - z) / 0.6f) * S((z - 149.6f) / 0.6f) * (1 - lips);
-            var moustache = Stroke(u, z, [new(0, 158f, 0.9f), new(2.2f, 157.8f, 0.8f), new(3f, 156.6f, 0.45f)], 0.15f);
-            var goatee = Ellipse(u, z, 0, 152.6f, 2.4f, 2.6f, 0.4f) * (1 - lips);
-            switch (facial)
+            var area = S((top - z) / 0.7f) * S((z - bottom) / 0.8f) * behindEar * (1 - lips);
+            var moustache = Stroke(u, z, [new(0, 158f, 0.9f), new(2.2f, 157.8f, 0.8f), new(3f, 156.6f, 0.45f)], 0.15f) * (1 - side);
+            var goatee = Ellipse(u, z, 0, 152.6f, 2.4f, 2.6f, 0.4f) * (1 - lips) * (1 - side);
+            var strands = 0.82f + 0.18f * MathF.Sin(u * 37.1f + z * 11.3f) * MathF.Sin(u * 13.7f - z * 29.9f);
+            var shade = Math.Clamp(Lum(c) / Lum(_skin), 0.45f, 1.15f);
+            var beard = _hair * shade * strands;
+            var cover = facial switch
             {
-                case FacialHair.Stubble:
-                    c = Mix(c, beardColor, (jawArea * 0.32f + moustache * 0.1f) * noise * k);
-                    break;
-                case FacialHair.Moustache:
-                    c = Mix(c, beardColor, moustache * 0.92f * k);
-                    break;
-                case FacialHair.Goatee:
-                    c = Mix(c, beardColor, MathF.Max(moustache, goatee) * 0.9f * noise * k);
-                    break;
-                case FacialHair.Beard:
-                case FacialHair.BushyBeard:
-                    var full = MathF.Max(jawArea, moustache) * (facial == FacialHair.BushyBeard ? 1f : 0.88f);
-                    c = Mix(c, beardColor * (facial == FacialHair.BushyBeard ? 0.85f : 1f), full * (0.85f + 0.15f * noise) * k);
-                    break;
-            }
+                LowPolyCharGen.FacialHair.Stubble => (area * 0.3f + moustache * 0.1f) * strands,
+                LowPolyCharGen.FacialHair.Moustache => moustache * 0.92f,
+                LowPolyCharGen.FacialHair.Goatee => MathF.Max(moustache, goatee) * 0.9f,
+                _ => MathF.Max(area, moustache) * (bushy ? 1f : 0.9f),
+            };
+            c = Mix(c, beard, cover * skin);
         }
 
         private void Eyes(ref Vector3 c, float u, float z, float k)
@@ -350,12 +359,45 @@ public sealed class FacePainter
         /// <summary>Hair for the hair pieces: the colour with strands running down (v).</summary>
         public void HairStrip(Vector3[] color)
         {
-            var x0 = (int)(HairStripU * Size) + 2;
+            int hair0 = (int)(HairStripU * Size) + 1, hat0 = (int)(HatStripU * Size), garment0 = (int)(GarmentStripU * Size);
+            var hat = ToVec(_spec.HatColor);
+            var accent = ToVec(_spec.AccentColor);
+            var cloth = ToVec(_spec.ShirtColor);
+            var checks = _spec.Hat == HatStyle.Keffiyeh;
             for (var y = 0; y < Size; y++)
-                for (var x = x0; x < Size; x++)
+                for (var x = hair0; x < Size; x++)
                 {
-                    var s = 0.82f + 0.12f * MathF.Sin(x * 0.9f) * MathF.Sin(x * 0.37f + 1.3f) + 0.06f * MathF.Sin(y * 0.05f + x * 0.3f);
-                    color[y * Size + x] = _hair * s;
+                    Vector3 c;
+                    if (x < hat0)
+                    {
+                        var s = 0.82f + 0.12f * MathF.Sin(x * 0.9f) * MathF.Sin(x * 0.37f + 1.3f) + 0.06f * MathF.Sin(y * 0.05f + x * 0.3f);
+                        c = _hair * s;
+                    }
+                    else if (x < garment0)
+                    {
+                        if (y > Size * 0.94f) c = new Vector3(0.06f, 0.055f, 0.05f);   // agal (black cord)
+                        else
+                        {
+                            // Wrapped cloth: a fold band per row of the wrap, a shadow between bands.
+                            var band = y / (Size * 0.88f / 6f);
+                            var f = band - MathF.Floor(band);
+                            var shade = 0.78f + 0.3f * MathF.Sin(f * MathF.PI) - 0.06f * MathF.Sin(x * 0.6f);
+                            c = hat * shade;
+                            if (checks)
+                            {
+                                // Keffiyeh: a woven check in the accent colour.
+                                bool a = ((x / 3) + (y / 3)) % 4 == 0, b = ((x / 3) - (y / 3) + 1000) % 4 == 0;
+                                if (a || b) c = Vector3.Lerp(c, accent * shade, 0.85f);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Garment: vertical folds.
+                        var shade = 0.86f + 0.1f * MathF.Sin((x - garment0) * 0.45f) + 0.05f * MathF.Sin((x - garment0) * 1.3f + y * 0.01f);
+                        c = cloth * shade;
+                    }
+                    color[y * Size + x] = c;
                 }
         }
     }

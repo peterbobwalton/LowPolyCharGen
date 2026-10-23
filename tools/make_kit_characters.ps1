@@ -1,4 +1,4 @@
-# Exports the pack-kit comparison characters (Body=Pack) to out\kit. Needs the pack data extracted to
+# Exports the pack-kit comparison characters (Body=Pack) to out\kit, and the militia ones to out\kit_militia. Needs the pack data extracted to
 # packdata\ first (tools/pack2json.py over FBX exports of the pack's skeletal meshes; never committed).
 # Then, in the LowPolyCharTest editor's Python console:
 #   py "C:/source/Claude/LowPolyCharGen/tools/import_unreal.py" "C:/source/Claude/LowPolyCharGen/out/kit" /Game/LowPolyCharGen/Kit
@@ -28,6 +28,25 @@ $characters = [ordered]@{
 foreach ($name in $characters.Keys) {
     $cliArgs = @("--out", (Join-Path $OutDir "$name.fbx"), "--set", "Name=$name", "--set", "Body=Pack")
     foreach ($pair in $characters[$name].Split(" ", [StringSplitOptions]::RemoveEmptyEntries)) { $cliArgs += @("--set", $pair) }
+    & $cli @cliArgs
+    if ($LASTEXITCODE -ne 0) { throw "export of $name failed" }
+}
+
+$militia = [ordered]@{
+    "LPCG_Mil_Turban_Thobe" = "PackBody=TSA_Body_H PackLegs=MIL_Mesh_Legs_A Hat=Turban Legs=Thobe FacialHair=BushyBeard ShirtColor=#E8E4DA HatColor=#2A2A2E SkinColor=#B07850 HairColor=#1A1410"
+    "LPCG_Mil_Keffiyeh_Thobe" = "PackBody=TSA_Body_H PackLegs=MIL_Mesh_Legs_A Hat=Keffiyeh Legs=Thobe FacialHair=Beard ShirtColor=#9A8C74 HatColor=#E8E4DA AccentColor=#9A2A26 SkinColor=#A87048 HairColor=#1A1410"
+    "LPCG_Mil_Shemagh" = "PackBody=MIL_Mesh_Body_B PackLegs=MIL_Mesh_Legs_C FaceCover=Shemagh AccentColor=#C8B898"
+    "LPCG_Mil_Balaclava" = "PackBody=MIL_Mesh_Body_D PackLegs=MIL_Mesh_Legs_B FaceCover=Balaclava"
+    "LPCG_Mil_Beanie" = "PackBody=MIL_Mesh_Body_A PackLegs=MIL_Mesh_Legs_D PackHead=MIL_Mesh_head_D FacialHair=Beard SkinColor=#B88058"
+    "LPCG_Mil_Turban_Jeans" = "PackBody=MIL_Mesh_Body_E PackLegs=MIL_Mesh_Legs_B Hat=Turban FacialHair=BushyBeard HatColor=#D8D0C0 SkinColor=#9A6440 HairColor=#151010"
+    "LPCG_Mil_Thobe_Grey" = "PackBody=TSA_Body_H PackLegs=MIL_Mesh_Legs_A Legs=Thobe Hat=Turban FacialHair=Beard ShirtColor=#7A766C HatColor=#1C1C1E SkinColor=#C08A60 HairColor=#2A1A12 Build=0.8"
+    "LPCG_Mil_Shemagh_Black" = "PackBody=MIL_Mesh_Body_F PackLegs=MIL_Mesh_Legs_A FaceCover=Shemagh AccentColor=#202024 MilitiaTexture=T_Militias_B"
+}
+$MilitiaDir = Join-Path (Split-Path $OutDir -Parent) "kit_militia"
+New-Item -ItemType Directory -Force $MilitiaDir | Out-Null
+foreach ($name in $militia.Keys) {
+    $cliArgs = @("--out", (Join-Path $MilitiaDir "$name.fbx"), "--set", "Name=$name", "--set", "Body=Pack")
+    foreach ($pair in $militia[$name].Split(" ", [StringSplitOptions]::RemoveEmptyEntries)) { $cliArgs += @("--set", $pair) }
     & $cli @cliArgs
     if ($LASTEXITCODE -ne 0) { throw "export of $name failed" }
 }

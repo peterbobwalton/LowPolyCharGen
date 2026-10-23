@@ -69,6 +69,10 @@ public sealed class MeshData
     /// <summary>Optional vertex colours (RGBA, 0..1), exported as the FBX colour layer.</summary>
     public Vector4[]? Colors { get; init; }
 
+    /// <summary>Optional second set of per-vertex data, exported as UV channels 3 (XY) and 4 (ZW) (requires <see cref="Colors"/>).</summary>
+    /// <summary>Optional second per-vertex value pair, exported as UV channel 3 (XY; requires <see cref="Colors"/>).</summary>
+    public Vector4[]? Colors2 { get; init; }
+
     public int TriangleCount => Faces.Sum(f => f.Vertices.Length - 2);
 
     /// <summary>Crease angle between faces of head skin, which is smoothed over its sharper bends.</summary>

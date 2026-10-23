@@ -15,17 +15,42 @@ public static class KitBuilder
         var skeleton = Skeleton.CreateToonSoldier();
         var morph = new KitMorph(skeleton, spec.Gender, spec.Build);
 
-        var names = new List<string> { spec.PackLegs, spec.PackBody, spec.PackHead };
-        names.AddRange(spec.PackEquipment.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
         var packTexture = PackLibrary.Texture(spec.PackTexture);
+        var militiaTexture = PackLibrary.Available && File.Exists(Path.Combine(PackLibrary.Folder, spec.MilitiaTexture + ".png"))
+            ? PackLibrary.Texture(spec.MilitiaTexture) : null;
+        TextureImage TextureOf(PackPart part) => IsMilitia(part) ? militiaTexture ?? packTexture : packTexture;
 
-        // The character's own face texture (material slot 1), painted from the head's face tile.
-        var headPart = PackLibrary.Part(spec.PackHead);
+        // The head: a face cover (the Militia pack's balaclava and shemaghs) or a cloth headdress
+        // (which needs a bare head) can replace the chosen one.
+        var headName = spec.PackHead;
+        if (spec.FaceCover == FaceCover.Balaclava) headName = "MIL_Mesh_head_L";
+        else if (spec.FaceCover == FaceCover.Shemagh)
+            headName = FacePainter.ToVec(spec.AccentColor).Length() < 0.45f ? "MIL_Mesh_head_K" : "MIL_Mesh_head_J";
+        var headPart = PackLibrary.Part(headName);
+        var headdress = spec.FaceCover == FaceCover.None && spec.Hat is HatStyle.Turban or HatStyle.Keffiyeh;
+        if (headdress && !HairPieces.IsBare(headPart))
+            headPart = PackLibrary.Part(IsMilitia(headPart) ? "MIL_Mesh_Head_A" : "TSA_Head_A1");
+
+        // The character's own texture (material slot 1): face painted from the head's face tile, and
+        // the hair and cloth strips.
         var face = headPart.Triangles.Any(t => t.All(i => FacePainter.IsFaceUv(headPart.Uvs[i])))
-            ? new FacePainter(spec, headPart, packTexture) : null;
+            ? new FacePainter(spec, headPart, TextureOf(headPart)) : null;
         var reshapeHead = HeadMorph.Changes(spec);
+
+        var names = new List<string> { spec.PackLegs, spec.PackBody };
+        names.AddRange(spec.PackEquipment.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
         var parts = names.Where(n => n.Length > 0).Select(PackLibrary.Part).ToList();
-        if (face is not null && HairPieces.For(spec, headPart) is { } hair) parts.Add(hair);
+        parts.Add(headPart);
+        var legsPart = parts[0];
+        var thobe = spec.Legs == LegsStyle.Thobe && face is not null;
+        if (face is not null)
+        {
+            if (headdress && spec.Hat == HatStyle.Turban) parts.Add(KitPieces.Turban(headPart));
+            else if (headdress && spec.Hat == HatStyle.Keffiyeh) parts.Add(KitPieces.Keffiyeh(headPart));
+            else if (HairPieces.For(spec, headPart) is { } hair) parts.Add(hair);
+            if (thobe) parts.Add(KitPieces.ThobeSkirt(legsPart));
+        }
+        var bodyPart = parts.FirstOrDefault(p => p.Uses("Clavicle") && !ReferenceEquals(p, headPart));
 
         var positions = new List<Vector3>();
         var source = new List<Vector3>();   // positions before the morph, for the normals
@@ -35,17 +60,21 @@ public static class KitBuilder
         var triangles = new List<int[]>();
         var triangleUvs = new List<Vector2[]>();
         var triangleMaterial = new List<byte>();
+        var triangleBody = new List<bool>();
+        var triangleTexture = new List<TextureImage>();
         foreach (var source0 in parts)
         {
             var part = source0;
             var name = part.Name;
             var isHead = ReferenceEquals(part, headPart);
+            var isBody = ReferenceEquals(part, bodyPart);
             var isHair = HairPieces.IsHair(part);
-            if (morph.BodyInserts.Count > 0 && part.Uses("Clavicle"))
+            if (morph.BodyInserts.Count > 0 && isBody)
             {
                 part = part.Clone();
                 foreach (var at in morph.BodyInserts) Insert(part, at.X, at.Y);
             }
+            var militia = IsMilitia(source0);
             var offset = positions.Count;
             for (var v = 0; v < part.Positions.Count; v++)
             {
@@ -64,11 +93,24 @@ public static class KitBuilder
                 list.Sort((a, b) => b.Weight.CompareTo(a.Weight));
                 weights.Add(Skinning.Normalize(list));
             }
-            foreach (var t in part.Triangles)
+            var isLegs = ReferenceEquals(source0, legsPart);
+            foreach (var t0 in part.Triangles)
             {
+                var t = t0;
+                // Generated pieces are wound to face along their normals (counter-clockwise from outside).
+                if (isHair)
+                {
+                    Vector3 a = part.Positions[t[0]], b = part.Positions[t[1]], c = part.Positions[t[2]];
+                    var n = part.Normals[t[0]] + part.Normals[t[1]] + part.Normals[t[2]];
+                    if (Vector3.Dot(Vector3.Cross(b - a, c - a), n) < 0) t = [t[0], t[2], t[1]];
+                }
+                // Under a thobe only the boots and the shins above them show.
+                if (thobe && isLegs && t.All(i => part.Positions[i].Z > 20f)) continue;
                 triangles.Add([t[0] + offset, t[1] + offset, t[2] + offset]);
+                triangleBody.Add(isBody);
+                triangleTexture.Add(TextureOf(source0));
                 Vector2[] uv = [part.Uvs[t[0]], part.Uvs[t[1]], part.Uvs[t[2]]];
-                byte material = 0;
+                byte material = militia ? (byte)2 : (byte)0;
                 if (face is not null && (isHair || (isHead && uv.All(FacePainter.IsFaceUv))))
                 {
                     material = 1;
@@ -90,19 +132,41 @@ public static class KitBuilder
             faceNormals[f] = [shaded[t[0]], shaded[t[1]], shaded[t[2]]];
             faceUvs[f] = triangleUvs[f];
         }
-        // Skin tone on the pack texture (necks, arms, hands): the kit material tints texels that are
-        // skin-coloured on triangles marked here. RGB = skin colour / pack skin / 2 (the same for every
-        // vertex), A = 1 on triangles that show skin, so every character shares the body material.
+        // Per-vertex data for the kit material (Nanite skinned meshes drop vertex colours, and GPU
+        // skinning allows four UV sets, so it travels in UV channels 1 to 3):
+        //   skin: on triangles that show skin, skin-coloured texels are multiplied by the ratio of the
+        //     skin colour to the pack's (stored halved; 0.5 = unchanged, used everywhere else);
+        //   clothes: a thobe recolours the body's clothes to the colour (linear) divided by the clothes'
+        //     mean linear luminance, which the material multiplies by the texel's luminance (0 = off).
+        // Colors = (skin R, G, B, cloth R), Colors2.XY = (cloth G, B).
         var tint = FacePainter.ToVec(spec.SkinColor) / FacePainter.ToVec(Rgb.FromHex("#D9A274")) / 2f;
         var colors = new Vector4[positions.Count];
-        Array.Fill(colors, new Vector4(tint, 0));
+        var colors2 = new Vector4[positions.Count];
+        Array.Fill(colors, new Vector4(0.5f, 0.5f, 0.5f, 0));
         for (var f = 0; f < triangles.Count; f++)
-            if (triangleMaterial[f] == 0 && ShowsSkin(packTexture, triangleUvs[f]))
-                foreach (var v in triangles[f]) colors[v].W = 1;
+            if (triangleMaterial[f] != 1 && ShowsSkin(triangleTexture[f], triangleUvs[f]))
+                foreach (var v in triangles[f]) colors[v] = new Vector4(tint, colors[v].W);
+        if (thobe)
+        {
+            var cloth = FacePainter.ToVec(spec.ShirtColor);
+            var linear = new Vector3(Lin(cloth.X), Lin(cloth.Y), Lin(cloth.Z));
+            float sum = 0; var n = 0;
+            for (var f = 0; f < triangles.Count; f++)
+                if (triangleBody[f]) foreach (var l in ClothLuminance(triangleTexture[f], triangleUvs[f])) { sum += l; n++; }
+            var scaled = linear / (n > 0 ? MathF.Max(sum / n, 0.01f) : 0.1f);
+            for (var f = 0; f < triangles.Count; f++)
+                if (triangleBody[f])
+                    foreach (var v in triangles[f])
+                    {
+                        colors[v].W = scaled.X;
+                        colors2[v] = new Vector4(scaled.Y, scaled.Z, 0, 0);
+                    }
+        }
 
         var mesh = new MeshData
         {
             Colors = colors,
+            Colors2 = colors2,
             Positions = positions.ToArray(),
             Weights = weights.ToArray(),
             Faces = faces,
@@ -120,6 +184,28 @@ public static class KitBuilder
             FixedTexture = packTexture,
             FaceTexture = face?.Texture,
         };
+    }
+
+    public static bool IsMilitia(PackPart part) => part.Name.StartsWith("MIL_", StringComparison.Ordinal);
+
+    private static float Lin(float c) => MathF.Pow(c, 2.2f);
+
+    /// <summary>Linear luminance of the non-skin texels sampled over a triangle.</summary>
+    private static IEnumerable<float> ClothLuminance(TextureImage texture, Vector2[] uv)
+    {
+        const int n = 4;
+        for (var i = 0; i <= n; i++)
+            for (var j = 0; i + j <= n; j++)
+            {
+                float a = (float)i / n, b = (float)j / n;
+                var p = uv[0] * (1 - a - b) + uv[1] * a + uv[2] * b;
+                var x = Math.Clamp((int)((p.X - MathF.Floor(p.X)) * texture.Size), 0, texture.Size - 1);
+                var y = Math.Clamp((int)((1 - (p.Y - MathF.Floor(p.Y))) * texture.Size), 0, texture.Size - 1);
+                var o = (y * texture.Size + x) * texture.Channels;
+                float r = texture.Rgb[o] / 255f, g = texture.Rgb[o + 1] / 255f, bl = texture.Rgb[o + 2] / 255f;
+                if (r - g > 0.15f && r > 0.45f && g > bl) continue;
+                yield return 0.3f * Lin(r) + 0.59f * Lin(g) + 0.11f * Lin(bl);
+            }
     }
 
     /// <summary>True if any of a grid of samples over the triangle's texels is the pack's skin colour.</summary>

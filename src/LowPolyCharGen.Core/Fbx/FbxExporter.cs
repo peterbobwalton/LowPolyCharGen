@@ -151,18 +151,27 @@ public static class FbxExporter
             colorLayer.Add("ReferenceInformationType", "Direct");
             colorLayer.Add("Colors", colors);
 
-            // The same values again as UV channels 1 (RG) and 2 (BA): Nanite skinned meshes drop vertex
-            // colours but keep extra UVs. Unreal flips V on import, so V is stored as 1 - value.
-            for (var set = 1; set <= 2; set++)
+            // The same values again as UV channels 1 (RG) and 2 (BA), and the second set as 3 and 4:
+            // Nanite skinned meshes drop vertex colours but keep extra UVs. Unreal flips V on import,
+            // so V is stored as 1 - value.
+            // (GPU skinning allows four UV sets in all, so the second set contributes only its XY.)
+            var sets = mesh.Colors2 is null ? 2 : 3;
+            for (var set = 1; set <= sets; set++)
             {
+                var source = set <= 2 ? vertexColors : mesh.Colors2!;
+                var half = set == 2 ? 1 : 0;
                 var extra = new double[cornerCount * 2];
                 var index = new int[cornerCount];
-                for (var k = 0; k < cornerCount; k++)
-                {
-                    extra[k * 2] = colors[k * 4 + (set - 1) * 2];
-                    extra[k * 2 + 1] = 1 - colors[k * 4 + (set - 1) * 2 + 1];
-                    index[k] = k;
-                }
+                var k = 0;
+                foreach (var f in mesh.Faces)
+                    foreach (var v in f.Vertices)
+                    {
+                        var c = source[v];
+                        extra[k * 2] = half == 0 ? c.X : c.Z;
+                        extra[k * 2 + 1] = 1 - (half == 0 ? c.Y : c.W);
+                        index[k] = k;
+                        k++;
+                    }
                 var extraLayer = geometry.Add("LayerElementUV", set);
                 extraLayer.Add("Version", 101);
                 extraLayer.Add("Name", "Data" + set);
@@ -183,7 +192,10 @@ public static class FbxExporter
         smoothingLayer.Add("Smoothing", smoothing);
 
         // A second material (the face texture) when any face uses it.
-        var twoMaterials = model.FaceTexture is not null && mesh.Faces.Any(f => f.Material == 1);
+        // Material slots by Face.Material: 0 the character texture, 1 its face texture, 2 the second
+        // pack texture (pack characters mixing Armies and Militia parts).
+        var materialCount = mesh.Faces.Length == 0 ? 1 : mesh.Faces.Max(f => f.Material) + 1;
+        var twoMaterials = materialCount > 1;
         var materialLayer = geometry.Add("LayerElementMaterial", 0);
         materialLayer.Add("Version", 101);
         materialLayer.Add("Name", "");
@@ -201,7 +213,7 @@ public static class FbxExporter
             element.Add("TypedIndex", 0);
         }
         if (mesh.Colors is not null)
-            for (var set = 1; set <= 2; set++)
+            for (var set = 1; set <= (mesh.Colors2 is null ? 2 : 3); set++)
             {
                 var extra = geometry.Add("Layer", set);
                 extra.Add("Version", 100);
@@ -273,8 +285,10 @@ public static class FbxExporter
             connections.Add("C", "OP", textureObjectId, id, "DiffuseColor");
         }
         AddMaterial(materialId, textureId, videoId, "M_" + name, "T_" + name + "_Diffuse", texturePath);
-        if (twoMaterials)
-            AddMaterial(NewId(), NewId(), NewId(), "M_" + name + "_Face", "T_" + name + "_Face", FaceTexturePath(fbxPath));
+        string[] suffixes = ["", "_Face", "_Militia"];
+        for (var slot = 1; slot < materialCount; slot++)
+            AddMaterial(NewId(), NewId(), NewId(), "M_" + name + suffixes[slot], "T_" + name + suffixes[slot],
+                slot == 1 ? FaceTexturePath(fbxPath) : texturePath);
 
         // ---- skin ------------------------------------------------------------------------
         var skin = objects.Add("Deformer", skinId, name + Sep + "Deformer", "Skin");
@@ -327,7 +341,7 @@ public static class FbxExporter
         var counts = new (string Type, int Count)[]
         {
             ("GlobalSettings", 1), ("Geometry", 1), ("Model", bones.Count + 1), ("NodeAttribute", bones.Count),
-            ("Material", twoMaterials ? 2 : 1), ("Video", twoMaterials ? 2 : 1), ("Texture", twoMaterials ? 2 : 1),
+            ("Material", materialCount), ("Video", materialCount), ("Texture", materialCount),
             ("Deformer", bones.Count + 1), ("Pose", 1),
         };
         definitions.Add("Count", counts.Sum(c => c.Count));

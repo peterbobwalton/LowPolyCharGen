@@ -19,6 +19,7 @@ import sys
 import unreal
 
 PACK = "/Game/Toon_Soldiers_Armies"
+MILITIA = "/Game/Toon_Soldiers_Militia"
 TOON_SKELETON = PACK + "/Meshes/Characters_Skeleton"
 TOON_PHYSICS = PACK + "/Meshes/Characters_PhysicsAsset"
 TOON_MATERIAL = PACK + "/Materials/M_Armies_Parent"
@@ -150,9 +151,14 @@ def import_character(fbx, destination, mannequin, lods=DEFAULT_LODS):
             unreal.MaterialEditingLibrary.set_material_instance_texture_parameter_value(face_material, "Texture", face_texture)
             unreal.EditorAssetLibrary.save_loaded_asset(face_material)
         body_material = kit_material_instance(spec.get("PackTexture", "T_Armies_Standard"))
+        militia_material = kit_material_instance(spec.get("MilitiaTexture", "T_Militias_A"))
+
+        def slot_material(name):
+            if name.endswith("_Face") and face_material:
+                return face_material
+            return militia_material if name.endswith("_Militia") else body_material
         mesh.set_editor_property("materials", [
-            unreal.SkeletalMaterial(material_interface=face_material if face_material and str(slot.material_slot_name).endswith("_Face") else body_material,
-                                    material_slot_name=slot.material_slot_name)
+            unreal.SkeletalMaterial(material_interface=slot_material(str(slot.material_slot_name)), material_slot_name=slot.material_slot_name)
             for slot in mesh.get_editor_property("materials")])
         if "--no-nanite" not in sys.argv:
             enable_nanite(mesh)
@@ -204,16 +210,20 @@ def enable_nanite(mesh):
 KIT_MATERIAL = LAYERED_MATERIAL_DIR + "/M_LPCG_Kit"
 SKIN_TINT_HLSL = """
 float chroma = (C.r - C.g) / (C.r + 0.02);
-float m = saturate((chroma - 0.35) / 0.15) * saturate((C.r - 0.1) / 0.1) * T2.y;
-return lerp(C.rgb, C.rgb * pow(float3(T1.x, T1.y, T2.x) * 2, 2.2), m);   // the ratio is in sRGB
+float skin = saturate((chroma - 0.35) / 0.15) * saturate((C.r - 0.1) / 0.1);
+float3 col = lerp(C.rgb, C.rgb * pow(float3(T1.x, T1.y, T2.x) * 2, 2.2), skin);   // the ratio is in sRGB; 0.5 = unchanged
+float3 cloth = float3(T2.y, T3.x, T3.y);   // recoloured clothes: colour / the clothes' mean luminance (0 = off)
+if (dot(cloth, 1) > 0)
+    col = lerp(cloth * dot(C.rgb, float3(0.3, 0.59, 0.11)), col, skin);
+return col;
 """
 
 
 def kit_material(rebuild=False):
     """
     The body material of pack-kit characters: the pack's look (one texture, default lit, no specular)
-    with the skin tone from UV channels 1 and 2 (the vertex colours RG and BA; Nanite skinned meshes
-    drop vertex colours): where A = 1, skin-coloured texels are multiplied by RGB * 2. One instance per
+    with per-vertex data in UV channels 1-3 (Nanite skinned meshes drop vertex colours): the skin tone
+    ratio for skin-coloured texels, and a thobe's cloth colour for the body's clothes (see KitBuilder). One instance per
     pack texture is shared by every kit character. rebuild=True rebuilds an existing one's graph.
     """
     mel = unreal.MaterialEditingLibrary
@@ -232,12 +242,14 @@ def kit_material(rebuild=False):
     uv1.set_editor_property("coordinate_index", 1)
     uv2 = mel.create_material_expression(mat, unreal.MaterialExpressionTextureCoordinate, -600, 400)
     uv2.set_editor_property("coordinate_index", 2)
+    uv3 = mel.create_material_expression(mat, unreal.MaterialExpressionTextureCoordinate, -600, 500)
+    uv3.set_editor_property("coordinate_index", 3)
     custom = mel.create_material_expression(mat, unreal.MaterialExpressionCustom, -250, 100)
     custom.set_editor_property("code", SKIN_TINT_HLSL)
     custom.set_editor_property("output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT3)
     custom.set_editor_property("description", "Skin tint")
     inputs = []
-    for name in ("C", "T1", "T2"):
+    for name in ("C", "T1", "T2", "T3"):
         ci = unreal.CustomInput()
         ci.set_editor_property("input_name", name)
         inputs.append(ci)
@@ -245,6 +257,7 @@ def kit_material(rebuild=False):
     mel.connect_material_expressions(tex, "RGBA", custom, "C")
     mel.connect_material_expressions(uv1, "", custom, "T1")
     mel.connect_material_expressions(uv2, "", custom, "T2")
+    mel.connect_material_expressions(uv3, "", custom, "T3")
     mel.connect_material_property(custom, "", unreal.MaterialProperty.MP_BASE_COLOR)
     spec = mel.create_material_expression(mat, unreal.MaterialExpressionConstant, -250, 300)
     mel.connect_material_property(spec, "", unreal.MaterialProperty.MP_SPECULAR)
@@ -265,7 +278,8 @@ def kit_material_instance(texture_name):
                             unreal.MaterialInstanceConstantFactoryNew())
     mel = unreal.MaterialEditingLibrary
     mel.set_material_instance_parent(mi, kit_material())
-    mel.set_material_instance_texture_parameter_value(mi, "Texture", unreal.load_asset(PACK + "/Textures/" + texture_name))
+    texture = unreal.load_asset(PACK + "/Textures/" + texture_name) or unreal.load_asset(MILITIA + "/Textures/" + texture_name)
+    mel.set_material_instance_texture_parameter_value(mi, "Texture", texture)
     unreal.EditorAssetLibrary.save_loaded_asset(mi)
     return mi
 
