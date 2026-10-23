@@ -47,7 +47,7 @@ public static class KitPieces
         // (elevation at the front, at the back, distance off the skull) per row, top to bottom.
         (float Front, float Back, float Offset)[] rows =
         [
-            (72, 72, 7.0f), (54, 52, 7.8f), (39, 35, 6.4f), (27, 20, 6.6f), (19, 6, 4.6f), (17, 4, 0.6f),
+            (76, 76, 9.6f), (60, 58, 9.4f), (45, 41, 8.0f), (32, 26, 7.6f), (21, 8, 5.0f), (18, 5, 0.6f),
         ];
         var positions = new List<Vector3>();
         var normals = new List<Vector3>();
@@ -56,7 +56,7 @@ public static class KitPieces
         float U(int c) => FacePainter.HatStripU + 0.01f + (FacePainter.GarmentStripU - FacePainter.HatStripU - 0.02f) * c / columns;
 
         var crownDir = Vector3.UnitZ;
-        positions.Add(Origin + crownDir * (Hit(head, Origin, crownDir) + 6.2f));
+        positions.Add(Origin + crownDir * (Hit(head, Origin, crownDir) + 9.2f));
         normals.Add(Vector3.UnitZ);
         uvs.Add(new Vector2(U(columns / 2), 0.97f));
         var ring = new int[rows.Length, columns + 1];

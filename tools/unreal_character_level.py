@@ -44,8 +44,8 @@ ROWS = [
         (KIT + "Mil_Balaclava", MW + "SM_weapon_mac10", "Militia", "balaclava"),
     ],
 ]
-SPACING = 180.0      # between characters in a row (cm)
-ROW_GAP = 450.0      # between rows
+SPACING = 240.0      # between characters in a row (cm), room for the labels
+ROW_GAP = 600.0      # between rows
 FLOOR_SIZE = 200.0   # metres
 
 les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
@@ -98,10 +98,11 @@ for r, row in enumerate(ROWS):
         actor.set_editor_property("grime", -1.0)
         actor.set_editor_property("label", line1 + chr(10) + line2)
         actor.refresh()
+        actor.name_text.set_editor_property("world_size", 16.0)   # readable from the camera start
 
 start = spawn(unreal.PlayerStart, unreal.Vector(-700, 0, 100), unreal.Rotator(0, 0, 0), "PlayerStart")
 world = ues.get_editor_world()
 world.get_world_settings().set_editor_property("default_game_mode", unreal.LpcgGameMode)
 les.save_current_level()
-ues.set_level_viewport_camera_info(unreal.Vector(-650, 0, 260), unreal.Rotator(0, -12, 0))
+ues.set_level_viewport_camera_info(unreal.Vector(-900, 0, 330), unreal.Rotator(0, -14, 0))
 print("built %s with %d characters" % (LEVEL, sum(len(r) for r in ROWS)))
