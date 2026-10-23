@@ -1,0 +1,15 @@
+{
+  "profiles": {
+    "LowPolyCharGen": {
+      "commandName": "Project"
+    },
+    "Pack militia (turban, thobe)": {
+      "commandName": "Project",
+      "commandLineArgs": "--set Body=Pack --set PackBody=TSA_Body_H --set PackLegs=MIL_Mesh_Legs_A --set Hat=Turban --set HatColor=#2A2A2E --set Legs=Thobe --set FacialHair=BushyBeard --set ShirtColor=#E8E4DA --set SkinColor=#B07850"
+    },
+    "Pack female (long hair)": {
+      "commandName": "Project",
+      "commandLineArgs": "--set Body=Pack --set PackBody=TSA_Body_G --set PackLegs=TSA_Legs_A --set PackHead=TSA_Head_A1 --set Gender=Female --set Hair=Long --set HairColor=#3A2416"
+    }
+  }
+}

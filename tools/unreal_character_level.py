@@ -52,16 +52,23 @@ les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
 eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 ues = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem)
 
+TAG = "LpcgShowcase"   # every actor this script spawns; only these are ever removed
+
 if unreal.EditorAssetLibrary.does_asset_exist(LEVEL):
     les.load_level(LEVEL)
+    # Never destroy the level's own actors (WorldSettings, brushes): they are rooted, and destroying them
+    # crashes the editor later (Assertion failed: !IsRooted()).
     for a in eas.get_all_level_actors():
-        eas.destroy_actor(a)
+        if TAG in [str(t) for t in a.tags] or a.get_actor_label().startswith("Char_") or a.get_actor_label() in (
+                "Floor", "Sun", "SkyAtmosphere", "SkyLight", "HeightFog", "PlayerStart"):
+            eas.destroy_actor(a)
 else:
     les.new_level(LEVEL)
 
 
 def spawn(cls, location, rotation=unreal.Rotator(0, 0, 0), label=None):
     actor = eas.spawn_actor_from_class(cls, location, rotation)
+    actor.tags = [TAG]
     if label:
         actor.set_actor_label(label)
     return actor

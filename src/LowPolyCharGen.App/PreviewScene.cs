@@ -7,18 +7,36 @@ namespace LowPolyCharGen.App;
 /// <summary>Turns a generated character into WPF 3D models for the preview viewport.</summary>
 internal static class PreviewScene
 {
+    /// <summary>The textures the body is drawn with: one for the whole mesh, or one per face group (pack characters).</summary>
+    public sealed record Skin(ImageSource Texture, int[]? Faces);
+
+    /// <summary>The preview textures of a model: its baked texture, or the kit material's look per face group.</summary>
+    public static IReadOnlyList<Skin> BuildSkins(CharacterModel model, int textureSize) =>
+        Kit.KitPreview.Applies(model)
+            ? Kit.KitPreview.Build(model).Select(g => new Skin(ToImage(g.Texture), g.Faces)).ToList()
+            : [new Skin(ToImage(model.BakeTexture(textureSize)), null)];
+
     /// <param name="positions">Vertex positions to draw (the bind pose or a skinned pose).</param>
-    /// <param name="texture">The baked texture.</param>
+    /// <param name="skins">The textures (see <see cref="BuildSkins"/>).</param>
     /// <param name="opacity">Below 1 the body is drawn translucent so the skeleton shows through.</param>
-    public static Model3D BuildBody(CharacterModel model, IReadOnlyList<Vector3> positions, ImageSource texture, double opacity)
+    public static Model3D BuildBody(CharacterModel model, IReadOnlyList<Vector3> positions, IReadOnlyList<Skin> skins, double opacity)
     {
         var mesh = model.Mesh;
         var normals = ReferenceEquals(positions, mesh.Positions)
             ? mesh.Normals
             : MeshData.ComputeNormals(positions, mesh.Faces, model.Spec.FlatShaded ? 0f : CharacterGenerator.SmoothCreaseDegrees);
+        var group = new Model3DGroup();
+        foreach (var skin in skins)
+            group.Children.Add(BuildPart(mesh, positions, normals, skin.Faces ?? Enumerable.Range(0, mesh.Faces.Length), skin.Texture, opacity));
+        group.Freeze();
+        return group;
+    }
 
+    private static Model3D BuildPart(MeshData mesh, IReadOnlyList<Vector3> positions, Vector3[][] normals, IEnumerable<int> faces,
+        ImageSource texture, double opacity)
+    {
         var g = new MeshGeometry3D();
-        for (var f = 0; f < mesh.Faces.Length; f++)
+        foreach (var f in faces)
         {
             var v = mesh.Faces[f].Vertices;
             var uv = mesh.Uvs[f];

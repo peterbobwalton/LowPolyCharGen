@@ -38,7 +38,8 @@ public static class KitBuilder
         var reshapeHead = HeadMorph.Changes(spec);
 
         var names = new List<string> { spec.PackLegs, spec.PackBody };
-        names.AddRange(spec.PackEquipment.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        // Extra parts that aren't in the pack data (a half-typed name in the app) are left out.
+        names.AddRange(spec.PackEquipment.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(PackLibrary.Exists));
         var parts = names.Where(n => n.Length > 0).Select(PackLibrary.Part).ToList();
         parts.Add(headPart);
         var legsPart = parts[0];
@@ -201,6 +202,7 @@ public static class KitBuilder
             Paint = new PaintContext { Spec = spec, LegCenter = _ => Vector3.Zero },
             FixedTexture = packTexture,
             FaceTexture = face?.Texture,
+            SecondTexture = militiaTexture,
         };
     }
 

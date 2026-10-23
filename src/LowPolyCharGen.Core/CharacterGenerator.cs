@@ -29,6 +29,9 @@ public sealed class CharacterModel
     /// <summary>The face texture of material slot 1 (faces with <see cref="Face.Material"/> = 1), if any.</summary>
     public TextureImage? FaceTexture { get; init; }
 
+    /// <summary>The texture of material slot 2 (pack characters' Militia parts), if any.</summary>
+    public TextureImage? SecondTexture { get; init; }
+
     /// <summary>Paints the character's texture at the given size (see <see cref="TextureBaker"/>).</summary>
     public TextureImage BakeTexture(int size) => FixedTexture ?? TextureBaker.Bake(this, size);
 }

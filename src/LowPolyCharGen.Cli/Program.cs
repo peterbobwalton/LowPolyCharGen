@@ -4,7 +4,8 @@ using LowPolyCharGen.Fbx;
 
 // Headless generator: exports characters without the UI and runs the consistency checks.
 //
-//   lowpolychargen --out soldier.fbx [--preset soldier.json] [--set Hat=Helmet --set Gender=Female ...] [--hand-poses]
+//   lowpolychargen --out soldier.fbx [--preset soldier.json] [--set Hat=Helmet --set Gender=Female ...] [--hand-poses] [--preview]
+//                                          --preview (Body=Pack) also writes the app preview's recoloured textures
 //                                          --hand-poses writes one file per hand pose (realistic body)
 //   lowpolychargen --random 12 --out-dir out [--seed 7]
 //   lowpolychargen --variants out          one FBX per option value
@@ -140,7 +141,7 @@ static int Run(string[] args)
             }
             return 0;
         }
-        Export(spec, outPath);
+        Export(spec, outPath, args.Contains("--preview"));
         return 0;
     }
 
@@ -160,10 +161,18 @@ static void Apply(CharacterSpec spec, string assignment)
     property.SetValue(spec, value);
 }
 
-static void Export(CharacterSpec spec, string path)
+static void Export(CharacterSpec spec, string path, bool preview = false)
 {
     var model = CharacterGenerator.Generate(spec);
     var result = FbxExporter.Export(model, path);
+    if (preview && LowPolyCharGen.Kit.KitPreview.Applies(model))
+    {
+        // The app's preview of a pack character: one recoloured texture per face group, and the groups' faces.
+        var groups = LowPolyCharGen.Kit.KitPreview.Build(model);
+        var stem = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path))!, Path.GetFileNameWithoutExtension(path));
+        for (var g = 0; g < groups.Count; g++) File.WriteAllBytes($"{stem}_Preview{g}.png", groups[g].Texture.EncodePng());
+        File.WriteAllText(stem + "_Preview.json", System.Text.Json.JsonSerializer.Serialize(groups.Select(g => g.Faces)));
+    }
     Console.WriteLine($"{result.FbxPath}  ({model.Mesh.Positions.Length} verts, {model.Mesh.TriangleCount} tris, {model.Skeleton.Bones.Count} bones)");
 }
 

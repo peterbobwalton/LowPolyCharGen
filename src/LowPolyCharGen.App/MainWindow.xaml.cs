@@ -25,7 +25,7 @@ public partial class MainWindow : Window
     private const int PreviewTextureSize = 1024;
 
     private CharacterModel? _model;
-    private ImageSource? _texture;
+    private IReadOnlyList<PreviewScene.Skin>? _skins;
     private bool _ready;
     private bool _rebuildQueued;
     private bool _building;
@@ -44,13 +44,19 @@ public partial class MainWindow : Window
         _spec = options.Spec;
         InitializeComponent();
         TextureSizeCombo.ItemsSource = new[] { 512, 1024, 2048 };
+        FillPackLists();
         DataContext = _spec;
+        UpdatePackCard();
 
         PoseCombo.SelectedItem = options.Pose;
         SkeletonCheck.IsChecked = options.ShowSkeleton;
         if (options.Yaw is { } yaw) _yaw = yaw;
 
-        _spec.PropertyChanged += (_, _) => QueueRebuild();
+        _spec.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(CharacterSpec.Body)) UpdatePackCard();
+            QueueRebuild();
+        };
         _turntable.Tick += (_, _) =>
         {
             _yaw += 0.6;
@@ -61,6 +67,52 @@ public partial class MainWindow : Window
         _screenshotPath = options.ScreenshotPath;
         RebuildModel();
         UpdateCamera();
+    }
+
+    // ---- pack kit --------------------------------------------------------------------------
+
+    private static readonly string[] HeadPrefixes = ["TSA_Head_", "MIL_Mesh_head_"];
+
+    /// <summary>The pack parts and textures found in the extracted pack data (see tools/pack2json.py).</summary>
+    private void FillPackLists()
+    {
+        static List<string> Parts(params string[] prefixes) =>
+            prefixes.SelectMany(Kit.PackLibrary.Names).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        PackHeadCombo.ItemsSource = Parts(HeadPrefixes);
+        PackBodyCombo.ItemsSource = Parts("TSA_Body_", "MIL_Mesh_Body_");
+        PackLegsCombo.ItemsSource = Parts("TSA_Legs_", "MIL_Mesh_Legs_");
+        PackEquipmentCombo.ItemsSource = new[] { "" }.Concat(Parts("TSA_backpack", "TSA_camelback", "TSA_light_backpack", "TSA_equip_", "MIL_Mesh_extra_")).ToList();
+        var textures = Kit.PackLibrary.Available
+            ? Directory.EnumerateFiles(Kit.PackLibrary.Folder, "T_*.png").Select(Path.GetFileNameWithoutExtension).OfType<string>().Order().ToList()
+            : [];
+        PackTextureCombo.ItemsSource = textures.Where(t => !t.StartsWith("T_Militias_", StringComparison.OrdinalIgnoreCase)).ToList();
+        MilitiaTextureCombo.ItemsSource = textures.Where(t => t.StartsWith("T_Militias_", StringComparison.OrdinalIgnoreCase)).ToList();
+        if (!Kit.PackLibrary.Available)
+            PackStatus.Text = $"No pack data in {Kit.PackLibrary.Folder}: export the packs' skeletal meshes to FBX in Unreal and run tools/pack2json.py " +
+                              "(or set LPCG_PACKDATA to the folder).";
+    }
+
+    private void UpdatePackCard() =>
+        PackCard.Visibility = _spec.Body == BodyModel.Pack ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>A random pack character: parts, build, colours and the kit's own options.</summary>
+    private void RandomisePack(CharacterSpec spec)
+    {
+        T Pick<T>(IReadOnlyList<T> items) => items[_random.Next(items.Count)];
+        var heads = (IReadOnlyList<string>)PackHeadCombo.ItemsSource;
+        var bodies = (IReadOnlyList<string>)PackBodyCombo.ItemsSource;
+        var legs = (IReadOnlyList<string>)PackLegsCombo.ItemsSource;
+        if (heads.Count == 0 || bodies.Count == 0 || legs.Count == 0) return;
+        spec.PackHead = Pick(heads);
+        spec.PackBody = Pick(bodies);
+        spec.PackLegs = Pick(legs);
+        var equipment = ((IReadOnlyList<string>)PackEquipmentCombo.ItemsSource).Where(e => e.Length > 0).ToList();
+        spec.PackEquipment = equipment.Count > 0 && _random.NextDouble() < 0.3 ? Pick(equipment) : "";
+        spec.Nose = Pick(Enum.GetValues<NoseShape>());
+        spec.GloveStyle = Pick(Enum.GetValues<GloveStyle>());
+        spec.Hat = spec.Hat is HatStyle.Turban or HatStyle.Keffiyeh ? spec.Hat : HatStyle.None;   // the pack heads carry the headgear
+        spec.Footwear = Pick(Enum.GetValues<Footwear>());
+        spec.RecolourClothes = _random.NextDouble() < 0.3;
     }
 
     // ---- generation ----------------------------------------------------------------------
@@ -99,13 +151,13 @@ public partial class MainWindow : Window
                 _buildAgain = false;
                 var spec = _spec.Clone();
                 var ik = IkBonesCheck.IsChecked == true;
-                var (model, texture) = await Task.Run(() =>
+                var (model, skins) = await Task.Run(() =>
                 {
                     var m = CharacterGenerator.Generate(spec, ik);
-                    return (m, PreviewScene.ToImage(m.BakeTexture(PreviewTextureSize)));
+                    return (m, PreviewScene.BuildSkins(m, PreviewTextureSize));
                 });
                 _model = model;
-                _texture = texture;
+                _skins = skins;
                 RefreshScene();
                 if (StatusText.Text.StartsWith(BuildErrorPrefix, StringComparison.Ordinal)) StatusText.Text = "";
             }
@@ -139,7 +191,7 @@ public partial class MainWindow : Window
     /// <summary>Rebuilds the viewport content from the current model, pose and display options.</summary>
     private void RefreshScene()
     {
-        if (!_ready || _model is not { } model || _texture is not { } texture) return;
+        if (!_ready || _model is not { } model || _skins is not { } skins) return;
 
         var pose = PoseCombo.SelectedItem is PreviewPose p ? p : PreviewPose.TPose;
         var showSkeleton = SkeletonCheck.IsChecked == true;
@@ -157,7 +209,7 @@ public partial class MainWindow : Window
         scene.Children.Add(_ground);
         // The skeleton goes in first so the translucent body blends over it.
         if (showSkeleton) scene.Children.Add(PreviewScene.BuildSkeleton(model.Skeleton, joints));
-        scene.Children.Add(PreviewScene.BuildBody(model, positions, texture, showSkeleton ? 0.32 : 1.0));
+        scene.Children.Add(PreviewScene.BuildBody(model, positions, skins, showSkeleton ? 0.32 : 1.0));
         SceneVisual.Content = scene;
 
         var height = model.Mesh.Positions.Max(v => v.Z);
@@ -249,6 +301,13 @@ public partial class MainWindow : Window
         random.Rig = _spec.Rig;
         random.FlatShaded = _spec.FlatShaded;
         random.TextureSize = _spec.TextureSize;
+        random.Body = _spec.Body;
+        if (_spec.Body == BodyModel.Pack)
+        {
+            random.PackTexture = _spec.PackTexture;
+            random.MilitiaTexture = _spec.MilitiaTexture;
+            RandomisePack(random);
+        }
         _spec.CopyFrom(random);
     }
 
@@ -292,7 +351,10 @@ public partial class MainWindow : Window
             var model = CharacterGenerator.Generate(_spec, IkBonesCheck.IsChecked == true);
             var result = FbxExporter.Export(model, dialog.FileName);
             Mouse.OverrideCursor = null;
-            StatusText.Text = $"Exported {Path.GetFileName(result.FbxPath)}, {Path.GetFileName(result.TexturePath)} and the grime layer {Path.GetFileName(result.GrimePath)} to {Path.GetDirectoryName(result.FbxPath)}";
+            StatusText.Text = result.TexturePath is null
+                ? $"Exported {Path.GetFileName(result.FbxPath)} with its face texture and options to {Path.GetDirectoryName(result.FbxPath)} " +
+                  "(pack character: import with tools/import_unreal.py, which uses the packs' textures)"
+                : $"Exported {Path.GetFileName(result.FbxPath)}, {Path.GetFileName(result.TexturePath)} and the grime layer {Path.GetFileName(result.GrimePath)} to {Path.GetDirectoryName(result.FbxPath)}";
             Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{result.FbxPath}\"") { UseShellExecute = true });
         }
         catch (Exception ex)

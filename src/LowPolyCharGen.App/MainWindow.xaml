@@ -46,7 +46,7 @@
                                 <ComboBox Style="{StaticResource EnumCombo}" ItemsSource="{local:EnumValues {x:Type core:RigTarget}}" SelectedItem="{Binding Rig}" />
                             </HeaderedContentControl>
                             <HeaderedContentControl Style="{StaticResource Row}" Header="Body"
-                                                    ToolTip="UE5 mannequin rig only. Generated: built from lofted sections. Realistic: the MakeHuman base mesh (CC0) shaped for gender and build, fitted to the skeleton and decimated to the triangle budget.">
+                                                    ToolTip="Generated: built from lofted sections. Realistic (UE5 mannequin rig): the MakeHuman base mesh (CC0) shaped for gender and build. Pack (Toon Soldiers rig): assembled from the Toon Soldiers packs' own parts, reshaped for build and gender, with its own face (see PACK KIT).">
                                 <ComboBox Style="{StaticResource EnumCombo}" ItemsSource="{local:EnumValues {x:Type core:BodyModel}}" SelectedItem="{Binding Body}" />
                             </HeaderedContentControl>
                             <HeaderedContentControl Style="{StaticResource Row}" Header="Hands"
@@ -78,6 +78,39 @@
                             <HeaderedContentControl Style="{StaticResource Row}" Header="Skin" Margin="0">
                                 <local:ColorPicker Color="{Binding SkinColor}" />
                             </HeaderedContentControl>
+                        </StackPanel>
+                    </HeaderedContentControl>
+
+                    <HeaderedContentControl x:Name="PackCard" Style="{StaticResource Card}" Header="PACK KIT" Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock x:Name="PackStatus" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,6" Foreground="{StaticResource MutedTextBrush}"
+                                       Text="Parts of the Toon Soldiers Armies (TSA_) and Militia (MIL_) packs. Face cover and turban or keffiyeh hats pick a suitable head." />
+                            <HeaderedContentControl Style="{StaticResource Row}" Header="Head">
+                                <ComboBox x:Name="PackHeadCombo" Height="24" SelectedItem="{Binding PackHead}" />
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource Row}" Header="Body">
+                                <ComboBox x:Name="PackBodyCombo" Height="24" SelectedItem="{Binding PackBody}" />
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource Row}" Header="Legs">
+                                <ComboBox x:Name="PackLegsCombo" Height="24" SelectedItem="{Binding PackLegs}" />
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource Row}" Header="Equipment">
+                                <ComboBox x:Name="PackEquipmentCombo" Height="24" IsEditable="True" Text="{Binding PackEquipment, UpdateSourceTrigger=PropertyChanged, Delay=600}"
+                                          ToolTip="Extra pack parts (vests, backpacks): pick one, or type several separated by commas" />
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource Row}" Header="Armies tex" ToolTip="The Armies pack texture: standard or one of its camouflage variants">
+                                <ComboBox x:Name="PackTextureCombo" Height="24" SelectedItem="{Binding PackTexture}" />
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource Row}" Header="Militia tex" ToolTip="The Militia pack texture for its parts">
+                                <ComboBox x:Name="MilitiaTextureCombo" Height="24" SelectedItem="{Binding MilitiaTexture}" />
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource Row}" Header="Nose" ToolTip="Auto: the pack's nose for men, small for women">
+                                <ComboBox Style="{StaticResource EnumCombo}" ItemsSource="{local:EnumValues {x:Type core:NoseShape}}" SelectedItem="{Binding Nose}" />
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource Row}" Header="Hands" ToolTip="Auto: the body's own hands (tan gloves when Gloves is ticked)">
+                                <ComboBox Style="{StaticResource EnumCombo}" ItemsSource="{local:EnumValues {x:Type core:GloveStyle}}" SelectedItem="{Binding GloveStyle}" />
+                            </HeaderedContentControl>
+                            <CheckBox Content="Recolour clothes (shirt, trousers, boots colours)" IsChecked="{Binding RecolourClothes}" Margin="0,3,0,0" />
                         </StackPanel>
                     </HeaderedContentControl>
 

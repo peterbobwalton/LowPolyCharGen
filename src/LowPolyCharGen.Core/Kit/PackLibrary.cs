@@ -57,6 +57,8 @@ public static class PackLibrary
     public static IEnumerable<string> Names(string prefix) =>
         Available ? Directory.EnumerateFiles(Folder, prefix + "*.json").Select(Path.GetFileNameWithoutExtension).OfType<string>().Order() : [];
 
+    public static bool Exists(string name) => Available && File.Exists(Path.Combine(Folder, name + ".json"));
+
     public static PackPart Part(string name)
     {
         lock (Gate)
