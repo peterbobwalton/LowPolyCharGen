@@ -17,6 +17,15 @@ public static class KitBuilder
 
         var names = new List<string> { spec.PackLegs, spec.PackBody, spec.PackHead };
         names.AddRange(spec.PackEquipment.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        var packTexture = PackLibrary.Texture(spec.PackTexture);
+
+        // The character's own face texture (material slot 1), painted from the head's face tile.
+        var headPart = PackLibrary.Part(spec.PackHead);
+        var face = headPart.Triangles.Any(t => t.All(i => FacePainter.IsFaceUv(headPart.Uvs[i])))
+            ? new FacePainter(spec, headPart, packTexture) : null;
+        var reshapeHead = HeadMorph.Changes(spec.Gender, spec.HeadShape);
+        var parts = names.Where(n => n.Length > 0).Select(PackLibrary.Part).ToList();
+        if (face is not null && HairPieces.For(spec) is { } hair) parts.Add(hair);
 
         var positions = new List<Vector3>();
         var source = new List<Vector3>();   // positions before the morph, for the normals
@@ -24,9 +33,14 @@ public static class KitBuilder
         var uvs = new List<Vector2>();
         var weights = new List<Influence[]>();
         var triangles = new List<int[]>();
-        foreach (var name in names.Where(n => n.Length > 0))
+        var triangleUvs = new List<Vector2[]>();
+        var triangleMaterial = new List<byte>();
+        foreach (var source0 in parts)
         {
-            var part = PackLibrary.Part(name);
+            var part = source0;
+            var name = part.Name;
+            var isHead = ReferenceEquals(part, headPart);
+            var isHair = part.Name is "Ponytail" or "Bun";
             if (morph.BodyInserts.Count > 0 && part.Uses("Clavicle"))
             {
                 part = part.Clone();
@@ -36,7 +50,8 @@ public static class KitBuilder
             for (var v = 0; v < part.Positions.Count; v++)
             {
                 source.Add(part.Positions[v]);
-                positions.Add(morph.Apply(part.Positions[v]));
+                var p = reshapeHead ? HeadMorph.Apply(part.Positions[v], spec.Gender, spec.HeadShape) : part.Positions[v];
+                positions.Add(morph.Apply(p));
                 normals.Add(part.Normals[v]);
                 uvs.Add(part.Uvs[v]);
                 var list = new List<Influence>();
@@ -49,19 +64,31 @@ public static class KitBuilder
                 list.Sort((a, b) => b.Weight.CompareTo(a.Weight));
                 weights.Add(Skinning.Normalize(list));
             }
-            foreach (var t in part.Triangles) triangles.Add([t[0] + offset, t[1] + offset, t[2] + offset]);
+            foreach (var t in part.Triangles)
+            {
+                triangles.Add([t[0] + offset, t[1] + offset, t[2] + offset]);
+                Vector2[] uv = [part.Uvs[t[0]], part.Uvs[t[1]], part.Uvs[t[2]]];
+                byte material = 0;
+                if (face is not null && (isHair || (isHead && uv.All(FacePainter.IsFaceUv))))
+                {
+                    material = 1;
+                    if (isHead) uv = [face.Remap(uv[0]), face.Remap(uv[1]), face.Remap(uv[2])];
+                }
+                triangleUvs.Add(uv);
+                triangleMaterial.Add(material);
+            }
         }
 
-        var shaded = morph.IsIdentity ? normals.ToArray() : Renormal(source, positions, normals, triangles);
+        var shaded = morph.IsIdentity && !reshapeHead ? normals.ToArray() : Renormal(source, positions, normals, triangles);
         var faces = new Face[triangles.Count];
         var faceNormals = new Vector3[triangles.Count][];
         var faceUvs = new Vector2[triangles.Count][];
         for (var f = 0; f < faces.Length; f++)
         {
             var t = triangles[f];
-            faces[f] = new Face(t, Slot.Body, PaintDetail.None, 0, [Vector2.Zero, Vector2.Zero, Vector2.Zero]);
+            faces[f] = new Face(t, Slot.Body, PaintDetail.None, 0, [Vector2.Zero, Vector2.Zero, Vector2.Zero]) { Material = triangleMaterial[f] };
             faceNormals[f] = [shaded[t[0]], shaded[t[1]], shaded[t[2]]];
-            faceUvs[f] = [uvs[t[0]], uvs[t[1]], uvs[t[2]]];
+            faceUvs[f] = triangleUvs[f];
         }
         var mesh = new MeshData
         {
@@ -79,7 +106,8 @@ public static class KitBuilder
             Mesh = mesh,
             DesignMesh = mesh,
             Paint = new PaintContext { Spec = spec, LegCenter = _ => Vector3.Zero },
-            FixedTexture = PackLibrary.Texture(spec.PackTexture),
+            FixedTexture = packTexture,
+            FaceTexture = face?.Texture,
         };
     }
 

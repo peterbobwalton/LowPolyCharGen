@@ -26,6 +26,9 @@ public sealed class CharacterModel
     /// <summary>A finished texture used as is instead of painting one (pack characters).</summary>
     public TextureImage? FixedTexture { get; init; }
 
+    /// <summary>The face texture of material slot 1 (faces with <see cref="Face.Material"/> = 1), if any.</summary>
+    public TextureImage? FaceTexture { get; init; }
+
     /// <summary>Paints the character's texture at the given size (see <see cref="TextureBaker"/>).</summary>
     public TextureImage BakeTexture(int size) => FixedTexture ?? TextureBaker.Bake(this, size);
 }

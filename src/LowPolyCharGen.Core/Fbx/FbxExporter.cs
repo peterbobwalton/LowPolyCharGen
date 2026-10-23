@@ -33,7 +33,9 @@ public static class FbxExporter
         if (model.Spec.Body == BodyModel.Pack)
         {
             // Pack characters use the pack's own texture and material instances (shared by every
-            // character, so they batch); only the options are written for the importer.
+            // character, so they batch); only their own face texture and the options are written.
+            if (model.FaceTexture is { } face)
+                File.WriteAllBytes(FaceTexturePath(fbxPath), face.EncodePng());
             File.WriteAllText(specPath, model.Spec.ToJson());
             return new FbxExportResult(fbxPath, null, null, specPath);
         }
@@ -43,6 +45,9 @@ public static class FbxExporter
         File.WriteAllText(specPath, model.Spec.ToJson());
         return new FbxExportResult(fbxPath, texturePath, grimePath, specPath);
     }
+
+    public static string FaceTexturePath(string fbxPath) =>
+        Path.Combine(Path.GetDirectoryName(Path.GetFullPath(fbxPath))!, Path.GetFileNameWithoutExtension(fbxPath) + "_Face.png");
 
     public static string SafeName(string name)
     {
@@ -137,12 +142,14 @@ public static class FbxExporter
         smoothingLayer.Add("ReferenceInformationType", "Direct");
         smoothingLayer.Add("Smoothing", smoothing);
 
+        // A second material (the face texture) when any face uses it.
+        var twoMaterials = model.FaceTexture is not null && mesh.Faces.Any(f => f.Material == 1);
         var materialLayer = geometry.Add("LayerElementMaterial", 0);
         materialLayer.Add("Version", 101);
         materialLayer.Add("Name", "");
-        materialLayer.Add("MappingInformationType", "AllSame");
+        materialLayer.Add("MappingInformationType", twoMaterials ? "ByPolygon" : "AllSame");
         materialLayer.Add("ReferenceInformationType", "IndexToDirect");
-        materialLayer.Add("Materials", new[] { 0 });
+        materialLayer.Add("Materials", twoMaterials ? mesh.Faces.Select(f => (int)f.Material).ToArray() : new[] { 0 });
 
         var layer = geometry.Add("Layer", 0);
         layer.Add("Version", 100);
@@ -176,43 +183,48 @@ public static class FbxExporter
             Connect(boneAttributeIds[i], boneModelIds[i]);
         }
 
-        // ---- material and texture ----------------------------------------------------------
-        var material = objects.Add("Material", materialId, "M_" + name + Sep + "Material", "");
-        material.Add("Version", 102);
-        material.Add("ShadingModel", "lambert");
-        material.Add("MultiLayer", 0);
-        var materialProperties = material.Add("Properties70");
-        materialProperties.P("DiffuseColor", "Color", "", "A", 1.0, 1.0, 1.0);
-        materialProperties.P("DiffuseFactor", "Number", "", "A", 1.0);
-        materialProperties.P("AmbientColor", "Color", "", "A", 0.0, 0.0, 0.0);
-        materialProperties.P("EmissiveColor", "Color", "", "A", 0.0, 0.0, 0.0);
-        Connect(materialId, meshModelId);
+        // ---- materials and textures ---------------------------------------------------------
+        void AddMaterial(long id, long textureObjectId, long videoObjectId, string materialName, string textureName, string path)
+        {
+            var material = objects.Add("Material", id, materialName + Sep + "Material", "");
+            material.Add("Version", 102);
+            material.Add("ShadingModel", "lambert");
+            material.Add("MultiLayer", 0);
+            var materialProperties = material.Add("Properties70");
+            materialProperties.P("DiffuseColor", "Color", "", "A", 1.0, 1.0, 1.0);
+            materialProperties.P("DiffuseFactor", "Number", "", "A", 1.0);
+            materialProperties.P("AmbientColor", "Color", "", "A", 0.0, 0.0, 0.0);
+            materialProperties.P("EmissiveColor", "Color", "", "A", 0.0, 0.0, 0.0);
+            Connect(id, meshModelId);
 
-        var textureName = "T_" + name + "_Diffuse";
-        var textureFile = Path.GetFileName(texturePath);
-        var video = objects.Add("Video", videoId, textureName + Sep + "Video", "Clip");
-        video.Add("Type", "Clip");
-        video.Add("Properties70").P("Path", "KString", "XRefUrl", "", texturePath);
-        video.Add("UseMipMap", 0);
-        video.Add("Filename", texturePath);
-        video.Add("RelativeFilename", textureFile);
+            var file = Path.GetFileName(path);
+            var video = objects.Add("Video", videoObjectId, textureName + Sep + "Video", "Clip");
+            video.Add("Type", "Clip");
+            video.Add("Properties70").P("Path", "KString", "XRefUrl", "", path);
+            video.Add("UseMipMap", 0);
+            video.Add("Filename", path);
+            video.Add("RelativeFilename", file);
 
-        var texture = objects.Add("Texture", textureId, textureName + Sep + "Texture", "");
-        texture.Add("Type", "TextureVideoClip");
-        texture.Add("Version", 202);
-        texture.Add("TextureName", textureName + Sep + "Texture");
-        texture.Add("Media", textureName + Sep + "Video");
-        texture.Add("FileName", texturePath);
-        texture.Add("RelativeFilename", textureFile);
-        texture.Add("ModelUVTranslation", 0.0, 0.0);
-        texture.Add("ModelUVScaling", 1.0, 1.0);
-        texture.Add("Texture_Alpha_Source", "None");
-        texture.Add("Cropping", 0, 0, 0, 0);
-        var textureProperties = texture.Add("Properties70");
-        textureProperties.P("UVSet", "KString", "", "", "UVMap");
-        textureProperties.P("UseMaterial", "bool", "", "", 1);
-        Connect(videoId, textureId);
-        connections.Add("C", "OP", textureId, materialId, "DiffuseColor");
+            var texture = objects.Add("Texture", textureObjectId, textureName + Sep + "Texture", "");
+            texture.Add("Type", "TextureVideoClip");
+            texture.Add("Version", 202);
+            texture.Add("TextureName", textureName + Sep + "Texture");
+            texture.Add("Media", textureName + Sep + "Video");
+            texture.Add("FileName", path);
+            texture.Add("RelativeFilename", file);
+            texture.Add("ModelUVTranslation", 0.0, 0.0);
+            texture.Add("ModelUVScaling", 1.0, 1.0);
+            texture.Add("Texture_Alpha_Source", "None");
+            texture.Add("Cropping", 0, 0, 0, 0);
+            var textureProperties = texture.Add("Properties70");
+            textureProperties.P("UVSet", "KString", "", "", "UVMap");
+            textureProperties.P("UseMaterial", "bool", "", "", 1);
+            Connect(videoObjectId, textureObjectId);
+            connections.Add("C", "OP", textureObjectId, id, "DiffuseColor");
+        }
+        AddMaterial(materialId, textureId, videoId, "M_" + name, "T_" + name + "_Diffuse", texturePath);
+        if (twoMaterials)
+            AddMaterial(NewId(), NewId(), NewId(), "M_" + name + "_Face", "T_" + name + "_Face", FaceTexturePath(fbxPath));
 
         // ---- skin ------------------------------------------------------------------------
         var skin = objects.Add("Deformer", skinId, name + Sep + "Deformer", "Skin");
@@ -265,7 +277,8 @@ public static class FbxExporter
         var counts = new (string Type, int Count)[]
         {
             ("GlobalSettings", 1), ("Geometry", 1), ("Model", bones.Count + 1), ("NodeAttribute", bones.Count),
-            ("Material", 1), ("Video", 1), ("Texture", 1), ("Deformer", bones.Count + 1), ("Pose", 1),
+            ("Material", twoMaterials ? 2 : 1), ("Video", twoMaterials ? 2 : 1), ("Texture", twoMaterials ? 2 : 1),
+            ("Deformer", bones.Count + 1), ("Pose", 1),
         };
         definitions.Add("Count", counts.Sum(c => c.Count));
         foreach (var (type, count) in counts)

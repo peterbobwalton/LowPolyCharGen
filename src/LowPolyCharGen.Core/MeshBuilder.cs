@@ -28,6 +28,9 @@ public sealed class Face(int[] vertices, Slot slot, PaintDetail detail, int char
 {
     public int[] Vertices { get; } = vertices;
     public Slot Slot { get; } = slot;
+
+    /// <summary>Material slot: 0 = the character texture, 1 = its face texture (pack characters).</summary>
+    public byte Material { get; init; }
     public PaintDetail Detail { get; } = detail;
 
     /// <summary>Faces in different groups never share normals: the edge between them is always hard.</summary>

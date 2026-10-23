@@ -13,15 +13,15 @@ $cli = "$root\src\LowPolyCharGen.Cli\bin\Release\net10.0\lowpolychargen.exe"
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 
 $characters = [ordered]@{
-    "LPCG_Kit_Rifleman"        = "PackBody=TSA_Body_A PackLegs=TSA_Legs_B PackHead=TSA_Head_B1"
-    "LPCG_Kit_Heavy"           = "PackBody=TSA_Body_D PackLegs=TSA_Legs_C PackHead=TSA_Head_D2 Build=1"
-    "LPCG_Kit_Scout_Slim"      = "PackBody=TSA_Body_J PackLegs=TSA_Legs_A PackHead=TSA_Head_H1 Build=0"
-    "LPCG_Kit_Tee_Slim"        = "PackBody=TSA_Body_G PackLegs=TSA_Legs_A PackHead=TSA_Head_A1 Build=0"
+    "LPCG_Kit_Rifleman"        = "PackBody=TSA_Body_A PackLegs=TSA_Legs_B PackHead=TSA_Head_B1 FacialHair=Stubble"
+    "LPCG_Kit_Heavy"           = "PackBody=TSA_Body_D PackLegs=TSA_Legs_C PackHead=TSA_Head_D2 Build=1 HeadShape=Heavy SkinColor=#8A5A3C HairColor=#151010"
+    "LPCG_Kit_Scout_Slim"      = "PackBody=TSA_Body_J PackLegs=TSA_Legs_A PackHead=TSA_Head_H1 Build=0 HeadShape=Slim FacialHair=Moustache HairColor=#2A1A12"
+    "LPCG_Kit_Tee_Slim"        = "PackBody=TSA_Body_G PackLegs=TSA_Legs_A PackHead=TSA_Head_A1 Build=0 HeadShape=Slim SkinColor=#F0C8A8 HairColor=#C8A060 EyeColor=#4A6A8A FacialHair=Stubble"
     "LPCG_Kit_Tee"             = "PackBody=TSA_Body_G PackLegs=TSA_Legs_A PackHead=TSA_Head_A1"
-    "LPCG_Kit_Tee_Heavy"       = "PackBody=TSA_Body_G PackLegs=TSA_Legs_A PackHead=TSA_Head_A1 Build=1"
-    "LPCG_Kit_Female_Tee"      = "PackBody=TSA_Body_G PackLegs=TSA_Legs_A PackHead=TSA_Head_A1 Gender=Female"
-    "LPCG_Kit_Female_Rifleman" = "PackBody=TSA_Body_E PackLegs=TSA_Legs_B PackHead=TSA_Head_B1 Gender=Female PackEquipment=TSA_light_backpack"
-    "LPCG_Kit_Female_Slim"     = "PackBody=TSA_Body_K PackLegs=TSA_Legs_A PackHead=TSA_Head_K1 Gender=Female Build=0.25"
+    "LPCG_Kit_Tee_Heavy"       = "PackBody=TSA_Body_G PackLegs=TSA_Legs_A PackHead=TSA_Head_A1 Build=1 HeadShape=Square SkinColor=#7A4A30 HairColor=#151010 FacialHair=Beard"
+    "LPCG_Kit_Female_Tee"      = "PackBody=TSA_Body_G PackLegs=TSA_Legs_A PackHead=TSA_Head_A1 Gender=Female Hair=Ponytail"
+    "LPCG_Kit_Female_Rifleman" = "PackBody=TSA_Body_E PackLegs=TSA_Legs_B PackHead=TSA_Head_B1 Gender=Female PackEquipment=TSA_light_backpack Hair=Ponytail HairColor=#2A1A12"
+    "LPCG_Kit_Female_Slim"     = "PackBody=TSA_Body_K PackLegs=TSA_Legs_A PackHead=TSA_Head_K1 Gender=Female Build=0.25 Hair=Bun HairColor=#C89A58 SkinColor=#E8BC98 EyeColor=#4A6A8A"
 }
 
 foreach ($name in $characters.Keys) {

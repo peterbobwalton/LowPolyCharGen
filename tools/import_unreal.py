@@ -136,8 +136,21 @@ def import_character(fbx, destination, mannequin, lods=DEFAULT_LODS):
     if spec.get("Body") == "Pack":
         # Built from the pack's parts: the pack's own material instance for its texture, shared by
         # every character that wears it.
+        # Slot 1 (material "M_<name>_Face"): the character's own face texture on the pack's material.
+        face_material = None
+        face_png = os.path.join(os.path.dirname(fbx), base + "_Face.png")
+        if os.path.exists(face_png):
+            face_texture = next(iter(import_task(face_png, destination, "T_" + base + "_Face")), None)
+            tools = unreal.AssetToolsHelpers.get_asset_tools()
+            mi_path = destination + "/MI_" + base + "_Face"
+            face_material = unreal.load_asset(mi_path) if unreal.EditorAssetLibrary.does_asset_exist(mi_path) else \
+                tools.create_asset("MI_" + base + "_Face", destination, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+            unreal.MaterialEditingLibrary.set_material_instance_parent(face_material, unreal.load_asset(TOON_MATERIAL))
+            unreal.MaterialEditingLibrary.set_material_instance_texture_parameter_value(face_material, "Texture", face_texture)
+            unreal.EditorAssetLibrary.save_loaded_asset(face_material)
+        body_material = pack_material(spec.get("PackTexture", "T_Armies_Standard"))
         mesh.set_editor_property("materials", [
-            unreal.SkeletalMaterial(material_interface=pack_material(spec.get("PackTexture", "T_Armies_Standard")),
+            unreal.SkeletalMaterial(material_interface=face_material if face_material and str(slot.material_slot_name).endswith("_Face") else body_material,
                                     material_slot_name=slot.material_slot_name)
             for slot in mesh.get_editor_property("materials")])
         if "--no-nanite" not in sys.argv:
