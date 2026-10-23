@@ -22,7 +22,7 @@ $characters = [ordered]@{
     "LPCG_Kit_Female_Tee" = "PackBody=TSA_Body_G PackLegs=TSA_Legs_A PackHead=TSA_Head_A1 Gender=Female Hair=Long HairColor=#3A2416"
     "LPCG_Kit_Female_Rifleman" = "PackBody=TSA_Body_E PackLegs=TSA_Legs_B PackHead=TSA_Head_B1 Gender=Female PackEquipment=TSA_light_backpack Hair=Ponytail HairColor=#2A1A12"
     "LPCG_Kit_Female_Slim" = "PackBody=TSA_Body_K PackLegs=TSA_Legs_A PackHead=TSA_Head_K1 Gender=Female Build=0.25 Nose=Button Hair=Bun HairColor=#C89A58 SkinColor=#E8BC98 EyeColor=#4A6A8A"
-    "LPCG_Kit_Tee_Urban" = "PackBody=TSA_Body_G PackLegs=TSA_Legs_A PackHead=TSA_Head_A1 RecolourClothes=true ShirtColor=#2E3A4A TrousersColor=#3A3A3C BootsColor=#1C1A18 GloveStyle=Bare FacialHair=Goatee SkinColor=#C89070 HairColor=#1E1612"
+    "LPCG_Kit_Tee_Urban" = "PackBody=TSA_Body_G PackLegs=TSA_Legs_A PackHead=TSA_Head_A1 RecolourClothes=true ShirtColor=#2E3A4A TrousersColor=#3A3A3C BootsColor=#1C1A18 GloveStyle=Bare FacialHair=Goatee SkinColor=#C89070 HairColor=#1E1612 Footwear=Shoes"
     "LPCG_Kit_Female_Bob" = "PackBody=TSA_Body_I PackLegs=TSA_Legs_C PackHead=TSA_Head_A1 Gender=Female Build=0.4 Hair=Bob HairColor=#D8B070 SkinColor=#EBC2A0 EyeColor=#3F6E9A"
 }
 
@@ -35,7 +35,7 @@ foreach ($name in $characters.Keys) {
 
 $militia = [ordered]@{
     "LPCG_Mil_Turban_Thobe" = "PackBody=TSA_Body_H PackLegs=MIL_Mesh_Legs_A Hat=Turban Legs=Thobe FacialHair=BushyBeard ShirtColor=#E8E4DA HatColor=#2A2A2E SkinColor=#B07850 HairColor=#1A1410"
-    "LPCG_Mil_Keffiyeh_Thobe" = "PackBody=TSA_Body_H PackLegs=MIL_Mesh_Legs_A Hat=Keffiyeh Legs=Thobe FacialHair=Beard ShirtColor=#9A8C74 HatColor=#E8E4DA AccentColor=#9A2A26 SkinColor=#A87048 HairColor=#1A1410"
+    "LPCG_Mil_Keffiyeh_Thobe" = "PackBody=TSA_Body_H PackLegs=MIL_Mesh_Legs_A Hat=Keffiyeh Legs=Thobe FacialHair=Beard ShirtColor=#9A8C74 HatColor=#E8E4DA AccentColor=#9A2A26 SkinColor=#A87048 HairColor=#1A1410 Footwear=Shoes"
     "LPCG_Mil_Shemagh" = "PackBody=MIL_Mesh_Body_B PackLegs=MIL_Mesh_Legs_C FaceCover=Shemagh AccentColor=#C8B898"
     "LPCG_Mil_Balaclava" = "PackBody=MIL_Mesh_Body_D PackLegs=MIL_Mesh_Legs_B FaceCover=Balaclava"
     "LPCG_Mil_Beanie" = "PackBody=MIL_Mesh_Body_A PackLegs=MIL_Mesh_Legs_D PackHead=MIL_Mesh_head_D FacialHair=Beard SkinColor=#B88058"

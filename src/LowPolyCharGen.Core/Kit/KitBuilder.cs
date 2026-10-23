@@ -43,6 +43,7 @@ public static class KitBuilder
         parts.Add(headPart);
         var legsPart = parts[0];
         var thobe = spec.Legs == LegsStyle.Thobe && face is not null;
+        var lowFootwear = spec.Footwear is Footwear.Trainers or Footwear.Shoes;
         if (face is not null)
         {
             if (headdress && spec.Hat == HatStyle.Turban) parts.Add(KitPieces.Turban(headPart));
@@ -78,10 +79,15 @@ public static class KitBuilder
             }
             var militia = IsMilitia(source0);
             var offset = positions.Count;
+            var isLegsPart = ReferenceEquals(source0, legsPart);
+            var bootOf = isLegsPart && lowFootwear ? BootVertices(part) : null;
+            // Trousers that already come down over the foot (jeans) stay as they are.
+            var stretchHem = bootOf is not null && Enumerable.Range(0, part.Positions.Count).Where(v => !bootOf[v]).Min(v => part.Positions[v].Z) > 15f;
             for (var v = 0; v < part.Positions.Count; v++)
             {
                 source.Add(part.Positions[v]);
                 var p = reshapeHead ? HeadMorph.Apply(part.Positions[v], spec) : part.Positions[v];
+                if (bootOf is not null && (bootOf[v] || stretchHem)) p = LowFootwear(p, bootOf[v]);
                 positions.Add(morph.Apply(p));
                 normals.Add(part.Normals[v]);
                 uvs.Add(part.Uvs[v]);
@@ -196,6 +202,21 @@ public static class KitBuilder
             FixedTexture = packTexture,
             FaceTexture = face?.Texture,
         };
+    }
+
+    /// <summary>
+    /// Low footwear from the pack's boots: the shaft folds down onto the shoe (above the ankle line
+    /// it is squashed to a collar), and the trouser legs reach down over it.
+    /// </summary>
+    private static Vector3 LowFootwear(Vector3 p, bool boot)
+    {
+        const float collar = 9f, hem = 21f, reach = 30f;
+        if (boot)
+            return p.Z > collar ? p with { Z = collar + (p.Z - collar) * 0.15f } : p;
+        if (p.Z >= reach) return p;
+        // Trousers between the old hem and `reach` stretch down so the hem sits on the collar.
+        var t = Math.Clamp((p.Z - hem) / (reach - hem), 0f, 1f);
+        return p with { Z = float.Lerp(collar + 1f, reach, t) };
     }
 
     /// <summary>The boots of a legs part: the pieces (joined by shared vertices) that reach the ground.</summary>

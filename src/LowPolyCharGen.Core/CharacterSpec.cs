@@ -39,7 +39,8 @@ public enum Camouflage { None, Woodland, Digital, ChocolateChip }
 public enum EarShape { Normal, Pixie, Elephant, StickOut }
 public enum TorsoStyle { TShirt, LongSleeve, RolledSleeves, TankTop, Jacket, Hoodie, Polo, CheckShirt }
 public enum LegsStyle { Trousers, Cargo, Shorts, TallBoots, Skirt, Jeans, Thobe }
-public enum Footwear { Boots, Trainers }
+/// <summary>Boots; Trainers (low, in BootsColor); Shoes (Body = Pack: low, in the boots' own colours).</summary>
+public enum Footwear { Boots, Trainers, Shoes }
 public enum HatStyle { None, Helmet, Cap, Beret, Boonie, Beanie, Keffiyeh, Turban }
 public enum EyewearStyle { None, Sunglasses, Goggles }
 /// <summary>Demolition: a pack with explosive blocks and a det-cord coil strapped on. Tools: a rucksack with an entrenching tool and a pick.</summary>

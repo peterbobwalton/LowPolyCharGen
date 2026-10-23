@@ -23,7 +23,7 @@ ROWS = [
         (KIT + "Kit_Tee_Slim", AW + "SM_m4", "T-shirt", "slim, fair, stubble"),
         (KIT + "Kit_Tee", AW + "SM_m4", "T-shirt", "standard"),
         (KIT + "Kit_Tee_Heavy", AW + "SM_m4", "T-shirt", "heavy, beard"),
-        (KIT + "Kit_Tee_Urban", AW + "SM_mp5", "Recoloured", "clothes, bare hands"),
+        (KIT + "Kit_Tee_Urban", AW + "SM_mp5", "Recoloured", "clothes, shoes, bare hands"),
     ],
     [
         (ARMIES + "/Meshes/Characters_Prebuilt/SK_Armies_Soldier_B", AW + "SM_g36c", "Armies pack", "reference"),
@@ -35,7 +35,7 @@ ROWS = [
     [
         (MILITIA + "/Meshes/Characters_Prebuilt/SK_Militia01", MW + "SM_weapon_ak47", "Militia pack", "reference"),
         (KIT + "Mil_Turban_Thobe", MW + "SM_weapon_ak47", "Militia", "turban, thobe"),
-        (KIT + "Mil_Keffiyeh_Thobe", MW + "SM_weapon_rpg", "Militia", "keffiyeh, thobe"),
+        (KIT + "Mil_Keffiyeh_Thobe", MW + "SM_weapon_rpg", "Militia", "keffiyeh, thobe, shoes"),
         (KIT + "Mil_Thobe_Grey", MW + "SM_weapon_pkm", "Militia", "turban, grey thobe"),
         (KIT + "Mil_Turban_Jeans", MW + "SM_weapon_aksu", "Militia", "turban, trainers"),
         (KIT + "Mil_Beanie", MW + "SM_weapon_fal", "Militia", "beanie, beard"),
