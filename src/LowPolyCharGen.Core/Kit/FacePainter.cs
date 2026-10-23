@@ -280,24 +280,40 @@ public sealed class FacePainter
 
         private void Female(ref Vector3 c, float u, float z, float k)
         {
-            // The pack's heavy male brow and socket shadow, nostril and jaw shading, softened.
-            c = Mix(c, _skin * 0.97f, Ellipse(u, z, 4.2f, 167.6f, 4.6f, 2.4f, 0.5f) * k * 0.85f);
-            c = Mix(c, _skin * 0.95f, Ellipse(u, z, 2.2f, 163.2f, 1.9f, 3.6f, 0.7f) * k * 0.85f);   // shadow down the nose sides
-            c = Mix(c, _skin, Ellipse(u, z, 1.4f, 160.6f, 2.4f, 0.7f, 0.6f) * k * 0.55f);
-            c = Mix(c, _skin, Ellipse(u, z, 5f, 152.5f, 6f, 2f, 0.6f) * k * 0.45f);
+            // The pack's painting is a man's: deep sockets, hard shadows down the nose, a set mouth
+            // and a jaw line. A woman's face is repainted over it: clean skin, shaded only softly
+            // round the sides, with fine features drawn on top in the pack's style.
+            var face = S((z - 149.2f) / 1.2f) * S((171.2f - z) / 0.8f) * k;
+            var side = S((u - 4.2f) / 4f);
+            var clean = _skin * (1.02f - 0.12f * side - 0.05f * S((157f - z) / 6f));
+            c = Mix(c, clean, face * 0.92f);
+
+            // Soft modelling: eye sockets, the sides and underside of the nose, under the lower lip
+            // and under the chin.
+            c = Mix(c, _skin * 0.94f, Ellipse(u, z, 3.9f, 167.4f, 2.4f, 0.8f, 0.9f) * k * 0.35f);
+            c = Mix(c, _skin * 0.93f, Stroke(u, z, [new(1.2f, 166.8f, 0.5f), new(1.35f, 163.2f, 0.6f), new(1.6f, 161.3f, 0.5f)], 0.35f) * k * 0.6f);
+            c = Mix(c, _skin * 0.8f, Ellipse(u, z, 0, 160.55f, 1.5f, 0.35f, 0.7f) * k * 0.6f);
+            c = Mix(c, _skin * 0.62f, Ellipse(u, z, 0.75f, 160.75f, 0.32f, 0.2f, 0.5f) * k * 0.7f);   // nostrils
+            c = Mix(c, _skin * 1.06f, Stroke(u, z, [new(0, 166.5f, 0.5f), new(0, 162f, 0.6f)], 0.3f) * k * 0.5f);   // bridge highlight
+            c = Mix(c, _skin * 0.86f, Ellipse(u, z, 0, 155.0f, 1.8f, 0.45f, 0.8f) * k * 0.5f);
+            c = Mix(c, _skin * 0.8f, Ellipse(u, z, 0, 150.2f, 3.2f, 0.8f, 0.8f) * k * 0.5f);
+            c = Mix(c, _skin * new Vector3(1f, 0.74f, 0.76f), Ellipse(u, z, 5.3f, 159.8f, 2.2f, 1.5f, 0.9f) * k * 0.3f);   // blush
+
             // Thin arched brows.
-            c = Mix(c, _hair * 1.1f, Stroke(u, z, [new(1.5f, 168f, 0.35f), new(3.2f, 168.9f, 0.5f), new(4.6f, 169.1f, 0.4f), new(6.3f, 168.4f, 0.15f)], 0.12f) * k);
-            // Lips.
-            const float mz = 156.7f;
-            var up = z > mz && u < 2.6f ? S(((0.55f * (1 - u * u / 6.76f) + 0.12f * MathF.Exp(-((u - 0.9f) / 0.5f) * ((u - 0.9f) / 0.5f))) - (z - mz)) / 0.1f) : 0;
-            var lo = z <= mz && u < 2.3f ? S((0.75f * (1 - u * u / 5.29f) - (mz - z)) / 0.12f) : 0;
-            var lip = _skin * new Vector3(0.82f, 0.55f, 0.6f) + new Vector3(0.06f, 0, 0);
-            c = Mix(c, lip * 0.9f, up * k * 0.85f);
-            c = Mix(c, lip, lo * k * 0.85f);
-            c = Mix(c, lip * 1.15f, Ellipse(u, z, 0.6f, mz - 0.4f, 0.9f, 0.25f, 0.6f) * k * 0.5f);
-            c = Mix(c, lip * 0.35f, Stroke(u, z, [new(0, mz, 0.12f), new(1.4f, mz + 0.05f, 0.12f), new(2.6f, mz + 0.15f, 0.04f)], 0.08f) * k);
-            // A little colour on the cheeks.
-            c = Mix(c, _skin * new Vector3(1f, 0.72f, 0.75f), Ellipse(u, z, 5.5f, 159.5f, 2.4f, 1.6f, 0.9f) * k * 0.25f);
+            c = Mix(c, _hair * 1.1f, Stroke(u, z, [new(1.5f, 168.5f, 0.28f), new(3.1f, 169.3f, 0.38f), new(4.7f, 169.4f, 0.3f), new(6.3f, 168.8f, 0.1f)], 0.1f) * k);
+            // Eyelid crease and a touch of shadow above the eye.
+            c = Mix(c, _skin * 0.84f, Stroke(u, z, [new(2.4f, 167.35f, 0.08f), new(4f, 167.75f, 0.1f), new(5.6f, 167.3f, 0.06f)], 0.08f) * k * 0.4f);
+
+            // Lips: a cupid's bow, a fuller lower lip, corners turned up a little.
+            const float mz = 156.75f;
+            var bow = 0.16f * MathF.Exp(-((u - 0.75f) / 0.45f) * ((u - 0.75f) / 0.45f)) - 0.08f * MathF.Exp(-(u / 0.3f) * (u / 0.3f));
+            var up = z > mz && u < 2.8f ? S(((0.68f * (1 - u * u / 7.84f) + bow) - (z - mz)) / 0.1f) : 0;
+            var lo = z <= mz && u < 2.5f ? S((1.0f * (1 - u * u / 6.25f) - (mz - z)) / 0.12f) : 0;
+            var lip = _skin * new Vector3(0.82f, 0.45f, 0.5f) + new Vector3(0.09f, 0.01f, 0.03f);
+            c = Mix(c, lip * 0.85f, up * k * 0.9f);
+            c = Mix(c, lip, lo * k * 0.9f);
+            c = Mix(c, lip * 1.2f, Ellipse(u, z, 0.6f, mz - 0.45f, 1.0f, 0.25f, 0.7f) * k * 0.6f);   // lower lip highlight
+            c = Mix(c, lip * 0.4f, Stroke(u, z, [new(0, mz, 0.1f), new(1.7f, mz + 0.04f, 0.1f), new(2.85f, mz + 0.25f, 0.05f)], 0.07f) * k);
         }
 
         private void Male(ref Vector3 c, float u, float z, float k)
@@ -352,7 +368,7 @@ public sealed class FacePainter
             var wing = _female ? 0.35f : 0.05f;
             c = Mix(c, new Vector3(0.08f, 0.05f, 0.04f), Stroke(u, z,
                 [new(ex - ew - 0.1f, ez + 0.05f, 0.15f), new(ex - ew * 0.5f, ez + eh * 0.8f, 0.3f), new(ex, ez + eh * 0.95f, _female ? 0.35f : 0.3f),
-                 new(ex + ew * 0.6f, ez + eh * 0.7f, 0.3f), new(ex + ew + wing, ez + (_female ? 0.45f : 0.1f), 0.08f)], 0.08f) * k);
+                 new(ex + ew * 0.6f, ez + eh * 0.7f, _female ? 0.38f : 0.3f), new(ex + ew + wing, ez + (_female ? 0.45f : 0.1f), 0.08f)], 0.08f) * k);
             c = Mix(c, _skin * 0.75f, Stroke(u, z,
                 [new(ex - ew * 0.6f, ez - eh * 0.65f, 0.12f), new(ex, ez - eh * 0.95f, 0.12f), new(ex + ew * 0.8f, ez - eh * 0.5f, 0.12f)], 0.1f) * k * 0.6f);
         }

@@ -90,7 +90,7 @@ public static class HeadMorph
         }
         if (gender == Gender.Female)
         {
-            jawWidth -= 0.26f; faceWidth -= 0.05f; chinUp += 1.1f; chinBack += 0.9f;
+            jawWidth -= 0.28f; faceWidth -= 0.06f; chinUp += 1.7f; chinBack += 1.1f;
             browBack += 0.6f;
         }
 
