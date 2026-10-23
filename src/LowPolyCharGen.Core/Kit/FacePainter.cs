@@ -265,6 +265,8 @@ public sealed class FacePainter
             var k = front * skinness * (1 - hairness);
             if (k <= 0.001f) return Vector3.Clamp(c, Vector3.Zero, Vector3.One);
 
+            // The pack paints the nostril shadow wider than its nose: its outer end reads as a mark on the cheek.
+            c = Mix(c, _skin * 0.84f, Ellipse(u, z, 3.6f, 160.5f, 1.1f, 0.75f, 0.7f) * k * 0.7f);
             if (_female) Female(ref c, u, z, k);
             else Male(ref c, u, z, k);
             Eyes(ref c, u, z, k);
