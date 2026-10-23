@@ -28,6 +28,9 @@ public enum FaceCover { None, Balaclava, Shemagh }
 public enum CamoCoverage { All, TrousersOnly, TopOnly }
 public enum HeadShape { Standard, Square, Round, Slim, Heavy }
 /// <summary>Body = Pack: the nose (Auto = the pack's for men, Small for women).</summary>
+/// <summary>Body = Pack: the hands (Auto = the body's own, or Tan when Gloves is set).</summary>
+public enum GloveStyle { Auto, Bare, Tan, Dark }
+/// <summary>Body = Pack: the nose (Auto = the pack's for men, Small for women).</summary>
 public enum NoseShape { Auto, Pack, Small, Button, Broad, Roman }
 public enum HairStyle { Bald, Buzz, Short, Bob, Long, Ponytail, Bun, Mohawk }
 public enum FacialHair { None, Stubble, Moustache, Goatee, Beard, BushyBeard }
@@ -59,6 +62,8 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     private float _headSize = 1.0f;
     private HeadShape _headShape = HeadShape.Standard;
     private NoseShape _nose = NoseShape.Auto;
+    private GloveStyle _gloveStyle = GloveStyle.Auto;
+    private bool _recolourClothes;
     private EarShape _ears = EarShape.Normal;
     private HairStyle _hair = HairStyle.Short;
     private FacialHair _facialHair = FacialHair.None;
@@ -118,6 +123,14 @@ public sealed class CharacterSpec : INotifyPropertyChanged
 
     public HeadShape HeadShape { get => _headShape; set => Set(ref _headShape, value); }
     public NoseShape Nose { get => _nose; set => Set(ref _nose, value); }
+    public GloveStyle GloveStyle { get => _gloveStyle; set => Set(ref _gloveStyle, value); }
+
+    /// <summary>
+    /// Body = Pack: recolour the pack's clothes to ShirtColor (body), TrousersColor (legs) and
+    /// BootsColor (boots), keeping their painted shading. A thobe always takes ShirtColor, and
+    /// trainers always take BootsColor.
+    /// </summary>
+    public bool RecolourClothes { get => _recolourClothes; set => Set(ref _recolourClothes, value); }
     public EarShape Ears { get => _ears; set => Set(ref _ears, value); }
     public HairStyle Hair { get => _hair; set => Set(ref _hair, value); }
     public FacialHair FacialHair { get => _facialHair; set => Set(ref _facialHair, value); }

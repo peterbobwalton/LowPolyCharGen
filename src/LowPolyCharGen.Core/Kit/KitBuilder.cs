@@ -50,7 +50,9 @@ public static class KitBuilder
             else if (HairPieces.For(spec, headPart) is { } hair) parts.Add(hair);
             if (thobe) parts.Add(KitPieces.ThobeSkirt(legsPart));
         }
-        var bodyPart = parts.FirstOrDefault(p => p.Uses("Clavicle") && !ReferenceEquals(p, headPart));
+        var bodyIndex = parts.FindIndex(p => p.Uses("Clavicle") && !ReferenceEquals(p, headPart));
+        if (bodyIndex >= 0) parts[bodyIndex] = KitHands.Restyle(parts[bodyIndex], KitHands.StyleFor(spec));
+        var bodyPart = bodyIndex >= 0 ? parts[bodyIndex] : null;
 
         var positions = new List<Vector3>();
         var source = new List<Vector3>();   // positions before the morph, for the normals
@@ -60,7 +62,7 @@ public static class KitBuilder
         var triangles = new List<int[]>();
         var triangleUvs = new List<Vector2[]>();
         var triangleMaterial = new List<byte>();
-        var triangleBody = new List<bool>();
+        var triangleGroup = new List<int>();   // clothes to recolour: 0 none, 1 body, 2 trousers, 3 boots
         var triangleTexture = new List<TextureImage>();
         foreach (var source0 in parts)
         {
@@ -94,6 +96,7 @@ public static class KitBuilder
                 weights.Add(Skinning.Normalize(list));
             }
             var isLegs = ReferenceEquals(source0, legsPart);
+            var boot = isLegs ? BootVertices(part) : null;
             foreach (var t0 in part.Triangles)
             {
                 var t = t0;
@@ -107,7 +110,7 @@ public static class KitBuilder
                 // Under a thobe only the boots and the shins above them show.
                 if (thobe && isLegs && t.All(i => part.Positions[i].Z > 20f)) continue;
                 triangles.Add([t[0] + offset, t[1] + offset, t[2] + offset]);
-                triangleBody.Add(isBody);
+                triangleGroup.Add(isBody ? 1 : boot is null ? 0 : boot[t[0]] ? 3 : 2);
                 triangleTexture.Add(TextureOf(source0));
                 Vector2[] uv = [part.Uvs[t[0]], part.Uvs[t[1]], part.Uvs[t[2]]];
                 byte material = militia ? (byte)2 : (byte)0;
@@ -146,16 +149,25 @@ public static class KitBuilder
         for (var f = 0; f < triangles.Count; f++)
             if (triangleMaterial[f] != 1 && ShowsSkin(triangleTexture[f], triangleUvs[f]))
                 foreach (var v in triangles[f]) colors[v] = new Vector4(tint, colors[v].W);
-        if (thobe)
+        var trainers = spec.Footwear == Footwear.Trainers;
+        Rgb? GroupColor(int group) => group switch
         {
-            var cloth = FacePainter.ToVec(spec.ShirtColor);
+            1 when thobe || spec.RecolourClothes => spec.ShirtColor,
+            2 when spec.RecolourClothes => spec.TrousersColor,
+            3 when trainers || spec.RecolourClothes => spec.BootsColor,
+            _ => null,
+        };
+        for (var group = 1; group <= 3; group++)
+        {
+            if (GroupColor(group) is not { } color) continue;
+            var cloth = FacePainter.ToVec(color);
             var linear = new Vector3(Lin(cloth.X), Lin(cloth.Y), Lin(cloth.Z));
             float sum = 0; var n = 0;
             for (var f = 0; f < triangles.Count; f++)
-                if (triangleBody[f]) foreach (var l in ClothLuminance(triangleTexture[f], triangleUvs[f])) { sum += l; n++; }
+                if (triangleGroup[f] == group) foreach (var l in ClothLuminance(triangleTexture[f], triangleUvs[f])) { sum += l; n++; }
             var scaled = linear / (n > 0 ? MathF.Max(sum / n, 0.01f) : 0.1f);
             for (var f = 0; f < triangles.Count; f++)
-                if (triangleBody[f])
+                if (triangleGroup[f] == group)
                     foreach (var v in triangles[f])
                     {
                         colors[v].W = scaled.X;
@@ -184,6 +196,18 @@ public static class KitBuilder
             FixedTexture = packTexture,
             FaceTexture = face?.Texture,
         };
+    }
+
+    /// <summary>The boots of a legs part: the pieces (joined by shared vertices) that reach the ground.</summary>
+    private static bool[] BootVertices(PackPart legs)
+    {
+        var parent = Enumerable.Range(0, legs.Positions.Count).ToArray();
+        int Find(int x) { while (parent[x] != x) x = parent[x] = parent[parent[x]]; return x; }
+        foreach (var t in legs.Triangles) { parent[Find(t[1])] = Find(t[0]); parent[Find(t[2])] = Find(t[0]); }
+        var grounded = new HashSet<int>();
+        for (var v = 0; v < legs.Positions.Count; v++)
+            if (legs.Positions[v].Z < 0.5f) grounded.Add(Find(v));
+        return Enumerable.Range(0, legs.Positions.Count).Select(v => grounded.Contains(Find(v))).ToArray();
     }
 
     public static bool IsMilitia(PackPart part) => part.Name.StartsWith("MIL_", StringComparison.Ordinal);

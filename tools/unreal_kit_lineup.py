@@ -20,8 +20,9 @@ ROW = [
     (KIT + "Female_Rifleman", "SM_g36c", "Kit female", "rifleman, backpack"),
     (KIT + "Female_Slim", "SM_mp5", "Kit female", "beanie, bun, button nose"),
     (KIT + "Female_Bob", "SM_usp", "Kit female", "bob, fair"),
+    (KIT + "Tee_Urban", "SM_mp5", "Kit recoloured", "clothes, bare hands"),
 ]
-X, Y0, STEP = 350.0, -1560.0, 105.0
+X, Y0, STEP = 350.0, -1620.0, 105.0
 
 eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)

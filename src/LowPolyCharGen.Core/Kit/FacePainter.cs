@@ -325,7 +325,8 @@ public sealed class FacePainter
             var goatee = Ellipse(u, z, 0, 152.6f, 2.4f, 2.6f, 0.4f) * (1 - lips) * (1 - side);
             var strands = 0.82f + 0.18f * MathF.Sin(u * 37.1f + z * 11.3f) * MathF.Sin(u * 13.7f - z * 29.9f);
             var shade = Math.Clamp(Lum(c) / Lum(_skin), 0.45f, 1.15f);
-            var beard = _hair * shade * strands;
+            // Near-black hair would paint a flat black patch: lift it enough to show the face's shading.
+            var beard = Vector3.Max(_hair, new Vector3(0.11f, 0.085f, 0.07f)) * shade * 1.15f * strands;
             var cover = facial switch
             {
                 LowPolyCharGen.FacialHair.Stubble => (area * 0.3f + moustache * 0.1f) * strands,
