@@ -44,6 +44,19 @@ ROWS = [
         (KIT + "Mil_Balaclava", MW + "SM_weapon_mac10", "Militia", "balaclava"),
     ],
 ]
+ANIMS = ARMIES + "/Animations/"
+# Weapons that aren't held like a rifle get the pack's own idle for them (rifles use the C++ locomotion idle).
+WEAPON_IDLE = {
+    "SM_weapon_rpg": ANIMS + "RocketLauncher/rocketlauncher_combat_idle",
+    "SM_smaw": ANIMS + "RocketLauncher/rocketlauncher_combat_idle",
+    "SM_javelin": ANIMS + "RocketLauncher/rocketlauncher_combat_idle",
+    "SM_weapon_pkm": ANIMS + "Machinegun/machinegun_combat_idle",
+    "SM_m249": ANIMS + "Machinegun/machinegun_combat_idle",
+    "SM_usp": ANIMS + "Handgun/handgun_combat_idle",
+    "SM_beretta92": ANIMS + "Handgun/handgun_combat_idle",
+    "SM_weapon_glock": ANIMS + "Handgun/handgun_combat_idle",
+    "SM_weapon_deserteagle": ANIMS + "Handgun/handgun_combat_idle",
+}
 SPACING = 240.0      # between characters in a row (cm), room for the labels
 ROW_GAP = 600.0      # between rows
 FLOOR_SIZE = 200.0   # metres
@@ -98,7 +111,8 @@ for r, row in enumerate(ROWS):
         actor = spawn(unreal.LpcgDisplaySoldier, unreal.Vector(x, y, 0), unreal.Rotator(0, 0, 180),
                       "Char_%d_%02d_%s" % (r, i, (line1 + "_" + line2).replace(" ", "_").replace(",", "")))
         actor.set_editor_property("mesh", unreal.load_asset(mesh))
-        actor.set_editor_property("animation", None)
+        idle = WEAPON_IDLE.get(weapon.rsplit("/", 1)[-1])
+        actor.set_editor_property("animation", unreal.load_asset(idle) if idle else None)
         actor.set_editor_property("locomotion_speed", 0.0)
         actor.set_editor_property("crouched", False)
         actor.set_editor_property("weapon_mesh", unreal.load_asset(weapon))
