@@ -27,6 +27,8 @@ public enum FaceCover { None, Balaclava, Shemagh }
 /// <summary>Which garments the camouflage is printed on (militia often wear camo trousers with a plain top).</summary>
 public enum CamoCoverage { All, TrousersOnly, TopOnly }
 public enum HeadShape { Standard, Square, Round, Slim, Heavy }
+/// <summary>Body = Pack: the nose (Auto = the pack's for men, Small for women).</summary>
+public enum NoseShape { Auto, Pack, Small, Button, Broad, Roman }
 public enum HairStyle { Bald, Buzz, Short, Bob, Long, Ponytail, Bun, Mohawk }
 public enum FacialHair { None, Stubble, Moustache, Goatee, Beard, BushyBeard }
 /// <summary>ChocolateChip is the 1991 US six-colour desert pattern (tan, khaki and brown blobs with black and white rocks), whatever the edition.</summary>
@@ -56,6 +58,7 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     private float _build = 0.5f;
     private float _headSize = 1.0f;
     private HeadShape _headShape = HeadShape.Standard;
+    private NoseShape _nose = NoseShape.Auto;
     private EarShape _ears = EarShape.Normal;
     private HairStyle _hair = HairStyle.Short;
     private FacialHair _facialHair = FacialHair.None;
@@ -114,6 +117,7 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     public float HeadSize { get => _headSize; set => Set(ref _headSize, Math.Clamp(value, 0.9f, 1.4f)); }
 
     public HeadShape HeadShape { get => _headShape; set => Set(ref _headShape, value); }
+    public NoseShape Nose { get => _nose; set => Set(ref _nose, value); }
     public EarShape Ears { get => _ears; set => Set(ref _ears, value); }
     public HairStyle Hair { get => _hair; set => Set(ref _hair, value); }
     public FacialHair FacialHair { get => _facialHair; set => Set(ref _facialHair, value); }

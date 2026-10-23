@@ -16,11 +16,12 @@ ROW = [
     (KIT + "Tee_Slim", "SM_m4", "Kit T-shirt", "build 0.0"),
     (KIT + "Tee", "SM_m4", "Kit T-shirt", "standard build"),
     (KIT + "Tee_Heavy", "SM_m4", "Kit T-shirt", "build 1.0"),
-    (KIT + "Female_Tee", "SM_m4", "Kit female", "T-shirt"),
+    (KIT + "Female_Tee", "SM_m4", "Kit female", "long hair"),
     (KIT + "Female_Rifleman", "SM_g36c", "Kit female", "rifleman, backpack"),
-    (KIT + "Female_Slim", "SM_mp5", "Kit female", "slim, build 0.25"),
+    (KIT + "Female_Slim", "SM_mp5", "Kit female", "beanie, bun, button nose"),
+    (KIT + "Female_Bob", "SM_usp", "Kit female", "bob, fair"),
 ]
-X, Y0, STEP = 350.0, -1460.0, 105.0
+X, Y0, STEP = 350.0, -1560.0, 105.0
 
 eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)

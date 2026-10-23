@@ -66,6 +66,9 @@ public sealed class MeshData
     /// <summary>One texture coordinate per face corner (0..1, V up), parallel to <see cref="Faces"/>.</summary>
     public required Vector2[][] Uvs { get; init; }
 
+    /// <summary>Optional vertex colours (RGBA, 0..1), exported as the FBX colour layer.</summary>
+    public Vector4[]? Colors { get; init; }
+
     public int TriangleCount => Faces.Sum(f => f.Vertices.Length - 2);
 
     /// <summary>Crease angle between faces of head skin, which is smoothed over its sharper bends.</summary>

@@ -125,6 +125,7 @@ def import_character(fbx, destination, mannequin, lods=DEFAULT_LODS):
     options.create_physics_asset = False
     options.skeletal_mesh_import_data.set_editor_property("use_t0_as_ref_pose", False)
     options.skeletal_mesh_import_data.set_editor_property("import_morph_targets", False)
+    options.skeletal_mesh_import_data.set_editor_property("vertex_color_import_option", unreal.VertexColorImportOption.REPLACE)
     options.skeletal_mesh_import_data.set_editor_property("normal_import_method", unreal.FBXNormalImportMethod.FBXNIM_IMPORT_NORMALS)
     imported = import_task(fbx, destination, "SK_" + base, options)
     mesh = next((a for a in imported if isinstance(a, unreal.SkeletalMesh)), None)
@@ -148,7 +149,7 @@ def import_character(fbx, destination, mannequin, lods=DEFAULT_LODS):
             unreal.MaterialEditingLibrary.set_material_instance_parent(face_material, unreal.load_asset(TOON_MATERIAL))
             unreal.MaterialEditingLibrary.set_material_instance_texture_parameter_value(face_material, "Texture", face_texture)
             unreal.EditorAssetLibrary.save_loaded_asset(face_material)
-        body_material = pack_material(spec.get("PackTexture", "T_Armies_Standard"))
+        body_material = kit_material_instance(spec.get("PackTexture", "T_Armies_Standard"))
         mesh.set_editor_property("materials", [
             unreal.SkeletalMaterial(material_interface=face_material if face_material and str(slot.material_slot_name).endswith("_Face") else body_material,
                                     material_slot_name=slot.material_slot_name)
@@ -198,6 +199,75 @@ def enable_nanite(mesh):
     settings = mesh.get_editor_property("nanite_settings")
     settings.set_editor_property("enabled", True)
     mesh.set_editor_property("nanite_settings", settings)
+
+
+KIT_MATERIAL = LAYERED_MATERIAL_DIR + "/M_LPCG_Kit"
+SKIN_TINT_HLSL = """
+float chroma = (C.r - C.g) / (C.r + 0.02);
+float m = saturate((chroma - 0.35) / 0.15) * saturate((C.r - 0.1) / 0.1) * T2.y;
+return lerp(C.rgb, C.rgb * pow(float3(T1.x, T1.y, T2.x) * 2, 2.2), m);   // the ratio is in sRGB
+"""
+
+
+def kit_material(rebuild=False):
+    """
+    The body material of pack-kit characters: the pack's look (one texture, default lit, no specular)
+    with the skin tone from UV channels 1 and 2 (the vertex colours RG and BA; Nanite skinned meshes
+    drop vertex colours): where A = 1, skin-coloured texels are multiplied by RGB * 2. One instance per
+    pack texture is shared by every kit character. rebuild=True rebuilds an existing one's graph.
+    """
+    mel = unreal.MaterialEditingLibrary
+    if unreal.EditorAssetLibrary.does_asset_exist(KIT_MATERIAL):
+        mat = unreal.load_asset(KIT_MATERIAL)
+        if not rebuild:
+            return mat
+        mel.delete_all_material_expressions(mat)
+    else:
+        tools = unreal.AssetToolsHelpers.get_asset_tools()
+        mat = tools.create_asset("M_LPCG_Kit", LAYERED_MATERIAL_DIR, unreal.Material, unreal.MaterialFactoryNew())
+    tex = mel.create_material_expression(mat, unreal.MaterialExpressionTextureSampleParameter2D, -600, 0)
+    tex.set_editor_property("parameter_name", "Texture")
+    tex.set_editor_property("texture", unreal.load_asset(PACK + "/Textures/T_Armies_Standard"))
+    uv1 = mel.create_material_expression(mat, unreal.MaterialExpressionTextureCoordinate, -600, 300)
+    uv1.set_editor_property("coordinate_index", 1)
+    uv2 = mel.create_material_expression(mat, unreal.MaterialExpressionTextureCoordinate, -600, 400)
+    uv2.set_editor_property("coordinate_index", 2)
+    custom = mel.create_material_expression(mat, unreal.MaterialExpressionCustom, -250, 100)
+    custom.set_editor_property("code", SKIN_TINT_HLSL)
+    custom.set_editor_property("output_type", unreal.CustomMaterialOutputType.CMOT_FLOAT3)
+    custom.set_editor_property("description", "Skin tint")
+    inputs = []
+    for name in ("C", "T1", "T2"):
+        ci = unreal.CustomInput()
+        ci.set_editor_property("input_name", name)
+        inputs.append(ci)
+    custom.set_editor_property("inputs", inputs)
+    mel.connect_material_expressions(tex, "RGBA", custom, "C")
+    mel.connect_material_expressions(uv1, "", custom, "T1")
+    mel.connect_material_expressions(uv2, "", custom, "T2")
+    mel.connect_material_property(custom, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    spec = mel.create_material_expression(mat, unreal.MaterialExpressionConstant, -250, 300)
+    mel.connect_material_property(spec, "", unreal.MaterialProperty.MP_SPECULAR)
+    mat.set_editor_property("used_with_skeletal_mesh", True)
+    mat.set_editor_property("used_with_nanite", True)
+    mel.recompile_material(mat)
+    unreal.EditorAssetLibrary.save_loaded_asset(mat)
+    return mat
+
+
+def kit_material_instance(texture_name):
+    """MI_LPCG_Kit_<texture>: the kit material on one of the pack's textures (its camo variants)."""
+    path = LAYERED_MATERIAL_DIR + "/MI_LPCG_Kit_" + texture_name
+    if unreal.EditorAssetLibrary.does_asset_exist(path):
+        return unreal.load_asset(path)
+    tools = unreal.AssetToolsHelpers.get_asset_tools()
+    mi = tools.create_asset("MI_LPCG_Kit_" + texture_name, LAYERED_MATERIAL_DIR, unreal.MaterialInstanceConstant,
+                            unreal.MaterialInstanceConstantFactoryNew())
+    mel = unreal.MaterialEditingLibrary
+    mel.set_material_instance_parent(mi, kit_material())
+    mel.set_material_instance_texture_parameter_value(mi, "Texture", unreal.load_asset(PACK + "/Textures/" + texture_name))
+    unreal.EditorAssetLibrary.save_loaded_asset(mi)
+    return mi
 
 
 def pack_material(texture_name):

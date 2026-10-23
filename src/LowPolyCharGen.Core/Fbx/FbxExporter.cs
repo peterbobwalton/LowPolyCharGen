@@ -133,6 +133,46 @@ public static class FbxExporter
         uvLayer.Add("UV", uvs);
         uvLayer.Add("UVIndex", uvIndex);
 
+        if (mesh.Colors is { } vertexColors)
+        {
+            var colors = new double[cornerCount * 4];
+            corner = 0;
+            foreach (var f in mesh.Faces)
+                foreach (var v in f.Vertices)
+                {
+                    var c = vertexColors[v];
+                    colors[corner * 4] = c.X; colors[corner * 4 + 1] = c.Y; colors[corner * 4 + 2] = c.Z; colors[corner * 4 + 3] = c.W;
+                    corner++;
+                }
+            var colorLayer = geometry.Add("LayerElementColor", 0);
+            colorLayer.Add("Version", 101);
+            colorLayer.Add("Name", "Col");
+            colorLayer.Add("MappingInformationType", "ByPolygonVertex");
+            colorLayer.Add("ReferenceInformationType", "Direct");
+            colorLayer.Add("Colors", colors);
+
+            // The same values again as UV channels 1 (RG) and 2 (BA): Nanite skinned meshes drop vertex
+            // colours but keep extra UVs. Unreal flips V on import, so V is stored as 1 - value.
+            for (var set = 1; set <= 2; set++)
+            {
+                var extra = new double[cornerCount * 2];
+                var index = new int[cornerCount];
+                for (var k = 0; k < cornerCount; k++)
+                {
+                    extra[k * 2] = colors[k * 4 + (set - 1) * 2];
+                    extra[k * 2 + 1] = 1 - colors[k * 4 + (set - 1) * 2 + 1];
+                    index[k] = k;
+                }
+                var extraLayer = geometry.Add("LayerElementUV", set);
+                extraLayer.Add("Version", 101);
+                extraLayer.Add("Name", "Data" + set);
+                extraLayer.Add("MappingInformationType", "ByPolygonVertex");
+                extraLayer.Add("ReferenceInformationType", "IndexToDirect");
+                extraLayer.Add("UV", extra);
+                extraLayer.Add("UVIndex", index);
+            }
+        }
+
         var smoothing = new int[mesh.Faces.Length];
         Array.Fill(smoothing, model.Spec.FlatShaded ? 0 : 1);
         var smoothingLayer = geometry.Add("LayerElementSmoothing", 0);
@@ -153,12 +193,22 @@ public static class FbxExporter
 
         var layer = geometry.Add("Layer", 0);
         layer.Add("Version", 100);
-        foreach (var type in new[] { "LayerElementNormal", "LayerElementSmoothing", "LayerElementUV", "LayerElementMaterial" })
+        foreach (var type in new[] { "LayerElementNormal", "LayerElementSmoothing", "LayerElementUV", "LayerElementMaterial" }
+                     .Concat(mesh.Colors is null ? [] : ["LayerElementColor"]))
         {
             var element = layer.Add("LayerElement");
             element.Add("Type", type);
             element.Add("TypedIndex", 0);
         }
+        if (mesh.Colors is not null)
+            for (var set = 1; set <= 2; set++)
+            {
+                var extra = geometry.Add("Layer", set);
+                extra.Add("Version", 100);
+                var element = extra.Add("LayerElement");
+                element.Add("Type", "LayerElementUV");
+                element.Add("TypedIndex", set);
+            }
 
         // ---- models ----------------------------------------------------------------------
         AddModel(objects, meshModelId, name, "Mesh", Vector3.Zero, (0, 0, 0));

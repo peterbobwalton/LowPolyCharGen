@@ -23,9 +23,9 @@ public static class KitBuilder
         var headPart = PackLibrary.Part(spec.PackHead);
         var face = headPart.Triangles.Any(t => t.All(i => FacePainter.IsFaceUv(headPart.Uvs[i])))
             ? new FacePainter(spec, headPart, packTexture) : null;
-        var reshapeHead = HeadMorph.Changes(spec.Gender, spec.HeadShape);
+        var reshapeHead = HeadMorph.Changes(spec);
         var parts = names.Where(n => n.Length > 0).Select(PackLibrary.Part).ToList();
-        if (face is not null && HairPieces.For(spec) is { } hair) parts.Add(hair);
+        if (face is not null && HairPieces.For(spec, headPart) is { } hair) parts.Add(hair);
 
         var positions = new List<Vector3>();
         var source = new List<Vector3>();   // positions before the morph, for the normals
@@ -40,7 +40,7 @@ public static class KitBuilder
             var part = source0;
             var name = part.Name;
             var isHead = ReferenceEquals(part, headPart);
-            var isHair = part.Name is "Ponytail" or "Bun";
+            var isHair = HairPieces.IsHair(part);
             if (morph.BodyInserts.Count > 0 && part.Uses("Clavicle"))
             {
                 part = part.Clone();
@@ -50,7 +50,7 @@ public static class KitBuilder
             for (var v = 0; v < part.Positions.Count; v++)
             {
                 source.Add(part.Positions[v]);
-                var p = reshapeHead ? HeadMorph.Apply(part.Positions[v], spec.Gender, spec.HeadShape) : part.Positions[v];
+                var p = reshapeHead ? HeadMorph.Apply(part.Positions[v], spec) : part.Positions[v];
                 positions.Add(morph.Apply(p));
                 normals.Add(part.Normals[v]);
                 uvs.Add(part.Uvs[v]);
@@ -90,8 +90,19 @@ public static class KitBuilder
             faceNormals[f] = [shaded[t[0]], shaded[t[1]], shaded[t[2]]];
             faceUvs[f] = triangleUvs[f];
         }
+        // Skin tone on the pack texture (necks, arms, hands): the kit material tints texels that are
+        // skin-coloured on triangles marked here. RGB = skin colour / pack skin / 2 (the same for every
+        // vertex), A = 1 on triangles that show skin, so every character shares the body material.
+        var tint = FacePainter.ToVec(spec.SkinColor) / FacePainter.ToVec(Rgb.FromHex("#D9A274")) / 2f;
+        var colors = new Vector4[positions.Count];
+        Array.Fill(colors, new Vector4(tint, 0));
+        for (var f = 0; f < triangles.Count; f++)
+            if (triangleMaterial[f] == 0 && ShowsSkin(packTexture, triangleUvs[f]))
+                foreach (var v in triangles[f]) colors[v].W = 1;
+
         var mesh = new MeshData
         {
+            Colors = colors,
             Positions = positions.ToArray(),
             Weights = weights.ToArray(),
             Faces = faces,
@@ -109,6 +120,24 @@ public static class KitBuilder
             FixedTexture = packTexture,
             FaceTexture = face?.Texture,
         };
+    }
+
+    /// <summary>True if any of a grid of samples over the triangle's texels is the pack's skin colour.</summary>
+    private static bool ShowsSkin(TextureImage texture, Vector2[] uv)
+    {
+        const int n = 6;
+        for (var i = 0; i <= n; i++)
+            for (var j = 0; i + j <= n; j++)
+            {
+                float a = (float)i / n, b = (float)j / n;
+                var p = uv[0] * (1 - a - b) + uv[1] * a + uv[2] * b;
+                var x = Math.Clamp((int)((p.X - MathF.Floor(p.X)) * texture.Size), 0, texture.Size - 1);
+                var y = Math.Clamp((int)((1 - (p.Y - MathF.Floor(p.Y))) * texture.Size), 0, texture.Size - 1);
+                var o = (y * texture.Size + x) * texture.Channels;
+                float r = texture.Rgb[o] / 255f, g = texture.Rgb[o + 1] / 255f, bl = texture.Rgb[o + 2] / 255f;
+                if (r - g > 0.15f && r > 0.45f && g > bl) return true;
+            }
+        return false;
     }
 
     /// <summary>

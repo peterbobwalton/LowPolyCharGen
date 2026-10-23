@@ -92,6 +92,7 @@ public sealed class FacePainter
                     has[y * Size + x] = true;
                 }
         }
+        var inside = (bool[])has.Clone();
         for (var pass = 0; pass < 6; pass++)
         {
             var grown = (bool[])has.Clone();
@@ -115,6 +116,7 @@ public sealed class FacePainter
         var paint = new Paint(spec);
         for (var k = 0; k < color.Length; k++)
             if (has[k]) color[k] = paint.Texel(color[k], pos[k]);
+        Pad(color, inside, 24);
         paint.HairStrip(color);
 
         var rgb = new byte[Size * Size * 3];
@@ -125,6 +127,34 @@ public sealed class FacePainter
             rgb[k * 3 + 2] = (byte)Math.Clamp((int)MathF.Round(color[k].Z * 255), 0, 255);
         }
         Texture = new TextureImage(Size, rgb);
+    }
+
+    /// <summary>
+    /// Fills the texels no face triangle covers with the colour of the covered ones next to them, so
+    /// the gaps between the tile's pieces (dark in the pack texture) cannot bleed in at lower mips.
+    /// </summary>
+    private static void Pad(Vector3[] color, bool[] covered, int passes)
+    {
+        var done = (bool[])covered.Clone();
+        for (var pass = 0; pass < passes; pass++)
+        {
+            var next = (bool[])done.Clone();
+            for (var y = 0; y < Size; y++)
+                for (var x = 0; x < (int)(HairStripU * Size); x++)
+                {
+                    if (done[y * Size + x]) continue;
+                    var sum = Vector3.Zero; var n = 0;
+                    for (var dy = -1; dy <= 1; dy++)
+                        for (var dx = -1; dx <= 1; dx++)
+                        {
+                            int xx = x + dx, yy = y + dy;
+                            if (xx < 0 || yy < 0 || xx >= Size || yy >= Size || !done[yy * Size + xx]) continue;
+                            sum += color[yy * Size + xx]; n++;
+                        }
+                    if (n > 0) { color[y * Size + x] = sum / n; next[y * Size + x] = true; }
+                }
+            done = next;
+        }
     }
 
     private static Vector3 Sample(TextureImage t, float x, float y)
@@ -245,7 +275,7 @@ public sealed class FacePainter
         {
             // The pack's heavy male brow and socket shadow, nostril and jaw shading, softened.
             c = Mix(c, _skin * 0.97f, Ellipse(u, z, 4.2f, 167.6f, 4.6f, 2.4f, 0.5f) * k * 0.85f);
-            c = Mix(c, _skin * 0.96f, Ellipse(u, z, 1.6f, 163.5f, 1.6f, 3.2f, 0.7f) * k * 0.5f);   // shadow down the nose sides
+            c = Mix(c, _skin * 0.95f, Ellipse(u, z, 2.2f, 163.2f, 1.9f, 3.6f, 0.7f) * k * 0.85f);   // shadow down the nose sides
             c = Mix(c, _skin, Ellipse(u, z, 1.4f, 160.6f, 2.4f, 0.7f, 0.6f) * k * 0.55f);
             c = Mix(c, _skin, Ellipse(u, z, 5f, 152.5f, 6f, 2f, 0.6f) * k * 0.45f);
             // Thin arched brows.

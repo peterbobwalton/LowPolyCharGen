@@ -16,11 +16,62 @@ public static class HeadMorph
         return t * t * (3 - 2 * t);
     }
 
-    public static bool Changes(Gender gender, HeadShape shape) => gender == Gender.Female || shape != HeadShape.Standard;
+    public static NoseShape NoseFor(CharacterSpec spec) =>
+        spec.Nose != NoseShape.Auto ? spec.Nose : spec.Gender == Gender.Female ? NoseShape.Small : NoseShape.Pack;
 
-    public static Vector3 Apply(Vector3 p, Gender gender, HeadShape shape)
+    public static bool Changes(CharacterSpec spec) =>
+        spec.Gender == Gender.Female || spec.HeadShape != HeadShape.Standard || NoseFor(spec) != NoseShape.Pack;
+
+    // The pack face's nose vertices (one side, x >= 0): brow centre, bridge side, tip, wing, wing
+    // base, underside. Every pack head has them at exactly these places.
+    private static readonly Vector3[] NosePoints =
+    [
+        new(0f, -17.44f, 168.85f), new(1.9f, -16.79f, 168.21f), new(0f, -19.4f, 160.88f),
+        new(2.23f, -18.12f, 160.86f), new(3.12f, -16.04f, 160.36f), new(0f, -17.14f, 159.98f),
+    ];
+
+    /// <summary>Where each nose point goes (same order; x as the new |x|).</summary>
+    private static Vector3[]? NoseTargets(NoseShape nose) => nose switch
+    {
+        NoseShape.Small =>
+        [
+            new(0f, -17.0f, 168.7f), new(1.3f, -16.6f, 168.2f), new(0f, -18.5f, 161.4f),
+            new(1.45f, -17.6f, 161.3f), new(2.3f, -16.04f, 160.8f), new(0f, -17.0f, 160.5f),
+        ],
+        NoseShape.Button =>
+        [
+            new(0f, -17.0f, 168.6f), new(1.3f, -16.6f, 168.2f), new(0f, -18.2f, 161.9f),
+            new(1.6f, -17.6f, 161.4f), new(2.4f, -16.04f, 160.9f), new(0f, -17.1f, 160.9f),
+        ],
+        NoseShape.Broad =>
+        [
+            new(0f, -17.44f, 168.85f), new(2.2f, -16.79f, 168.21f), new(0f, -19.6f, 160.7f),
+            new(2.9f, -18.2f, 160.7f), new(3.7f, -16.04f, 160.2f), new(0f, -17.3f, 159.9f),
+        ],
+        NoseShape.Roman =>
+        [
+            new(0f, -17.9f, 168.85f), new(1.8f, -17.2f, 168.21f), new(0f, -19.7f, 160.4f),
+            new(2.1f, -18.2f, 160.6f), new(3.0f, -16.04f, 160.3f), new(0f, -17.2f, 159.7f),
+        ],
+        _ => null,
+    };
+
+    public static Vector3 Apply(Vector3 p, CharacterSpec spec)
     {
         if (p.Z < 145f) return p;
+        var gender = spec.Gender;
+        var shape = spec.HeadShape;
+        if (NoseTargets(NoseFor(spec)) is { } targets)
+        {
+            var side = p.X < 0 ? -1f : 1f;
+            var q = p with { X = MathF.Abs(p.X) };
+            for (var i = 0; i < NosePoints.Length; i++)
+                if (Vector3.DistanceSquared(q, NosePoints[i]) < 0.0025f)
+                {
+                    p = targets[i] with { X = targets[i].X * side };
+                    break;
+                }
+        }
         float x = p.X, y = p.Y, z = p.Z;
         var face = S((-y - 6f) / 5f);                                   // the front of the head
         var jaw = S((156f - z) / 5f) * S((z - 147.5f) / 2f) * face;     // jaw and chin, not the neck below
@@ -40,7 +91,7 @@ public static class HeadMorph
         if (gender == Gender.Female)
         {
             jawWidth -= 0.26f; faceWidth -= 0.05f; chinUp += 1.1f; chinBack += 0.9f;
-            noseNarrow += 0.3f; noseBack += 1f; browBack += 0.6f;
+            browBack += 0.6f;
         }
 
         x *= 1 + jawWidth * jaw;
