@@ -89,6 +89,8 @@ public static class TextureBaker
     /// </summary>
     public static (TextureImage Diffuse, TextureImage Grime) BakeLayers(CharacterModel model, int size)
     {
+        if (model.FixedTexture is { } fixedTexture)   // no grime layer: a clear one keeps the material the same
+            return (fixedTexture, new TextureImage(fixedTexture.Size, new byte[fixedTexture.Size * fixedTexture.Size * 4], 4));
         var (diffuse, grime) = BakeCore(model, size, true);
         return (diffuse, grime!);
     }

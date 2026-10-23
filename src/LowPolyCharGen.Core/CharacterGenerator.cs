@@ -23,8 +23,11 @@ public sealed class CharacterModel
     /// <summary>Landmarks for the texture painter.</summary>
     public required PaintContext Paint { get; init; }
 
+    /// <summary>A finished texture used as is instead of painting one (pack characters).</summary>
+    public TextureImage? FixedTexture { get; init; }
+
     /// <summary>Paints the character's texture at the given size (see <see cref="TextureBaker"/>).</summary>
-    public TextureImage BakeTexture(int size) => TextureBaker.Bake(this, size);
+    public TextureImage BakeTexture(int size) => FixedTexture ?? TextureBaker.Bake(this, size);
 }
 
 public static class CharacterGenerator
@@ -36,6 +39,7 @@ public static class CharacterGenerator
     {
         // The painter keeps reading the options while it bakes, possibly on another thread.
         spec = spec.Clone();
+        if (spec.Body == BodyModel.Pack) return Kit.KitBuilder.Build(spec);
         var skeleton = Skeleton.CreateMannequinTPose(includeIkBones);
         // The realistic body has modelled fingers, so it gets the mannequin's finger bones.
         if (spec.Rig == RigTarget.Mannequin && spec.Body == BodyModel.Realistic) skeleton.AddFingers();

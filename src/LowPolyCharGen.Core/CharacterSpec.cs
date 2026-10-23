@@ -10,9 +10,11 @@ public enum RigTarget { ToonSoldiers, Mannequin }
 public enum Gender { Male, Female }
 /// <summary>
 /// How the body is made (mannequin rig): Generated builds it from lofted sections; Realistic shapes
-/// the MakeHuman base mesh (CC0) and decimates it to the triangle budget.
+/// the MakeHuman base mesh (CC0) and decimates it to the triangle budget. Pack (Toon Soldiers rig)
+/// assembles the Toon Soldiers pack's own head, body and legs parts and reshapes them for the build
+/// and gender (see <see cref="Kit.KitBuilder"/>); the pack data is extracted locally, never shipped.
 /// </summary>
-public enum BodyModel { Generated, Realistic }
+public enum BodyModel { Generated, Realistic, Pack }
 /// <summary>How the realistic body's hands are posed in the exported bind pose (the finger bones follow).</summary>
 public enum HandPose { Relaxed, Open, Closed, Fist }
 /// <summary>Realistic body: the ancestry the face and build lean towards (MakeHuman's ethnic targets).</summary>
@@ -72,6 +74,7 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     private CamoCoverage _camoCoverage = CamoCoverage.All;
     private float _grime, _fatigue, _stress;
     private int _textureSize = 1024;
+    private string _packHead = "TSA_Head_A1", _packBody = "TSA_Body_A", _packLegs = "TSA_Legs_A", _packEquipment = "", _packTexture = "T_Armies_Standard";
     private Rgb _eyeColor = Rgb.FromHex("#5A4630");
     private Rgb _skinColor = Rgb.FromHex("#D9A274");
     private Rgb _hairColor = Rgb.FromHex("#4A3222");
@@ -232,6 +235,17 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     public Camouflage Camouflage { get => _camouflage; set => Set(ref _camouflage, value); }
 
     /// <summary>Side length of the exported texture in pixels: 512, 1024 or 2048.</summary>
+    /// <summary>Body = Pack: the pack parts (skeletal mesh names) the character is assembled from.</summary>
+    public string PackHead { get => _packHead; set => Set(ref _packHead, value ?? ""); }
+    public string PackBody { get => _packBody; set => Set(ref _packBody, value ?? ""); }
+    public string PackLegs { get => _packLegs; set => Set(ref _packLegs, value ?? ""); }
+
+    /// <summary>Body = Pack: extra pack parts (vests, backpacks), comma separated.</summary>
+    public string PackEquipment { get => _packEquipment; set => Set(ref _packEquipment, value ?? ""); }
+
+    /// <summary>Body = Pack: the pack texture (same layout in every camo: T_Armies_Standard, T_multicam...).</summary>
+    public string PackTexture { get => _packTexture; set => Set(ref _packTexture, value ?? "T_Armies_Standard"); }
+
     public int TextureSize { get => _textureSize; set => Set(ref _textureSize, value <= 512 ? 512 : value <= 1024 ? 1024 : 2048); }
 
     /// <summary>Faceted normals instead of smoothed ones.</summary>

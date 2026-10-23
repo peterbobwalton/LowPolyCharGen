@@ -131,6 +131,19 @@ def import_character(fbx, destination, mannequin, lods=DEFAULT_LODS):
     if mesh is None:
         raise RuntimeError("FBX import produced no skeletal mesh: " + fbx)
 
+    spec_json = os.path.join(os.path.dirname(fbx), base + "_Spec.json")
+    spec = json.load(open(spec_json, encoding="utf-8-sig")) if os.path.exists(spec_json) else {}
+    if spec.get("Body") == "Pack":
+        # Built from the pack's parts: the pack's own material instance for its texture, shared by
+        # every character that wears it.
+        mesh.set_editor_property("materials", [
+            unreal.SkeletalMaterial(material_interface=pack_material(spec.get("PackTexture", "T_Armies_Standard")),
+                                    material_slot_name=slot.material_slot_name)
+            for slot in mesh.get_editor_property("materials")])
+        if "--no-nanite" not in sys.argv:
+            enable_nanite(mesh)
+        return finish(mesh, fbx, mannequin, 1)
+
     texture = None
     png = os.path.join(os.path.dirname(fbx), base + "_Diffuse.png")
     if os.path.exists(png):
@@ -141,10 +154,7 @@ def import_character(fbx, destination, mannequin, lods=DEFAULT_LODS):
     grime_png = os.path.join(os.path.dirname(fbx), base + "_Grime.png")
     if os.path.exists(grime_png):
         grime = next(iter(import_task(grime_png, destination, "T_" + base + "_Grime")), None)
-    amount = 0.0
-    spec_json = os.path.join(os.path.dirname(fbx), base + "_Spec.json")
-    if os.path.exists(spec_json):
-        amount = float(json.load(open(spec_json, encoding="utf-8-sig")).get("Grime", 0.0))
+    amount = float(spec.get("Grime", 0.0))
 
     # The same material set-up on either skeleton (the realistic body on the mannequin included).
     tools = unreal.AssetToolsHelpers.get_asset_tools()
@@ -167,6 +177,29 @@ def import_character(fbx, destination, mannequin, lods=DEFAULT_LODS):
     mesh.set_editor_property("materials", [
         unreal.SkeletalMaterial(material_interface=mi, material_slot_name=slot.material_slot_name)
         for slot in mesh.get_editor_property("materials")])
+    return finish(mesh, fbx, mannequin, lods)
+
+
+def enable_nanite(mesh):
+    """Nanite skinned mesh (UE 5.5+): rendered as clusters, so crowds cost little more than one character."""
+    settings = mesh.get_editor_property("nanite_settings")
+    settings.set_editor_property("enabled", True)
+    mesh.set_editor_property("nanite_settings", settings)
+
+
+def pack_material(texture_name):
+    """The pack's material instance that uses <texture_name>, or M_Armies_Parent for the standard texture."""
+    registry = unreal.AssetRegistryHelpers.get_asset_registry()
+    for data in registry.get_assets_by_path(PACK + "/Materials", recursive=False):
+        mi = data.get_asset()
+        if isinstance(mi, unreal.MaterialInstanceConstant):
+            for p in mi.get_editor_property("texture_parameter_values"):
+                if p.parameter_value is not None and p.parameter_value.get_name().lower() == texture_name.lower():
+                    return mi
+    return unreal.load_asset(TOON_MATERIAL)
+
+
+def finish(mesh, fbx, mannequin, lods):
     physics = unreal.load_asset(MANNEQUIN_PHYSICS if mannequin else TOON_PHYSICS)
     if physics is not None:
         mesh.set_editor_property("physics_asset", physics)

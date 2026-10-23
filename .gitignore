@@ -16,3 +16,6 @@ unreal/*/Plugins/
 unreal/*/*.sln
 unreal/*/*.slnx
 unreal/*/.vs/
+
+# Toon Soldiers pack data extracted locally (licensed pack, never commit)
+packdata/
