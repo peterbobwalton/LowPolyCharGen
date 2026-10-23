@@ -37,7 +37,7 @@ public static class HairPieces
     /// casting rays at it) with a straight fringe, open round the face, hanging straight down to
     /// <paramref name="bottomZ"/> with a slight flare, and given thickness below the fringe.
     /// </summary>
-    internal static PackPart LongHair(PackPart head, float bottomZ, string name = "LongHair", float u0 = FacePainter.HairStripU, float u1 = FacePainter.HatStripU, float thickness = 1.5f)
+    internal static PackPart LongHair(PackPart head, float bottomZ, string name = "LongHair", float u0 = FacePainter.HairStripU, float u1 = FacePainter.HatStripU, float thickness = 1.5f, float v0 = 0.98f, float v1 = 0.1f)
     {
         const int columns = 14;
         var origin = new Vector3(0, -1.5f, 166f);
@@ -104,10 +104,10 @@ public static class HairPieces
         var uvs = new List<Vector2>();
         var tris = new List<int[]>();
         float U(int c) => u0 + 0.01f + (u1 - u0 - 0.02f) * c / columns;
-        float V(int r) => 0.98f - 0.88f * r / rows.Count;
+        float V(int r) => v0 + (v1 - v0) * r / rows.Count;
         // Crown point and outer shell.
         var crown = origin + Vector3.UnitZ * (Hit(Vector3.UnitZ) + thickness);
-        positions.Add(crown); normals.Add(Vector3.UnitZ); uvs.Add(new Vector2(U(columns / 2), 0.99f));
+        positions.Add(crown); normals.Add(Vector3.UnitZ); uvs.Add(new Vector2(U(columns / 2), v0 + (v0 > v1 ? 0.01f : -0.01f)));
         var outer = new int[rows.Count, columns + 1];
         for (var r = 0; r < rows.Count; r++)
             for (var c = 0; c <= columns; c++)

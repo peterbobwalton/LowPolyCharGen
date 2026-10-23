@@ -16,7 +16,13 @@ namespace LowPolyCharGen.Kit;
 /// </remarks>
 public sealed class FacePainter
 {
-    public const int Size = 512;
+    public const int Size = 1024;
+
+    /// <summary>
+    /// Top of the headwear cloth region (texture v): u 0..<see cref="HairStripU"/>, v 0..ClothV, under the
+    /// face tile (turbans and keffiyehs: room for a woven pattern at about a millimetre a texel).
+    /// </summary>
+    public const float ClothV = 0.5f;
     /// <summary>Left edge (texture u) of the hair strip.</summary>
     public const float HairStripU = 0.8f;
     /// <summary>Left edge of the headwear cloth strip (turban, keffiyeh); its bottom (v &lt; 0.06) is black.</summary>
@@ -66,7 +72,7 @@ public sealed class FacePainter
                 maxX = MathF.Max(maxX, p.X); maxY = MathF.Max(maxY, p.Y);
             }
         _x0 = minX - 3; _y0 = minY - 3;
-        _scale = MathF.Min(Size * HairStripU / (maxX - minX + 6), Size / (maxY - minY + 6));
+        _scale = MathF.Min(Size * HairStripU / (maxX - minX + 6), Size * (1 - ClothV) / (maxY - minY + 6));
 
         // Base: the pack tile, bilinear.
         var color = new Vector3[Size * Size];
@@ -373,9 +379,55 @@ public sealed class FacePainter
                 [new(ex - ew * 0.6f, ez - eh * 0.65f, 0.12f), new(ex, ez - eh * 0.95f, 0.12f), new(ex + ew * 0.8f, ez - eh * 0.5f, 0.12f)], 0.1f) * k * 0.6f);
         }
 
+        /// <summary>
+        /// The headwear cloth region: a keffiyeh's woven check (thin lines in the accent colour on a
+        /// 2 cm grid, a small motif in each cell, bands along the hem) or a turban's wraps (a fold
+        /// per wrap, running slightly diagonally). Positions are in centimetres of cloth: across the
+        /// region is once round the head (about 75 cm), down it the length of the piece (about 45 cm).
+        /// </summary>
+        private void ClothRegion(Vector3[] color)
+        {
+            var hat = ToVec(_spec.HatColor);
+            var accent = ToVec(_spec.AccentColor);
+            int x1 = (int)(HairStripU * Size), y0 = (int)((1 - ClothV) * Size);
+            var keffiyeh = _spec.Hat == HatStyle.Keffiyeh;
+            static float Line(float t, float width)
+            {
+                var f = t - MathF.Floor(t);
+                return S((width - MathF.Abs(f - 0.5f)) / 0.04f);
+            }
+            for (var y = y0; y < Size; y++)
+                for (var x = 0; x < x1; x++)
+                {
+                    float cx = x / (float)x1 * 75f, cy = (y - y0) / (float)(Size - y0) * 45f;
+                    Vector3 c;
+                    if (keffiyeh)
+                    {
+                        // Grid lines every 2 cm both ways, a dot in the middle of each cell, and two
+                        // bands near the hem; the weave darkens the white a touch.
+                        var grid = MathF.Max(Line(cx / 2f + 0.5f, 0.08f), Line(cy / 2f + 0.5f, 0.08f));
+                        float gx = cx / 2f - MathF.Floor(cx / 2f) - 0.5f, gy = cy / 2f - MathF.Floor(cy / 2f) - 0.5f;
+                        var dot = S((0.16f - MathF.Abs(gx) - MathF.Abs(gy)) / 0.04f);
+                        var hem = MathF.Max(S((0.5f - MathF.Abs(cy - 40.5f)) / 0.1f), S((0.25f - MathF.Abs(cy - 42.2f)) / 0.08f));
+                        var weave = 0.95f + 0.05f * MathF.Sin(x * 2.1f) * MathF.Sin(y * 1.7f);
+                        c = Vector3.Lerp(hat, accent, MathF.Max(MathF.Max(grid * 0.9f, dot * 0.85f), hem)) * weave;
+                    }
+                    else
+                    {
+                        // Turban: six wraps, each a rounded fold, running slightly round the head.
+                        var band = cy / (45f / 6f) + cx * 0.012f;
+                        var f = band - MathF.Floor(band);
+                        var shade = 0.76f + 0.3f * MathF.Sin(f * MathF.PI) - 0.04f * MathF.Sin(cx * 3.1f + cy);
+                        c = hat * shade;
+                    }
+                    color[y * Size + x] = c;
+                }
+        }
+
         /// <summary>Hair for the hair pieces: the colour with strands running down (v).</summary>
         public void HairStrip(Vector3[] color)
         {
+            ClothRegion(color);
             int hair0 = (int)(HairStripU * Size) + 1, hat0 = (int)(HatStripU * Size), garment0 = (int)(GarmentStripU * Size);
             var hat = ToVec(_spec.HatColor);
             var accent = ToVec(_spec.AccentColor);

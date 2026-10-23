@@ -53,12 +53,12 @@ public static class KitPieces
         var normals = new List<Vector3>();
         var uvs = new List<Vector2>();
         var tris = new List<int[]>();
-        float U(int c) => FacePainter.HatStripU + 0.01f + (FacePainter.GarmentStripU - FacePainter.HatStripU - 0.02f) * c / columns;
+        float U(int c) => 0.01f + (FacePainter.HairStripU - 0.02f) * c / columns;   // the headwear cloth region
 
         var crownDir = Vector3.UnitZ;
         positions.Add(Origin + crownDir * (Hit(head, Origin, crownDir) + 9.2f));
         normals.Add(Vector3.UnitZ);
-        uvs.Add(new Vector2(U(columns / 2), 0.97f));
+        uvs.Add(new Vector2(U(columns / 2), FacePainter.ClothV - 0.01f));
         var ring = new int[rows.Length, columns + 1];
         for (var r = 0; r < rows.Length; r++)
             for (var c = 0; c <= columns; c++)
@@ -70,7 +70,7 @@ public static class KitPieces
                 ring[r, c] = positions.Count;
                 positions.Add(Origin + dir * (Hit(head, Origin, dir) + rows[r].Offset));
                 normals.Add(Vector3.Normalize(dir with { Z = dir.Z * 0.6f }));
-                uvs.Add(new Vector2(U(c), 0.95f - 0.84f * (r + 1) / rows.Length));
+                uvs.Add(new Vector2(U(c), FacePainter.ClothV - 0.02f - (FacePainter.ClothV - 0.04f) * (r + 1) / rows.Length));
             }
         for (var c = 0; c < columns; c++) tris.Add([0, ring[0, c + 1], ring[0, c]]);
         for (var r = 0; r + 1 < rows.Length; r++)
@@ -85,7 +85,7 @@ public static class KitPieces
     /// <summary>A keffiyeh: a cloth over the head to the shoulders, open round the face, held by a black agal.</summary>
     public static PackPart Keffiyeh(PackPart head)
     {
-        var cloth = HairPieces.LongHair(head, 145f, "Keffiyeh", FacePainter.HatStripU, FacePainter.GarmentStripU, 1.2f);
+        var cloth = HairPieces.LongHair(head, 145f, "Keffiyeh", 0f, FacePainter.HairStripU, 1.2f, FacePainter.ClothV - 0.01f, 0.01f);
         // The agal: a band of black cord round the crown.
         const int columns = 14;
         float[] elevations = [33f, 26f];
