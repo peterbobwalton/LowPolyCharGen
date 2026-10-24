@@ -80,7 +80,8 @@ suffix, materials from `M_LPCG_Kit`.
 | `LowPolySoldiers_Pack_UE5.8_2026-10-24_legsfix.zip` (166 MB) | **Latest.** 121 characters in 10 factions, with the legs/boots fix |
 | `LowPolySoldiers_Pack_UE5.8_2026-10-24.zip` (172 MB) | 24 Oct, before the fix: the officers have no legs, the Taliban no legs or shoes |
 | `LowPolySoldiers_Pack_UE5.8.zip` (88 MB) | 23 Oct, the first pack (44 rebuilt prebuilts); kept for reference |
-| `LowPolySoldiers_Pack\` (folder) | **Not updated:** the 13:33 build from before the fix. It can't be overwritten; use the legsfix zip, or copy the fixed `C:\Temp\LowPolySoldiers_Pack` to a new dated folder |
+| `LowPolySoldiers_Pack_2026-10-24_legsfix\` (folder) | **Latest, unzipped:** the same build as the legsfix zip (902 files, 227 MB) |
+| `LowPolySoldiers_Pack\` (folder) | The 13:33 build from before the fix (can't be overwritten); use the legsfix folder or zip |
 
 ## Done on the AMD9800X3D (24 October 2026, newest first)
 
@@ -198,7 +199,6 @@ suffix, materials from `M_LPCG_Kit`.
 - Get a performance figure from a standalone (packaged) build, not the editor.
 - The pack's physics asset still has an editor-only soft reference to a preview mesh outside the pack (Python can't
   reach it). It may need a C++ editor utility, or fixing by hand in the scratch project.
-- `Z:\Media\Models\LowPolySoldiers_Pack` (folder) predates the legs fix (see above).
 - Known quirks:
   - The bridge's `exec_python` treats code whose text ends like a `.py` path as a file path. Avoid `.py'` near the
     end of inline code.
