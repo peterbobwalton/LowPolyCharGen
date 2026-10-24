@@ -201,6 +201,8 @@ public sealed class KitMorph
                 q = Vector3.Lerp(q, booted, k);
             }
         }
+        // The soles stay on the ground (the reshape can push them a millimetre or so below it).
+        if (q.Z < 0 && p.Z >= 0) q.Z = 0;
         return q;
     }
 }

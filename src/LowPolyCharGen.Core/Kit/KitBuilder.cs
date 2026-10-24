@@ -44,8 +44,10 @@ public static class KitBuilder
             ? new FacePainter(spec, headPart, TextureOf(headPart)) : null;
         var reshapeHead = HeadMorph.Changes(spec);
 
-        // The UE5 pack's bodies come with their legs: then the body is the legs part too, and PackLegs is ignored.
-        var bodyHasLegs = spec.PackBody.Length > 0 && PackLibrary.Part(spec.PackBody).Uses("Thigh");
+        // The UE5 pack's bodies come with their legs (down to the feet): then the body is the legs part too, and
+        // PackLegs is ignored. Long jackets (TSA_Body_H, MIL_Mesh_Body_F/G) weight their hems to the thighs but
+        // still need legs.
+        var bodyHasLegs = spec.PackBody.Length > 0 && PackLibrary.Part(spec.PackBody).Uses("Foot");
         var names = new List<string> { bodyHasLegs ? "" : spec.PackLegs, spec.PackBody };
         // Extra parts that aren't in the pack data (a half-typed name in the app) are left out.
         names.AddRange(spec.PackEquipment.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(PackLibrary.Exists));

@@ -118,15 +118,18 @@ les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
 eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 ues = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem)
 
-TAG = "LpcgShowcase"   # every actor this script spawns; only these are ever removed
+TAG = "LpcgShowcase"   # every actor this script spawns
+# Characters, weapons and labels that other scripts (lineups, previews, part sheets) left in this level: the
+# level shows only its rows, so these are cleared on a rebuild too, tagged or not.
+STRAY = (unreal.SkeletalMeshActor, unreal.LpcgDisplaySoldier, unreal.TextRenderActor)
 
 if unreal.EditorAssetLibrary.does_asset_exist(LEVEL):
     les.load_level(LEVEL)
     # Never destroy the level's own actors (WorldSettings, brushes): they are rooted, and destroying them
-    # crashes the editor later (Assertion failed: !IsRooted()).
+    # crashes the editor later (Assertion failed: !IsRooted()). One by one, through the actor subsystem.
     for a in eas.get_all_level_actors():
-        if TAG in [str(t) for t in a.tags] or a.get_actor_label().startswith("Char_") or a.get_actor_label() in (
-                "Floor", "Sun", "SkyAtmosphere", "SkyLight", "HeightFog", "PlayerStart"):
+        if TAG in [str(t) for t in a.tags] or isinstance(a, STRAY) or a.get_actor_label().startswith("Char_") \
+                or a.get_actor_label() in ("Floor", "Sun", "SkyAtmosphere", "SkyLight", "HeightFog", "PlayerStart"):
             eas.destroy_actor(a)
 else:
     les.new_level(LEVEL)

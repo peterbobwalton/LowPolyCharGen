@@ -213,6 +213,26 @@ static IEnumerable<CharacterSpec> ProportionSpecs()
         };
 }
 
+/// <summary>The rows of tools/pack_prebuilts.txt and tools/pack_factions.txt (found above the program), as pack specs.</summary>
+static IEnumerable<(string, CharacterSpec)> PackListSpecs()
+{
+    string? tools = null;
+    foreach (var start in new[] { AppContext.BaseDirectory, Environment.CurrentDirectory })
+        for (var dir = new DirectoryInfo(start); dir is not null && tools is null; dir = dir.Parent)
+            if (File.Exists(Path.Combine(dir.FullName, "tools", "pack_factions.txt"))) tools = Path.Combine(dir.FullName, "tools");
+    if (tools is null) yield break;
+    foreach (var list in new[] { "pack_prebuilts.txt", "pack_factions.txt" })
+        foreach (var line in File.ReadLines(Path.Combine(tools, list)))
+        {
+            if (line.StartsWith('#') || line.Trim().Length == 0) continue;
+            var f = line.Split('|');
+            var spec = new CharacterSpec { Body = BodyModel.Pack, PackHead = f[1], PackBody = f[2], PackLegs = f[3], PackEquipment = f.Length > 4 ? f[4] : "" };
+            if (f.Length > 5)
+                foreach (var pair in f[5].Split(' ', StringSplitOptions.RemoveEmptyEntries)) Apply(spec, pair);
+            yield return ($"Pack_{f[0]}", spec);
+        }
+}
+
 static int Check()
 {
     var failures = 0;
@@ -273,6 +293,9 @@ static int Check()
         spec.Body = BodyModel.Realistic;
         specs.Add(($"realistic{i}", spec));
     }
+    // The pack lists (prebuilts and factions), as tools/make_pack_prebuilts.ps1 exports them, when the pack data is here.
+    if (LowPolyCharGen.Kit.PackLibrary.Available)
+        specs.AddRange(PackListSpecs());
 
     foreach (var (label, spec) in specs)
     {
@@ -303,6 +326,7 @@ static int Check()
             }
         }
         if (min.Z < -0.05f) Fail(label, $"mesh goes below the ground ({min.Z:F2})");
+        if (min.Z > 1f) Fail(label, $"mesh does not reach the ground ({min.Z:F2}): legs or feet missing");
         if (MathF.Abs(min.X + max.X) > 6f) Fail(label, $"mesh is not centred ({min.X:F1}..{max.X:F1})");
         foreach (var face in mesh.Faces)
             if (face.Vertices.Length != 3 || face.Vertices.Distinct().Count() < 3) { Fail(label, "face is not a triangle"); break; }

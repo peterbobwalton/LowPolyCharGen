@@ -92,6 +92,16 @@ suffix, materials from `M_LPCG_Kit`.
   - The build re-points the animations' and skeleton's preview meshes into the pack. One editor-only soft reference
     remains: the physics asset's preview mesh, which Python can't reach.
 
+- **Legless officers and bootless Taliban fixed.**
+  - `KitBuilder` treated any body weighted to a thigh as a UE5 body with its own legs, and dropped PackLegs. The
+    long jackets (`TSA_Body_H`, `MIL_Mesh_Body_F/G`) weight their hems to the thighs, so the factions' officers lost
+    their legs and the Taliban their legs and shoes. Now only a body weighted to the feet counts.
+  - `--check` now builds every row of `pack_prebuilts.txt` and `pack_factions.txt` and fails a mesh that doesn't
+    reach the ground. `KitMorph` keeps the soles on the ground (the reshape pushed some 1.4 mm under it).
+  - `unreal_character_level.py` clears untagged characters and labels (SkeletalMeshActor, LpcgDisplaySoldier,
+    TextRenderActor) on a rebuild. The level shows only its rows.
+  - Pack rebuilt: `Z:\Media\Models\LowPolySoldiers_Pack_UE5.8_2026-10-24_legsfix.zip`.
+
 ## Done earlier (latest commits first)
 
 - `dc5e544` **Stand-alone content pack export.**
