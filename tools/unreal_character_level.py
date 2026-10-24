@@ -15,7 +15,8 @@ KIT = "/Game/LowPolyCharGen/Kit/SK_LPCG_"
 AW = ARMIES + "/Meshes/Weapons/"
 MW = MILITIA + "/Meshes/Weapons/"
 
-# Rows from the front: (mesh, weapon, label line 1, label line 2)
+# Rows from the front, grouped by faction, each with a row label (LABELS) at its left end:
+# (mesh, weapon, label line 1, label line 2)
 ROWS = [
     [
         (ARMIES + "/Meshes/Characters_Prebuilt/SK_Armies_Soldier_A", AW + "SM_m4", "Armies pack", "reference"),
@@ -46,6 +47,7 @@ ROWS = [
         (KIT + "Mil_Balaclava", MW + "SM_weapon_mac10", "Militia", "balaclava"),
     ],
 ]
+LABELS = ["Custom: men", "Custom: women", "Custom: militia dress"]
 # The pack's 44 prebuilt characters, each with its kit rebuild (tools/pack_prebuilts.txt, imported to
 # /Game/LowPolyCharGen/Kit/Pack) right behind it: rows of 11, original in front.
 PACK_KIT = "/Game/LowPolyCharGen/Kit/Pack/SK_LPCG_Pack_"
@@ -54,16 +56,17 @@ PREBUILTS = (["Armies_" + n for n in ("Engineer", "OffDuty", "Officer", "Recon_A
              + ["SpecOps_" + n for n in ("Officer", "Recon_A", "Recon_B", "Recon_C", "Sniper_A", "Sniper_B",
                                          "Soldier_A", "Soldier_B", "Soldier_C", "Support")]
              + ["Militia%02d" % i for i in range(1, 25)])
-for start in range(0, len(PREBUILTS), 11):
-    names = PREBUILTS[start:start + 11]
-    original, rebuilt = [], []
-    for n in names:
-        militia = n.startswith("Militia")
+for faction, prefix, size in (("Armies", "Armies_", 10), ("SpecOps", "SpecOps_", 10), ("Militia", "Militia", 12)):
+    names = [n for n in PREBUILTS if n.startswith(prefix)]
+    for start in range(0, len(names), size):
+        part = names[start:start + size]
+        militia = faction == "Militia"
         folder = (MILITIA if militia else ARMIES) + "/Meshes/Characters_Prebuilt/SK_"
         weapon = MW + "SM_weapon_ak47" if militia else AW + "SM_m4"
-        original.append((folder + n, weapon, n, "pack prebuilt"))
-        rebuilt.append((PACK_KIT + n, weapon, n, "kit rebuild"))
-    ROWS += [original, rebuilt]
+        suffix = " %d-%d" % (start + 1, start + len(part)) if len(names) > size else ""
+        ROWS += [[(folder + n, weapon, n, "pack prebuilt") for n in part],
+                 [(PACK_KIT + n, weapon, n, "kit rebuild") for n in part]]
+        LABELS += [faction + suffix + ": pack", faction + suffix + ": kit rebuild"]
 # The UE5 pack's 12 prebuilts (their own skeleton: they play the UE5 pack's idle), then their kit rebuilds on the
 # shared skeleton in the pack's blue and in the olive digital camo.
 UE5 = "/Game/Toon_Soldiers_UE5"
@@ -76,6 +79,7 @@ ROWS += [
     [(PACK_KIT + "UE5_" + n, AW + "SM_m4", "UE5 " + n, "kit rebuild") for n in UE5_PREBUILTS],
     [(PACK_KIT + "UE5Camo_" + n, AW + "SM_m4", "UE5 " + n, "kit, digital camo") for n in UE5_PREBUILTS],
 ]
+LABELS += ["UE5: pack", "UE5: kit rebuild", "UE5Camo: kit, digital camo"]
 # The factions of tools/pack_factions.txt (imported to Kit/Pack with the prebuilts): a row each, with their weapons.
 FACTIONS_TXT = os.path.join(os.path.dirname(os.path.abspath(__file__)) if "__file__" in globals()
                             else "C:/Source/Claude/LowPolyCharGen/tools", "pack_factions.txt")
@@ -89,6 +93,9 @@ for line in open(FACTIONS_TXT, encoding="utf-8"):
     weapon_path = next((f + weapon for f in (AW, MW) if unreal.EditorAssetLibrary.does_asset_exist(f + weapon)), AW + "SM_m4")
     factions.setdefault(faction, []).append((PACK_KIT + name, weapon_path, faction, role.replace("_", " ")))
 ROWS += list(factions.values())
+FACTION_NAMES = {"DesertStorm": "Desert Storm 1991", "Taliban": "Taliban", "UKArmy": "UK Army", "UKSF": "UK Special Forces"}
+LABELS += [FACTION_NAMES.get(f, f) for f in factions]
+assert len(LABELS) == len(ROWS)
 ANIMS = ARMIES + "/Animations/"
 # Weapons that aren't held like a rifle get the pack's own idle for them (rifles use the C++ locomotion idle).
 WEAPON_IDLE = {
@@ -152,6 +159,13 @@ fog.component.set_editor_property("fog_density", 0.004)
 # Characters: rows across Y, front row nearest the camera start; they face -X (towards it).
 for r, row in enumerate(ROWS):
     x = r * ROW_GAP
+    # The row's label: large, at its left end (as seen from the camera start), facing the camera.
+    sign = spawn(unreal.TextRenderActor, unreal.Vector(x, -((len(row) - 1) / 2.0) * SPACING - 340, 120),
+                 unreal.Rotator(0, 0, 180), "Row_%02d_%s" % (r, LABELS[r].replace(" ", "_").replace(":", "")))
+    sign.text_render.set_text(LABELS[r])
+    sign.text_render.set_world_size(34)
+    sign.text_render.set_horizontal_alignment(unreal.HorizTextAligment.EHTA_RIGHT)
+    sign.text_render.set_text_render_color(unreal.Color(40, 40, 48, 255))
     for i, (mesh, weapon, line1, line2) in enumerate(row):
         y = (i - (len(row) - 1) / 2.0) * SPACING
         actor = spawn(unreal.LpcgDisplaySoldier, unreal.Vector(x, y, 0), unreal.Rotator(0, 0, 180),
