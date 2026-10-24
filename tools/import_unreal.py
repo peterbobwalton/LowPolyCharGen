@@ -20,6 +20,10 @@ import unreal
 
 PACK = "/Game/Toon_Soldiers_Armies"
 MILITIA = "/Game/Toon_Soldiers_Militia"
+UE5_PACK = "/Game/Toon_Soldiers_UE5"
+# Where the pack textures the kit material instances use are found (the last: the camo repaints of tools/digital_camo.py).
+TEXTURE_FOLDERS = [PACK + "/Textures", MILITIA + "/Textures", UE5_PACK + "/Textures", "/Game/LowPolyCharGen/ToonSoldiersUE5",
+                   "/Game/LowPolyCharGen/Textures"]
 TOON_SKELETON = PACK + "/Meshes/Characters_Skeleton"
 TOON_PHYSICS = PACK + "/Meshes/Characters_PhysicsAsset"
 TOON_MATERIAL = PACK + "/Materials/M_Armies_Parent"
@@ -152,10 +156,15 @@ def import_character(fbx, destination, mannequin, lods=DEFAULT_LODS):
             unreal.EditorAssetLibrary.save_loaded_asset(face_material)
         body_material = kit_material_instance(spec.get("PackTexture", "T_Armies_Standard"))
         militia_material = kit_material_instance(spec.get("MilitiaTexture", "T_Militias_A"))
+        ue5_material = kit_material_instance(spec.get("UE5Texture", "T_Soldiers_Olive"))
 
         def slot_material(name):
             if name.endswith("_Face") and face_material:
                 return face_material
+            if name.endswith("_UE5"):
+                return ue5_material
+            if name.endswith("_Equipment"):
+                return kit_material_instance("T_Equipment")
             return militia_material if name.endswith("_Militia") else body_material
         mesh.set_editor_property("materials", [
             unreal.SkeletalMaterial(material_interface=slot_material(str(slot.material_slot_name)), material_slot_name=slot.material_slot_name)
@@ -278,7 +287,8 @@ def kit_material_instance(texture_name):
                             unreal.MaterialInstanceConstantFactoryNew())
     mel = unreal.MaterialEditingLibrary
     mel.set_material_instance_parent(mi, kit_material())
-    texture = unreal.load_asset(PACK + "/Textures/" + texture_name) or unreal.load_asset(MILITIA + "/Textures/" + texture_name)
+    texture = next((t for t in (unreal.load_asset(folder + "/" + texture_name) for folder in TEXTURE_FOLDERS
+                                if unreal.EditorAssetLibrary.does_asset_exist(folder + "/" + texture_name)) if t), None)
     mel.set_material_instance_texture_parameter_value(mi, "Texture", texture)
     unreal.EditorAssetLibrary.save_loaded_asset(mi)
     return mi

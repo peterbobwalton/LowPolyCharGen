@@ -18,7 +18,14 @@ public static class KitBuilder
         var packTexture = PackLibrary.Texture(spec.PackTexture);
         var militiaTexture = PackLibrary.Available && File.Exists(Path.Combine(PackLibrary.Folder, spec.MilitiaTexture + ".png"))
             ? PackLibrary.Texture(spec.MilitiaTexture) : null;
-        TextureImage TextureOf(PackPart part) => IsMilitia(part) ? militiaTexture ?? packTexture : packTexture;
+        // The UE5 pack's texture is loaded only when one of its parts is used (it is 2048 and optional).
+        TextureImage? ue5Texture = null;
+        TextureImage UE5Texture() => ue5Texture ??= File.Exists(Path.Combine(PackLibrary.Folder, spec.UE5Texture + ".png"))
+            ? PackLibrary.Texture(spec.UE5Texture) : packTexture;
+        TextureImage? equipmentTexture = null;
+        TextureImage EquipmentTexture() => equipmentTexture ??= PackLibrary.Texture("T_Equipment");
+        TextureImage TextureOf(PackPart part) =>
+            IsMilitia(part) ? militiaTexture ?? packTexture : IsUE5Equipment(part) ? EquipmentTexture() : IsUE5(part) ? UE5Texture() : packTexture;
 
         // The head: a face cover (the Militia pack's balaclava and shemaghs) or a cloth headdress
         // (which needs a bare head) can replace the chosen one.
@@ -29,7 +36,7 @@ public static class KitBuilder
         var headPart = PackLibrary.Part(headName);
         var headdress = spec.FaceCover == FaceCover.None && spec.Hat is HatStyle.Turban or HatStyle.Keffiyeh;
         if (headdress && !HairPieces.IsBare(headPart))
-            headPart = PackLibrary.Part(IsMilitia(headPart) ? "MIL_Mesh_Head_A" : "TSA_Head_A1");
+            headPart = PackLibrary.Part(IsMilitia(headPart) ? "MIL_Mesh_Head_A" : IsUE5(headPart) ? "TS_Head_00_unequipped" : "TSA_Head_A1");
 
         // The character's own texture (material slot 1): face painted from the head's face tile, and
         // the hair and cloth strips.
@@ -37,7 +44,9 @@ public static class KitBuilder
             ? new FacePainter(spec, headPart, TextureOf(headPart)) : null;
         var reshapeHead = HeadMorph.Changes(spec);
 
-        var names = new List<string> { spec.PackLegs, spec.PackBody };
+        // The UE5 pack's bodies come with their legs: then the body is the legs part too, and PackLegs is ignored.
+        var bodyHasLegs = spec.PackBody.Length > 0 && PackLibrary.Part(spec.PackBody).Uses("Thigh");
+        var names = new List<string> { bodyHasLegs ? "" : spec.PackLegs, spec.PackBody };
         // Extra parts that aren't in the pack data (a half-typed name in the app) are left out.
         names.AddRange(spec.PackEquipment.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(PackLibrary.Exists));
         var parts = names.Where(n => n.Length > 0).Select(PackLibrary.Part).ToList();
@@ -52,7 +61,9 @@ public static class KitBuilder
             else if (HairPieces.For(spec, headPart) is { } hair) parts.Add(hair);
             if (thobe) parts.Add(KitPieces.ThobeSkirt(legsPart));
         }
-        var bodyIndex = parts.FindIndex(p => p.Uses("Clavicle") && !ReferenceEquals(p, headPart));
+        // The body: the PackBody part (some UE5 bodies have no clavicle weights), else the first with arms.
+        var bodyIndex = parts.FindIndex(p => p.Name == spec.PackBody && !ReferenceEquals(p, headPart));
+        if (bodyIndex < 0) bodyIndex = parts.FindIndex(p => p.Uses("Clavicle") && !ReferenceEquals(p, headPart));
         if (bodyIndex >= 0) parts[bodyIndex] = KitHands.Restyle(parts[bodyIndex], KitHands.StyleFor(spec));
         var bodyPart = bodyIndex >= 0 ? parts[bodyIndex] : null;
 
@@ -114,13 +125,17 @@ public static class KitBuilder
                     var n = part.Normals[t[0]] + part.Normals[t[1]] + part.Normals[t[2]];
                     if (Vector3.Dot(Vector3.Cross(b - a, c - a), n) < 0) t = [t[0], t[2], t[1]];
                 }
-                // Under a thobe only the boots and the shins above them show.
-                if (thobe && isLegs && t.All(i => part.Positions[i].Z > 20f)) continue;
+                // Under a thobe only the boots and the shins above them show (of a body with legs, only its legs go).
+                if (thobe && isLegs && t.All(i => part.Positions[i].Z > 20f) && (!isBody || t.All(i => OnLeg(part, i)))) continue;
                 triangles.Add([t[0] + offset, t[1] + offset, t[2] + offset]);
-                triangleGroup.Add(isBody ? 1 : boot is null ? 0 : boot[t[0]] ? 3 : 2);
+                // Hands (bare or gloved) keep their colours when the shirt is recoloured.
+                triangleGroup.Add(boot is not null && boot[t[0]] ? 3
+                    : isBody && t.All(i => OnHand(part, i)) ? 0
+                    : isBody && !(isLegs && t.All(i => OnLeg(part, i))) ? 1
+                    : boot is null ? 0 : 2);
                 triangleTexture.Add(TextureOf(source0));
                 Vector2[] uv = [part.Uvs[t[0]], part.Uvs[t[1]], part.Uvs[t[2]]];
-                byte material = militia ? (byte)2 : (byte)0;
+                byte material = militia ? (byte)2 : IsUE5Equipment(source0) ? (byte)4 : IsUE5(source0) ? (byte)3 : (byte)0;
                 if (face is not null && (isHair || (isHead && uv.All(FacePainter.IsFaceUv))))
                 {
                     material = 1;
@@ -203,6 +218,8 @@ public static class KitBuilder
             FixedTexture = packTexture,
             FaceTexture = face?.Texture,
             SecondTexture = militiaTexture,
+            ThirdTexture = ue5Texture,
+            EquipmentTexture = equipmentTexture,
         };
     }
 
@@ -234,6 +251,20 @@ public static class KitBuilder
     }
 
     public static bool IsMilitia(PackPart part) => part.Name.StartsWith("MIL_", StringComparison.Ordinal);
+
+    /// <summary>A part of the Toon Soldiers UE5 pack (TS_Head_*, TS_Body_*: same skeleton and layout, its own textures).</summary>
+    public static bool IsUE5(PackPart part) => part.Name.StartsWith("TS_", StringComparison.Ordinal);
+
+    /// <summary>A UE5 pack part painted on its equipment texture (T_Equipment: the flamethrower tank).</summary>
+    public static bool IsUE5Equipment(PackPart part) => part.Name.StartsWith("TS_Equip_", StringComparison.Ordinal);
+
+    /// <summary>True if the vertex is bound mostly to the legs (thighs, calves, feet).</summary>
+    private static bool OnLeg(PackPart part, int v) =>
+        part.Weights[v].Where(w => w.Bone.Contains("Thigh") || w.Bone.Contains("Calf") || w.Bone.Contains("Foot") || w.Bone.Contains("Toe"))
+            .Sum(w => w.Weight) > 0.5f;
+
+    /// <summary>True if the vertex is bound mostly to a hand.</summary>
+    private static bool OnHand(PackPart part, int v) => part.Weights[v].Where(w => w.Bone.Contains("Hand")).Sum(w => w.Weight) > 0.5f;
 
     private static float Lin(float c) => MathF.Pow(c, 2.2f);
 

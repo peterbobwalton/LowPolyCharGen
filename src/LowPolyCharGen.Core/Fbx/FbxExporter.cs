@@ -285,7 +285,7 @@ public static class FbxExporter
             connections.Add("C", "OP", textureObjectId, id, "DiffuseColor");
         }
         AddMaterial(materialId, textureId, videoId, "M_" + name, "T_" + name + "_Diffuse", texturePath);
-        string[] suffixes = ["", "_Face", "_Militia"];
+        string[] suffixes = ["", "_Face", "_Militia", "_UE5", "_Equipment"];
         for (var slot = 1; slot < materialCount; slot++)
             AddMaterial(NewId(), NewId(), NewId(), "M_" + name + suffixes[slot], "T_" + name + suffixes[slot],
                 slot == 1 ? FaceTexturePath(fbxPath) : texturePath);

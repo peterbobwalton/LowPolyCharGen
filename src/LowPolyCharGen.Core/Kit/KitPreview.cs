@@ -33,7 +33,7 @@ public static class KitPreview
         TextureImage Source(int material)
         {
             if (scaled.TryGetValue(material, out var t)) return t;
-            var src = material switch { 1 => model.FaceTexture, 2 => model.SecondTexture, _ => null } ?? model.FixedTexture!;
+            var src = material switch { 1 => model.FaceTexture, 2 => model.SecondTexture, 3 => model.ThirdTexture, 4 => model.EquipmentTexture, _ => null } ?? model.FixedTexture!;
             return scaled[material] = Resize(src, material == 1 ? src.Size : size);
         }
         return groups.Select(g => new Group(

@@ -71,7 +71,7 @@ public partial class MainWindow : Window
 
     // ---- pack kit --------------------------------------------------------------------------
 
-    private static readonly string[] HeadPrefixes = ["TSA_Head_", "MIL_Mesh_head_"];
+    private static readonly string[] HeadPrefixes = ["TSA_Head_", "MIL_Mesh_head_", "TS_Head_"];
 
     /// <summary>The pack parts and textures found in the extracted pack data (see tools/pack2json.py).</summary>
     private void FillPackLists()
@@ -79,14 +79,16 @@ public partial class MainWindow : Window
         static List<string> Parts(params string[] prefixes) =>
             prefixes.SelectMany(Kit.PackLibrary.Names).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         PackHeadCombo.ItemsSource = Parts(HeadPrefixes);
-        PackBodyCombo.ItemsSource = Parts("TSA_Body_", "MIL_Mesh_Body_");
+        PackBodyCombo.ItemsSource = Parts("TSA_Body_", "MIL_Mesh_Body_", "TS_Body_");
         PackLegsCombo.ItemsSource = Parts("TSA_Legs_", "MIL_Mesh_Legs_");
-        PackEquipmentCombo.ItemsSource = new[] { "" }.Concat(Parts("TSA_backpack", "TSA_camelback", "TSA_light_backpack", "TSA_equip_", "MIL_Mesh_extra_")).ToList();
+        PackEquipmentCombo.ItemsSource = new[] { "" }.Concat(Parts("TSA_backpack", "TSA_camelback", "TSA_light_backpack", "TSA_equip_", "MIL_Mesh_extra_", "MIL_Extra_", "TS_Extra_", "TS_Equip_")).ToList();
         var textures = Kit.PackLibrary.Available
             ? Directory.EnumerateFiles(Kit.PackLibrary.Folder, "T_*.png").Select(Path.GetFileNameWithoutExtension).OfType<string>().Order().ToList()
             : [];
-        PackTextureCombo.ItemsSource = textures.Where(t => !t.StartsWith("T_Militias_", StringComparison.OrdinalIgnoreCase)).ToList();
-        MilitiaTextureCombo.ItemsSource = textures.Where(t => t.StartsWith("T_Militias_", StringComparison.OrdinalIgnoreCase)).ToList();
+        static bool Is(string texture, string prefix) => texture.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+        PackTextureCombo.ItemsSource = textures.Where(t => !Is(t, "T_Militias_") && !Is(t, "T_Soldiers_") && !Is(t, "T_Equipment")).ToList();
+        MilitiaTextureCombo.ItemsSource = textures.Where(t => Is(t, "T_Militias_")).ToList();
+        UE5TextureCombo.ItemsSource = textures.Where(t => Is(t, "T_Soldiers_")).ToList();
         if (!Kit.PackLibrary.Available)
             PackStatus.Text = $"No pack data in {Kit.PackLibrary.Folder}: export the packs' skeletal meshes to FBX in Unreal and run tools/pack2json.py " +
                               "(or set LPCG_PACKDATA to the folder).";
@@ -306,6 +308,7 @@ public partial class MainWindow : Window
         {
             random.PackTexture = _spec.PackTexture;
             random.MilitiaTexture = _spec.MilitiaTexture;
+            random.UE5Texture = _spec.UE5Texture;
             RandomisePack(random);
         }
         _spec.CopyFrom(random);

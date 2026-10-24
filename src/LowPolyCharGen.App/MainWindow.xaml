@@ -84,7 +84,7 @@
                     <HeaderedContentControl x:Name="PackCard" Style="{StaticResource Card}" Header="PACK KIT" Visibility="Collapsed">
                         <StackPanel>
                             <TextBlock x:Name="PackStatus" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,6" Foreground="{StaticResource MutedTextBrush}"
-                                       Text="Parts of the Toon Soldiers Armies (TSA_) and Militia (MIL_) packs. Face cover and turban or keffiyeh hats pick a suitable head." />
+                                       Text="Parts of the Toon Soldiers Armies (TSA_), Militia (MIL_) and UE5 (TS_; its bodies include the legs) packs. Face cover and turban or keffiyeh hats pick a suitable head." />
                             <HeaderedContentControl Style="{StaticResource Row}" Header="Head">
                                 <ComboBox x:Name="PackHeadCombo" Height="24" SelectedItem="{Binding PackHead}" />
                             </HeaderedContentControl>
@@ -103,6 +103,9 @@
                             </HeaderedContentControl>
                             <HeaderedContentControl Style="{StaticResource Row}" Header="Militia tex" ToolTip="The Militia pack texture for its parts">
                                 <ComboBox x:Name="MilitiaTextureCombo" Height="24" SelectedItem="{Binding MilitiaTexture}" />
+                            </HeaderedContentControl>
+                            <HeaderedContentControl Style="{StaticResource Row}" Header="UE5 tex" ToolTip="The UE5 pack texture for its parts (TS_): its colours and the digital camo">
+                                <ComboBox x:Name="UE5TextureCombo" Height="24" SelectedItem="{Binding UE5Texture}" />
                             </HeaderedContentControl>
                             <HeaderedContentControl Style="{StaticResource Row}" Header="Nose" ToolTip="Auto: the pack's nose for men, small for women">
                                 <ComboBox Style="{StaticResource EnumCombo}" ItemsSource="{local:EnumValues {x:Type core:NoseShape}}" SelectedItem="{Binding Nose}" />

@@ -1,6 +1,7 @@
 """Converts FBX exports of the Toon Soldiers pack skeletal meshes into packdata/<name>.json (positions in
 the generator space, normals, UVs, triangles, skin weights by bone name). The pack is licensed: packdata/
-is git-ignored and never committed.  usage: python pack2json.py <folder of .fbx> <packdata folder>"""
+is git-ignored and never committed.  usage: python pack2json.py <folder of .fbx> <packdata folder> [name prefix]
+The prefix keeps meshes of different packs apart (the UE5 pack's prebuilts SK_Soldier... -> TS_SK_Soldier...)."""
 import fbxread as F, numpy as np, json, os, sys, glob
 def conv(path):
     r=F.read(path); objs=r.get('Objects')
@@ -55,8 +56,9 @@ def conv(path):
     return parts
 if __name__=='__main__':
     src,dst=sys.argv[1],sys.argv[2]
+    prefix=sys.argv[3] if len(sys.argv)>3 else ''
     for f in sorted(glob.glob(src+'/*.fbx')):
-        n=os.path.splitext(os.path.basename(f))[0]
+        n=prefix+os.path.splitext(os.path.basename(f))[0]
         p=conv(f)
         json.dump(p,open(f'{dst}/{n}.json','w'))
         print(n,[(m['name'],len(m['verts']),len(m['tris']),m['materials'],sorted({b for w in m['weights'] for b,_ in w})[:3]) for m in p])

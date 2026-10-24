@@ -22,6 +22,10 @@ EXTRAS = {
     "MIL_Extra_Pouch": ("MIL_SK_Militia13", ["MIL_Mesh_head_N", "MIL_Mesh_Body_D", "MIL_Mesh_Legs_A", "MIL_Mesh_extra_backpack"]),
     "MIL_Extra_Pouch_B": ("MIL_SK_Militia15", ["MIL_Mesh_head_O", "MIL_Mesh_Body_D", "MIL_Mesh_Legs_A", "MIL_Mesh_extra_backpack"]),
     "MIL_Extra_Sunglasses": ("MIL_SK_Militia17", ["MIL_Mesh_head_B", "MIL_Mesh_Body_E", "MIL_Mesh_Legs_A"]),
+    # The UE5 pack (TS_*, from pack2json.py ... TS_ over its prebuilts): SK_Basic's belt pouches, and SK_Pyro's
+    # flamethrower tank (on its second material and texture, T_Equipment: TS_Equip_ parts use that texture).
+    "TS_Extra_Basic": ("TS_SK_Basic", ["TS_Head_10_glasses", "TS_Body_07_unequipped"]),
+    "TS_Equip_FlamerTank": ("TS_SK_Pyro", ["TS_Head_11_gasmask", "TS_Body_08_trench"]),
 }
 
 

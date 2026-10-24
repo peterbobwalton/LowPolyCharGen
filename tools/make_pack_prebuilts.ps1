@@ -1,4 +1,5 @@
-# Rebuilds the pack's 44 prebuilt characters (SK_Armies_*, SK_SpecOps_*, SK_Militia*) with the kit: the same parts
+# Rebuilds the packs' prebuilt characters (SK_Armies_*, SK_SpecOps_*, SK_Militia*, and the UE5 pack's 12 in two
+# colourways) with the kit: the same parts
 # (tools/pack_prebuilts.txt, matched from the prebuilt meshes) and the default pack textures, with the kit's faces.
 # Needs the pack data in packdata\ (tools/pack2json.py), plus the prebuilt-only pieces (gas mask, sunglasses,
 # pouches) extracted with:  py tools/pack_extras.py
@@ -16,10 +17,12 @@ New-Item -ItemType Directory -Force $OutDir | Out-Null
 
 foreach ($line in Get-Content (Join-Path $PSScriptRoot "pack_prebuilts.txt")) {
     if ($line.StartsWith("#") -or -not $line.Trim()) { continue }
-    $n, $head, $body, $legs, $equip = $line.Split("|")
+    $n, $head, $body, $legs, $equip, $more = $line.Split("|")
     $name = "LPCG_Pack_$n"
-    & $cli --out (Join-Path $OutDir "$name.fbx") --set "Name=$name" --set Body=Pack --set "PackHead=$head" `
-        --set "PackBody=$body" --set "PackLegs=$legs" --set "PackEquipment=$equip" | Out-Null
+    $cliArgs = @("--out", (Join-Path $OutDir "$name.fbx"), "--set", "Name=$name", "--set", "Body=Pack", "--set", "PackHead=$head",
+        "--set", "PackBody=$body", "--set", "PackLegs=$legs", "--set", "PackEquipment=$equip")
+    if ($more) { foreach ($pair in $more.Split(" ", [StringSplitOptions]::RemoveEmptyEntries)) { $cliArgs += @("--set", $pair) } }
+    & $cli @cliArgs | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "export failed: $name" }
     Write-Host $name
 }

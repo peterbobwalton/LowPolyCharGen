@@ -43,3 +43,31 @@ SpecOps_Soldier_A|TSA_Head_C3|TSA_Body_A|TSA_Legs_B|TSA_equip_B,TSA_light_backpa
 SpecOps_Soldier_B|TSA_Head_D3|TSA_Body_C|TSA_Legs_C|TSA_equip_A,TSA_camelback
 SpecOps_Soldier_C|TSA_Head_C5|TSA_Body_B|TSA_Legs_C|TSA_equip_B
 SpecOps_Support|TSA_Head_C7|TSA_Body_D|TSA_Legs_A|TSA_equip_C,TSA_light_backpack
+
+# The Toon Soldiers UE5 pack's 12 prebuilts (TS_*: the bodies include the legs), rebuilt with the kit on the shared
+# skeleton: once in the pack's own blue (faction UE5) and once in the olive digital camo of tools/digital_camo.py
+# (faction UE5Camo). The sixth field: more Property=Value settings, space separated.
+UE5_Basic|TS_Head_10_glasses|TS_Body_07_unequipped||TS_Extra_Basic|UE5Texture=T_Soldiers_Blue
+UE5_Engineer|TS_Head_05_engineer|TS_Body_05_engineer|||UE5Texture=T_Soldiers_Blue
+UE5_Heavy|TS_Head_15_gunner_only|TS_Body_02_gunner|||UE5Texture=T_Soldiers_Blue
+UE5_Medic|TS_Head_06_medic_A|TS_Body_06_medic|||UE5Texture=T_Soldiers_Blue
+UE5_Officer_A|TS_Head_09_general|TS_Body_09_general|||UE5Texture=T_Soldiers_Blue
+UE5_Officer_B|TS_Head_08_beret|TS_Body_08_trench|||UE5Texture=T_Soldiers_Blue
+UE5_Officer_C|TS_Head_13_gasmask_general|TS_Body_09_general|||UE5Texture=T_Soldiers_Blue
+UE5_Pyro|TS_Head_11_gasmask|TS_Body_08_trench||TS_Equip_FlamerTank|UE5Texture=T_Soldiers_Blue
+UE5_Scout|TS_Head_02_Scout|TS_Body_03_scout|||UE5Texture=T_Soldiers_Blue
+UE5_Sniper|TS_Head_04_sniper|TS_Body_04_sniper|||UE5Texture=T_Soldiers_Blue
+UE5_Soldier|TS_Head_01_infantry|TS_Body_01_infantry|||UE5Texture=T_Soldiers_Blue
+UE5_Trench|TS_Head_12_gasmask_helmet|TS_Body_08_trench|||UE5Texture=T_Soldiers_Blue
+UE5Camo_Basic|TS_Head_10_glasses|TS_Body_07_unequipped||TS_Extra_Basic|UE5Texture=T_Soldiers_OliveDigital
+UE5Camo_Engineer|TS_Head_05_engineer|TS_Body_05_engineer|||UE5Texture=T_Soldiers_OliveDigital
+UE5Camo_Heavy|TS_Head_15_gunner_only|TS_Body_02_gunner|||UE5Texture=T_Soldiers_OliveDigital
+UE5Camo_Medic|TS_Head_06_medic_A|TS_Body_06_medic|||UE5Texture=T_Soldiers_OliveDigital
+UE5Camo_Officer_A|TS_Head_09_general|TS_Body_09_general|||UE5Texture=T_Soldiers_OliveDigital
+UE5Camo_Officer_B|TS_Head_08_beret|TS_Body_08_trench|||UE5Texture=T_Soldiers_OliveDigital
+UE5Camo_Officer_C|TS_Head_13_gasmask_general|TS_Body_09_general|||UE5Texture=T_Soldiers_OliveDigital
+UE5Camo_Pyro|TS_Head_11_gasmask|TS_Body_08_trench||TS_Equip_FlamerTank|UE5Texture=T_Soldiers_OliveDigital
+UE5Camo_Scout|TS_Head_02_Scout|TS_Body_03_scout|||UE5Texture=T_Soldiers_OliveDigital
+UE5Camo_Sniper|TS_Head_04_sniper|TS_Body_04_sniper|||UE5Texture=T_Soldiers_OliveDigital
+UE5Camo_Soldier|TS_Head_01_infantry|TS_Body_01_infantry|||UE5Texture=T_Soldiers_OliveDigital
+UE5Camo_Trench|TS_Head_12_gasmask_helmet|TS_Body_08_trench|||UE5Texture=T_Soldiers_OliveDigital

@@ -83,7 +83,7 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     private CamoCoverage _camoCoverage = CamoCoverage.All;
     private float _grime, _fatigue, _stress;
     private int _textureSize = 1024;
-    private string _packHead = "TSA_Head_A1", _packBody = "TSA_Body_A", _packLegs = "TSA_Legs_A", _packEquipment = "", _packTexture = "T_Armies_Standard", _militiaTexture = "T_Militias_A";
+    private string _packHead = "TSA_Head_A1", _packBody = "TSA_Body_A", _packLegs = "TSA_Legs_A", _packEquipment = "", _packTexture = "T_Armies_Standard", _militiaTexture = "T_Militias_A", _ue5Texture = "T_Soldiers_Olive";
     private Rgb _eyeColor = Rgb.FromHex("#5A4630");
     private Rgb _skinColor = Rgb.FromHex("#D9A274");
     private Rgb _hairColor = Rgb.FromHex("#4A3222");
@@ -266,6 +266,9 @@ public sealed class CharacterSpec : INotifyPropertyChanged
 
     /// <summary>Body = Pack: the Militia pack texture for its parts (MIL_*): T_Militias_A to D.</summary>
     public string MilitiaTexture { get => _militiaTexture; set => Set(ref _militiaTexture, value ?? "T_Militias_A"); }
+
+    /// <summary>Body = Pack: the UE5 pack texture for its parts (TS_*): T_Soldiers_Olive, _Blue, _OliveDigital...</summary>
+    public string UE5Texture { get => _ue5Texture; set => Set(ref _ue5Texture, value ?? "T_Soldiers_Olive"); }
 
     public int TextureSize { get => _textureSize; set => Set(ref _textureSize, value <= 512 ? 512 : value <= 1024 ? 1024 : 2048); }
 

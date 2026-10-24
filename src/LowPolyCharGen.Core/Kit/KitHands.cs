@@ -32,7 +32,7 @@ public static class KitHands
     /// <summary>The body with its hands in <paramref name="style"/> (the same part if Auto or not an Armies body).</summary>
     public static PackPart Restyle(PackPart body, GloveStyle style)
     {
-        if (Reference(style) is not { } refName || KitBuilder.IsMilitia(body) || body.Name == refName) return body;
+        if (Reference(style) is not { } refName || KitBuilder.IsMilitia(body) || KitBuilder.IsUE5(body) || body.Name == refName) return body;
         var reference = PackLibrary.Part(refName);
         var refTris = reference.Triangles.Where(t => IsHandTriangle(reference, t)).ToList();
         if (refTris.Count == 0) return body;

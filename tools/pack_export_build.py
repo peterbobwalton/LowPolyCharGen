@@ -7,6 +7,9 @@ Moves (with references fixed) everything staged into one folder, characters sepa
         Characters/Armies   SK_Armies_*   (+ Faces/ the per-character face textures and materials)
         Characters/SpecOps  SK_SpecOps_*
         Characters/Militia  SK_Militia_01..24
+        Characters/UE5, UE5Camo   SK_UE5_*, SK_UE5Camo_*  (the UE5 pack's prebuilts, blue and olive digital camo)
+        Characters/<faction>  SK_<faction>_*  (more factions: LPCG_Pack_<faction>_<role> in Kit/Pack)
+        Characters/Custom   SK_Kit_*, SK_Mil_*  (the kit's custom characters)
         Skeleton/           the shared skeleton and physics asset
         Animations/         the pack animations, by weapon type
         Weapons/Armies, Weapons/Militia
@@ -46,8 +49,13 @@ def destination(asset):
     cls = str(asset.asset_class_path.asset_name)
     if package.startswith(ROOT + "/"):
         return None
-    if "LPCG_Pack_" in name:
-        faction, short = character_name(re.sub(r"^(SK|MI|T)_|_Face$", "", name))
+    custom = re.match(r"(SK|MI|T)_LPCG_((Kit|Mil)_.+)$", name)
+    if "LPCG_Pack_" in name or (custom and (cls == "SkeletalMesh" or name.endswith("_Face"))):
+        if custom and "LPCG_Pack_" not in name:
+            # The custom characters (SK_LPCG_Kit_Rifleman, SK_LPCG_Mil_Turban_Thobe...): faction Custom.
+            faction, short = "Custom", re.sub(r"_Face$", "", custom.group(2))
+        else:
+            faction, short = character_name(re.sub(r"^(SK|MI|T)_|_Face$", "", name))
         prefix = name.split("_", 1)[0]
         if cls == "SkeletalMesh":
             return "%s/Characters/%s" % (ROOT, faction), "SK_" + short

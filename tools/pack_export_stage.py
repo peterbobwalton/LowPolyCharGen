@@ -1,5 +1,6 @@
-"""Step 1 of building the stand-alone soldier pack: copy the 44 kit-rebuilt characters, the pack animations and
-weapons, and everything they reference, into a scratch content-only project (C:/Temp/LpcgPackBuilder).
+"""Step 1 of building the stand-alone soldier pack: copy the kit characters (the packs' rebuilt prebuilts, the
+factions and the custom characters under /Game/LowPolyCharGen/Kit), the pack animations and weapons, and everything
+they reference, into a scratch content-only project (C:/Temp/LpcgPackBuilder).
 
 Run inside the LowPolyCharTest editor:
     py "C:/source/Claude/LowPolyCharGen/tools/pack_export_stage.py"
@@ -15,7 +16,8 @@ PROJECT = os.path.normpath(unreal.Paths.convert_relative_path_to_full(unreal.Pat
 BUILDER = "C:/Temp/LpcgPackBuilder"
 
 ROOTS = [
-    ("/Game/LowPolyCharGen/Kit/Pack", "SkeletalMesh"),
+    # Every kit character: the packs' rebuilt prebuilts and factions (Kit/Pack) and the custom ones (Kit).
+    ("/Game/LowPolyCharGen/Kit", "SkeletalMesh"),
     ("/Game/Toon_Soldiers_Armies/Animations", "AnimSequence"),
     ("/Game/Toon_Soldiers_Armies/Meshes/Weapons", "StaticMesh"),
     ("/Game/Toon_Soldiers_Militia/Meshes/Weapons", "StaticMesh"),

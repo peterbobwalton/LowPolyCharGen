@@ -32,6 +32,12 @@ public sealed class CharacterModel
     /// <summary>The texture of material slot 2 (pack characters' Militia parts), if any.</summary>
     public TextureImage? SecondTexture { get; init; }
 
+    /// <summary>The texture of material slot 3 (pack characters' UE5 pack parts), if any.</summary>
+    public TextureImage? ThirdTexture { get; init; }
+
+    /// <summary>The texture of material slot 4 (the UE5 pack's equipment texture), if any.</summary>
+    public TextureImage? EquipmentTexture { get; init; }
+
     /// <summary>Paints the character's texture at the given size (see <see cref="TextureBaker"/>).</summary>
     public TextureImage BakeTexture(int size) => FixedTexture ?? TextureBaker.Bake(this, size);
 }

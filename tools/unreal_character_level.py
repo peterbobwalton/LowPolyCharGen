@@ -62,6 +62,18 @@ for start in range(0, len(PREBUILTS), 11):
         original.append((folder + n, weapon, n, "pack prebuilt"))
         rebuilt.append((PACK_KIT + n, weapon, n, "kit rebuild"))
     ROWS += [original, rebuilt]
+# The UE5 pack's 12 prebuilts (their own skeleton: they play the UE5 pack's idle), then their kit rebuilds on the
+# shared skeleton in the pack's blue and in the olive digital camo.
+UE5 = "/Game/Toon_Soldiers_UE5"
+UE5_IDLE = UE5 + "/Animations/Infantry/infantry_combat_idle"
+UE5_PREBUILTS = ["Basic", "Engineer", "Heavy", "Medic", "Officer_A", "Officer_B", "Officer_C", "Pyro", "Scout", "Sniper",
+                 "Soldier", "Trench"]
+ROWS += [
+    [(UE5 + "/Meshes/Characters_Prebuilt/SK_" + ("Enginieer" if n == "Engineer" else n),
+      AW + "SM_m4", "UE5 " + n, "pack prebuilt") for n in UE5_PREBUILTS],
+    [(PACK_KIT + "UE5_" + n, AW + "SM_m4", "UE5 " + n, "kit rebuild") for n in UE5_PREBUILTS],
+    [(PACK_KIT + "UE5Camo_" + n, AW + "SM_m4", "UE5 " + n, "kit, digital camo") for n in UE5_PREBUILTS],
+]
 ANIMS = ARMIES + "/Animations/"
 # Weapons that aren't held like a rifle get the pack's own idle for them (rifles use the C++ locomotion idle).
 WEAPON_IDLE = {
@@ -129,11 +141,16 @@ for r, row in enumerate(ROWS):
         actor = spawn(unreal.LpcgDisplaySoldier, unreal.Vector(x, y, 0), unreal.Rotator(0, 0, 180),
                       "Char_%d_%02d_%s" % (r, i, (line1 + "_" + line2).replace(" ", "_").replace(",", "")))
         actor.set_editor_property("mesh", unreal.load_asset(mesh))
-        idle = WEAPON_IDLE.get(weapon.rsplit("/", 1)[-1])
+        idle = UE5_IDLE if mesh.startswith(UE5) else WEAPON_IDLE.get(weapon.rsplit("/", 1)[-1])
         actor.set_editor_property("animation", unreal.load_asset(idle) if idle else None)
         actor.set_editor_property("locomotion_speed", 0.0)
         actor.set_editor_property("crouched", False)
         actor.set_editor_property("weapon_mesh", unreal.load_asset(weapon))
+        if mesh.startswith(UE5):
+            # The UE5 skeleton is 1.18 times the shared one (its own weapons are scaled to match): shown at the
+            # same height as the rebuilds, without a weapon.
+            actor.set_editor_property("weapon_mesh", None)
+            actor.set_editor_property("character_scale", actor.get_editor_property("character_scale") * 122.35 / 144.51)
         actor.set_editor_property("grime", -1.0)
         actor.set_editor_property("label", line1 + chr(10) + line2)
         actor.refresh()
