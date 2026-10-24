@@ -15,16 +15,23 @@ documented in `README.md`.
 
 | Thing | Where |
 |---|---|
+| Machine | **AMD9800X3D** (since 24 October 2026; the earlier work was on the AMD7970X) |
 | Repo | `C:\Source\Claude\LowPolyCharGen` (GitHub `peterbobwalton/LowPolyCharGen`, branch `main`) |
 | Unreal test project | `C:\Unreal Projects\5.8\LowPolyCharTest` (UE 5.8.3, C++: `LpcgDisplaySoldier`, `LpcgSoldierCharacter`, `LpcgGameMode`) |
 | Display level | `/Game/LowPolyCharGen/Maps/Lvl_Characters` (built by `tools/unreal_character_level.py`) |
 | Pack data (parts as JSON/PNG) | `packdata/` — **git-ignored, licensed, never commit**. Made by `tools/pack2json.py`, extras by `tools/pack_extras.py` |
+| Pack builder (scratch project) | `C:\Temp\LpcgPackBuilder`; built pack in `C:\Temp\LowPolySoldiers_Pack` |
+| Pack delivery | `Z:\Media\Models` (see below) |
+| Pack contents report | https://claude.ai/artifact/CWY3561gwqZocDCvnahGDF |
 | Scratchpad | `C:\Temp` |
 
 - **Packs:** never modify the pack originals in the game projects (UxVTest1, HeroesOfBenghazi). Test in LowPolyCharTest.
 - **Editors:** several Unreal editors are often open (DroneWarriors, MechAnt…). Always target `editor="LowPolyCharTest"`.
-- **Level scripts:** never destroy a level's own actors. Only remove tagged actors (`LpcgShowcase`); destroying
-  rooted actors crashed the editor before.
+- **Level scripts:** never destroy a level's own actors (WorldSettings, brushes): they are rooted, and destroying
+  them crashed the editor before. Destroy actors one by one through the editor actor subsystem. Everything
+  `unreal_character_level.py` spawns is tagged `LpcgShowcase`; a rebuild also clears untagged characters and labels
+  (SkeletalMeshActor, LpcgDisplaySoldier, TextRenderActor) left by other scripts.
+- **Z:\Media\Models:** overwrites and deletes there are blocked. Deliver each pack build under a new dated name.
 - **Build and git:** build and run from Visual Studio 2026 through the VS MCP bridge. Do commits and pushes yourself
   with the git MCP tool.
 - **OneDrive is off limits.**
@@ -64,18 +71,37 @@ never changed, so every pack animation still works.
 **Import:** `tools/import_unreal.py <fbx folder> <dest>`. Nanite on, vertex colour replace, slots mapped by name
 suffix, materials from `M_LPCG_Kit`.
 
-## Done on the AMD9800X3D (24 October 2026)
+## Where the pack is delivered
 
-- **UE5 pack in the kit.**
-  - The Toon Soldiers UE5 pack's parts (`TS_Head_*`, `TS_Body_*`) are now a third part family. They use the same
-    Bip001 bones and face mesh as Armies, on a skeleton about 1.18 times larger, so they go straight onto the shared
-    skeleton. Their bodies include the legs, so `PackLegs` is ignored for them.
-  - Material slot 3 (`_UE5`) takes `UE5Texture` (`T_Soldiers_*`: the pack's 9 colours, plus `T_Soldiers_OliveDigital`).
-  - Slot 4 (`_Equipment`) holds `T_Equipment`, for `TS_Equip_FlamerTank` (SK_Pyro's tank, extracted by `pack_extras.py`).
-  - Packdata: `pack2json.py packdata/fbx_ue5 packdata` (parts) and `pack2json.py packdata/fbx_ue5_prebuilt packdata TS_`
-    (prebuilts, prefixed `TS_SK_`). The textures and all 30 Armies camos are exported as PNG into `packdata/`.
-- **The UE5 pack's 12 prebuilts rebuilt** (`pack_prebuilts.txt`): faction `UE5` (blue) and `UE5Camo` (olive digital).
-  The sixth field of the list holds more settings. Lvl_Characters gets three rows: originals, rebuilt, camo.
+`Z:\Media\Models`:
+
+| Item | What |
+|---|---|
+| `LowPolySoldiers_Pack_UE5.8_2026-10-24_legsfix.zip` (166 MB) | **Latest.** 121 characters in 10 factions, with the legs/boots fix |
+| `LowPolySoldiers_Pack_UE5.8_2026-10-24.zip` (172 MB) | 24 Oct, before the fix: the officers have no legs, the Taliban no legs or shoes |
+| `LowPolySoldiers_Pack_UE5.8.zip` (88 MB) | 23 Oct, the first pack (44 rebuilt prebuilts); kept for reference |
+| `LowPolySoldiers_Pack\` (folder) | **Not updated:** the 13:33 build from before the fix. It can't be overwritten; use the legsfix zip, or copy the fixed `C:\Temp\LowPolySoldiers_Pack` to a new dated folder |
+
+## Done on the AMD9800X3D (24 October 2026, newest first)
+
+- **86 strays removed from Lvl_Characters** (Pete confirmed). There were 62 part sheets at x = −8000 (tagged
+  `LpcgHeadSheet`) and the 24 UE5 previews at x ≈ −2100 to −2500, now covered by the UE5 and UE5Camo rows. The level
+  holds only its 204 row, floor and light actors. Backup: `C:\Temp\Lvl_Characters_20261024_backup.umap`.
+- **Legless officers and bootless Taliban fixed** (`b585259`).
+  - `KitBuilder` treated any body weighted to a thigh as a UE5 body with its own legs, and dropped PackLegs. The
+    long jackets (`TSA_Body_H`, `MIL_Mesh_Body_F/G`) weight their hems to the thighs, so the factions' 3 officers
+    lost their legs and 7 Taliban their legs and shoes. Now only a body weighted to the feet counts.
+  - **Stronger `--check`:** it now builds every row of `pack_prebuilts.txt` and `pack_factions.txt` and fails a
+    mesh that doesn't reach the ground. It passes on 659 characters; without the fix it flags 18.
+  - `KitMorph` keeps the soles on the ground (the reshape pushed 7 characters about 1 mm under it).
+  - Re-imported the 15 affected characters, rebuilt the pack and delivered it as the legsfix zip.
+- **Level grouped by faction** (`e840637`): rows grouped by faction, each with a large row label at its left end.
+- **Every kit character in the stand-alone pack** (`7079599`): 121 characters in 10 faction folders (Armies,
+  SpecOps, Militia, UE5, UE5Camo, DesertStorm, Taliban, UKArmy, UKSF, Custom). The README is generated by
+  `pack_export_build.py`.
+  - The staging step clears the scratch project first, and the build waits for the asset registry.
+  - The build re-points the animations' and skeleton's preview meshes into the pack. One editor-only soft reference
+    remains: the physics asset's preview mesh, which Python can't reach.
 - **Factions** (`tools/pack_factions.txt`, exported by `make_pack_prebuilts.ps1` with `pack_prebuilts.txt`):
   - DesertStorm (10): US in chocolate chip (`T_gulfwar_A`) with PASGT helmets, and UK in desert DPM (`T_desert_uk`).
     Both wear tan desert boots.
@@ -86,23 +112,18 @@ suffix, materials from `M_LPCG_Kit`.
   - The seventh field of the list is the display weapon in Lvl_Characters (one row per faction).
 - **`Recolour`** (flags Top, Trousers, Boots): recolours single garments. `RecolourClothes` still recolours all of them.
   Hands are now left out of the shirt recolour.
-- **Stand-alone pack rebuilt** (`C:\Temp\LowPolySoldiers_Pack`, zip 164 MB): 121 characters in 10 faction folders,
-  the custom ones as `Custom`. The README is now generated by `pack_export_build.py`.
-  - The staging step clears the scratch project first, and the build waits for the asset registry.
-  - The build re-points the animations' and skeleton's preview meshes into the pack. One editor-only soft reference
-    remains: the physics asset's preview mesh, which Python can't reach.
-
-- **Legless officers and bootless Taliban fixed.**
-  - `KitBuilder` treated any body weighted to a thigh as a UE5 body with its own legs, and dropped PackLegs. The
-    long jackets (`TSA_Body_H`, `MIL_Mesh_Body_F/G`) weight their hems to the thighs, so the factions' officers lost
-    their legs and the Taliban their legs and shoes. Now only a body weighted to the feet counts.
-  - `--check` now builds every row of `pack_prebuilts.txt` and `pack_factions.txt` and fails a mesh that doesn't
-    reach the ground. `KitMorph` keeps the soles on the ground (the reshape pushed some 1.4 mm under it).
-  - `unreal_character_level.py` clears untagged characters and labels (SkeletalMeshActor, LpcgDisplaySoldier,
-    TextRenderActor) on a rebuild. The level shows only its rows.
-  - Pack rebuilt: `Z:\Media\Models\LowPolySoldiers_Pack_UE5.8_2026-10-24_legsfix.zip`.
-
-## Done earlier (latest commits first)
+- **The UE5 pack's 12 prebuilts rebuilt** (`2860586`, `pack_prebuilts.txt`): faction `UE5` (blue) and `UE5Camo`
+  (olive digital). The sixth field of the list holds more settings. Lvl_Characters gets three rows: originals,
+  rebuilt, camo.
+- **UE5 pack in the kit** (`2860586`).
+  - The Toon Soldiers UE5 pack's parts (`TS_Head_*`, `TS_Body_*`) are now a third part family. They use the same
+    Bip001 bones and face mesh as Armies, on a skeleton about 1.18 times larger, so they go straight onto the shared
+    skeleton. Their bodies include the legs down to the feet, so `PackLegs` is ignored for them.
+  - Material slot 3 (`_UE5`) takes `UE5Texture` (`T_Soldiers_*`: the pack's 9 colours, plus `T_Soldiers_OliveDigital`).
+  - Slot 4 (`_Equipment`) holds `T_Equipment`, for `TS_Equip_FlamerTank` (SK_Pyro's tank, extracted by `pack_extras.py`).
+  - Packdata: `pack2json.py packdata/fbx_ue5 packdata` (parts) and `pack2json.py packdata/fbx_ue5_prebuilt packdata TS_`
+    (prebuilts, prefixed `TS_SK_`). The textures and all 30 Armies camos are exported as PNG into `packdata/`.
+## Done earlier on the AMD7970X (latest commits first)
 
 - `dc5e544` **Stand-alone content pack export.**
   - `tools/pack_export_stage.py` runs in LowPolyCharTest. It copies the 44 rebuilt characters, the 450 pack
@@ -110,8 +131,8 @@ suffix, materials from `M_LPCG_Kit`.
     `C:\Temp\LpcgPackBuilder`.
   - `tools/pack_export_build.py` runs in that project. It moves everything under `/Game/LowPolySoldiers` with the
     references fixed, checks there are no outside references (result: 0), and copies the folder to
-    `C:\Temp\LowPolySoldiers_Pack`, with a README. A zip is at `C:\Temp\LowPolySoldiers_Pack_UE5.8.zip` (88 MB).
-  - Layout: `Characters/{Armies,SpecOps,Militia}` (+ `Faces/`), `Skeleton/SKEL_Soldier`, `Animations/`,
+    `C:\Temp\LowPolySoldiers_Pack`, with a README.
+  - Layout: `Characters/<faction>` (+ `Faces/`), `Skeleton/SKEL_Soldier`, `Animations/`,
     `Weapons/{Armies,Militia}`, `Materials/`, `Textures/`.
   - Why a scratch project: Python can't re-point a mesh's or animation's skeleton (read-only). `rename_assets` does
     fix references, so the assets are moved inside a throw-away copy instead.
@@ -123,9 +144,7 @@ suffix, materials from `M_LPCG_Kit`.
   - Palettes: olive, woodland, desert, urban.
   - Made `T_Soldiers_OliveDigital` and `MI_Soldiers_OliveDigital` in `/Game/LowPolyCharGen/ToonSoldiersUE5`. The
     pack's meshes are untouched.
-  - A preview of the 12 UE5 prebuilts (blue and camo, tagged `LpcgUE5Camo`) stands at x ≈ −2500 in
-    Lvl_Characters.
-  - Offered, not done: copies of those 12 meshes with the camo set as their default material.
+  - Its preview in Lvl_Characters has since been removed; the UE5Camo kit rebuilds replace it.
 - `fc9635f` **The pack's 44 prebuilts rebuilt with the kit.**
   - `tools/pack_prebuilts.txt` lists each prebuilt's parts, matched from the prebuilt meshes by position + UV.
   - `tools/pack_extras.py` extracts the prebuilt-only geometry into `packdata` as `MIL_Extra_GasMask`,
@@ -159,7 +178,10 @@ suffix, materials from `M_LPCG_Kit`.
 4. Stand-alone pack:
    - Run `py tools/pack_export_stage.py` in LowPolyCharTest.
    - Open `C:\Temp\LpcgPackBuilder\LpcgPackBuilder.uproject`.
-   - Run `py tools/pack_export_build.py` there.
+   - Run `py tools/pack_export_build.py` there. It runs longer than the bridge's request timeout: wait for the editor
+     to answer again, then look for the `pack: ... outside references: 0` line in LogPython.
+   - Zip `C:\Temp\LowPolySoldiers_Pack` and copy it to `Z:\Media\Models` under a new dated name.
+5. Run `lowpolychargen --check` after any generator change: it must pass on every character.
 
 ## Open / possible next steps
 
@@ -174,6 +196,9 @@ suffix, materials from `M_LPCG_Kit`.
   aren't in the stand-alone pack.
 - In the WPF app, hide the non-pack options when Body = Pack.
 - Get a performance figure from a standalone (packaged) build, not the editor.
+- The pack's physics asset still has an editor-only soft reference to a preview mesh outside the pack (Python can't
+  reach it). It may need a C++ editor utility, or fixing by hand in the scratch project.
+- `Z:\Media\Models\LowPolySoldiers_Pack` (folder) predates the legs fix (see above).
 - Known quirks:
   - The bridge's `exec_python` treats code whose text ends like a `.py` path as a file path. Avoid `.py'` near the
     end of inline code.
