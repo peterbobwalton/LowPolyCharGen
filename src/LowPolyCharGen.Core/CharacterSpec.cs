@@ -30,6 +30,8 @@ public enum HeadShape { Standard, Square, Round, Slim, Heavy }
 /// <summary>Body = Pack: the nose (Auto = the pack's for men, Small for women).</summary>
 /// <summary>Body = Pack: the hands (Auto = the body's own, or Tan when Gloves is set).</summary>
 public enum GloveStyle { Auto, Bare, Tan, Dark }
+/// <summary>Body = Pack: garments to recolour (combine with commas: "Top,Boots").</summary>
+[Flags] public enum ClothesParts { None = 0, Top = 1, Trousers = 2, Boots = 4, All = Top | Trousers | Boots }
 /// <summary>Body = Pack: the nose (Auto = the pack's for men, Small for women).</summary>
 public enum NoseShape { Auto, Pack, Small, Button, Broad, Roman }
 public enum HairStyle { Bald, Buzz, Short, Bob, Long, Ponytail, Bun, Mohawk }
@@ -65,6 +67,7 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     private NoseShape _nose = NoseShape.Auto;
     private GloveStyle _gloveStyle = GloveStyle.Auto;
     private bool _recolourClothes;
+    private ClothesParts _recolour = ClothesParts.None;
     private EarShape _ears = EarShape.Normal;
     private HairStyle _hair = HairStyle.Short;
     private FacialHair _facialHair = FacialHair.None;
@@ -132,6 +135,9 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     /// trainers always take BootsColor.
     /// </summary>
     public bool RecolourClothes { get => _recolourClothes; set => Set(ref _recolourClothes, value); }
+
+    /// <summary>Body = Pack: recolour only these garments (a plain top over camo trousers, desert boots); RecolourClothes = all.</summary>
+    public ClothesParts Recolour { get => _recolour; set => Set(ref _recolour, value); }
     public EarShape Ears { get => _ears; set => Set(ref _ears, value); }
     public HairStyle Hair { get => _hair; set => Set(ref _hair, value); }
     public FacialHair FacialHair { get => _facialHair; set => Set(ref _facialHair, value); }

@@ -1,0 +1,50 @@
+# More armies built with the kit from the packs' parts (exported by make_pack_prebuilts.ps1 with pack_prebuilts.txt).
+# name|PackHead|PackBody|PackLegs|PackEquipment|more Property=Value settings (space separated)|display weapon
+# The name is <faction>_<role>: the stand-alone pack puts each faction in Characters/<faction>.
+# Heads: TSA_Head_B* PASGT-style helmet, C* Mk7/MICH-style, D* FAST with NVG mount, G* patrol/ball caps (G3/G4 with
+# headset), H* boonie, I* beret, J3/J4 headset on a bare head, K* bump helmet, L* helmet with a scarf.
+
+# Operation Desert Storm, 1991: US Army in chocolate-chip desert camo (T_gulfwar_A), PASGT helmets and tan desert boots;
+# British Army in desert DPM (T_desert_uk). Moustaches and 1991 kit: no plate carriers' pouches on the officers.
+DesertStorm_US_Rifleman|TSA_Head_B1|TSA_Body_A|TSA_Legs_A|TSA_equip_A|PackTexture=T_gulfwar_A Recolour=Boots BootsColor=#B49A72 SkinColor=#E0B896 FacialHair=Stubble|SM_m16
+DesertStorm_US_Squad_Leader|TSA_Head_B3|TSA_Body_C|TSA_Legs_B|TSA_light_backpack|PackTexture=T_gulfwar_A Recolour=Boots BootsColor=#B49A72 SkinColor=#6B4630 HeadShape=Square|SM_m16
+DesertStorm_US_SAW_Gunner|TSA_Head_B2|TSA_Body_D|TSA_Legs_C|TSA_equip_C|PackTexture=T_gulfwar_A Recolour=Boots BootsColor=#B49A72 SkinColor=#C49A78 Build=0.8 FacialHair=Moustache HairColor=#2A1A12|SM_m249
+DesertStorm_US_Scout|TSA_Head_H1|TSA_Body_E|TSA_Legs_C|TSA_camelback|PackTexture=T_gulfwar_A Recolour=Boots BootsColor=#B49A72 SkinColor=#F0C8A8 Build=0.2 HeadShape=Slim|SM_m16
+DesertStorm_US_AT_Gunner|TSA_Head_B1|TSA_Body_J|TSA_Legs_B|TSA_backpack|PackTexture=T_gulfwar_A Recolour=Boots BootsColor=#B49A72 SkinColor=#8A5A3C Nose=Broad|SM_smaw
+DesertStorm_US_Officer|TSA_Head_G1|TSA_Body_H|TSA_Legs_A||PackTexture=T_gulfwar_A Recolour=Boots BootsColor=#B49A72 SkinColor=#D8A882 FacialHair=Moustache HairColor=#6A6058 HeadShape=Square|SM_beretta92
+DesertStorm_UK_Rifleman|TSA_Head_C1|TSA_Body_A|TSA_Legs_B|TSA_equip_B|PackTexture=T_desert_uk Recolour=Boots BootsColor=#A08460 SkinColor=#F0C8A8 FacialHair=Moustache HairColor=#5A3A22|SM_L85
+DesertStorm_UK_Gunner|TSA_Head_C2|TSA_Body_D|TSA_Legs_C|TSA_equip_C|PackTexture=T_desert_uk Recolour=Boots BootsColor=#A08460 SkinColor=#E8BC98 Build=0.8 Nose=Roman|SM_m249
+DesertStorm_UK_Section_Commander|TSA_Head_L3|TSA_Body_C|TSA_Legs_A|TSA_light_backpack|PackTexture=T_desert_uk Recolour=Boots BootsColor=#A08460 SkinColor=#D8A882 FacialHair=Stubble|SM_L85
+DesertStorm_UK_Officer|TSA_Head_I1|TSA_Body_H|TSA_Legs_A||PackTexture=T_desert_uk Recolour=Boots BootsColor=#A08460 SkinColor=#F0C8A8 FacialHair=Moustache HairColor=#8A6A48 HeadShape=Slim|SM_usp
+
+# Taliban: turbans (black, white, grey), shalwar kameez (the thobe, in the dull colours they wear), bushy beards,
+# chest rigs (the Militia pack's equipment), sandals or shoes, AKs, RPGs and PKMs.
+Taliban_Rifleman|MIL_Mesh_Head_A|TSA_Body_H|MIL_Mesh_Legs_A|MIL_Mesh_extra_equip_A|Hat=Turban Legs=Thobe FacialHair=BushyBeard ShirtColor=#8A8478 HatColor=#1C1C1E SkinColor=#A87048 HairColor=#151010 Footwear=Shoes|SM_weapon_ak47
+Taliban_RPG_Gunner|MIL_Mesh_Head_A|TSA_Body_H|MIL_Mesh_Legs_A|MIL_Mesh_extra_backpack|Hat=Turban Legs=Thobe FacialHair=BushyBeard ShirtColor=#6E6A5C HatColor=#D8D0C0 SkinColor=#9A6440 HairColor=#151010 Build=0.3 HeadShape=Slim|SM_weapon_rpg
+Taliban_PKM_Gunner|MIL_Mesh_Head_A|TSA_Body_H|MIL_Mesh_Legs_A|MIL_Mesh_extra_equip_C|Hat=Turban Legs=Thobe FacialHair=Beard ShirtColor=#5A5A50 HatColor=#2A2A2E SkinColor=#B07850 HairColor=#1A1410 Build=0.8|SM_weapon_pkm
+Taliban_Commander|MIL_Mesh_Head_A|TSA_Body_H|MIL_Mesh_Legs_A|MIL_Mesh_extra_equip_B|Hat=Turban Legs=Thobe FacialHair=BushyBeard ShirtColor=#E8E4DA HatColor=#141416 SkinColor=#B88058 HairColor=#2A2420 Nose=Roman HeadShape=Square Footwear=Shoes|SM_weapon_aksu
+Taliban_Scout|MIL_Mesh_head_D|TSA_Body_H|MIL_Mesh_Legs_A|MIL_Mesh_extra_equip_D|Legs=Thobe FacialHair=BushyBeard ShirtColor=#7A6A50 SkinColor=#A06A44 HairColor=#151010 Build=0.2 Footwear=Shoes|SM_weapon_ak47
+Taliban_Shemagh|MIL_Mesh_head_J|TSA_Body_H|MIL_Mesh_Legs_A|MIL_Mesh_extra_equip_A|FaceCover=Shemagh Legs=Thobe AccentColor=#C8B898 ShirtColor=#9A9284 SkinColor=#A87048|SM_weapon_ak47
+Taliban_Sniper|MIL_Mesh_Head_A|TSA_Body_H|MIL_Mesh_Legs_A|MIL_Mesh_extra_scarf_B|Hat=Turban Legs=Thobe FacialHair=Beard ShirtColor=#4A4E44 HatColor=#5A564C SkinColor=#9A6440 HairColor=#151010 Nose=Broad|SM_weapon_svd
+Taliban_Fighter_Jacket|MIL_Mesh_Head_A|MIL_Mesh_Body_C|MIL_Mesh_Legs_B|MIL_Mesh_extra_equip_B|Hat=Turban FacialHair=BushyBeard HatColor=#1C1C1E SkinColor=#B07850 HairColor=#151010 Footwear=Shoes|SM_weapon_ak47
+
+# British Army today: MTP (the pack's multicam), Virtus/Mk7-style helmets, plate carriers, L85A3 rifles.
+UKArmy_Rifleman|TSA_Head_C1|TSA_Body_A|TSA_Legs_A|TSA_equip_A,TSA_backpack|PackTexture=T_multicam SkinColor=#F0C8A8 FacialHair=Stubble|SM_L85
+UKArmy_Section_Commander|TSA_Head_C3|TSA_Body_C|TSA_Legs_B|TSA_equip_B,TSA_light_backpack|PackTexture=T_multicam SkinColor=#D8A882 HeadShape=Square|SM_L85
+UKArmy_LMG_Gunner|TSA_Head_C2|TSA_Body_D|TSA_Legs_C|TSA_equip_C|PackTexture=T_multicam SkinColor=#6B4630 Build=0.8 Nose=Broad|SM_m249
+UKArmy_Marksman|TSA_Head_C5|TSA_Body_J|TSA_Legs_A|TSA_camelback|PackTexture=T_multicam SkinColor=#E8BC98 Build=0.3 HeadShape=Slim|SM_m110
+UKArmy_Female_Rifleman|TSA_Head_C1|TSA_Body_E|TSA_Legs_B|TSA_light_backpack|PackTexture=T_multicam Gender=Female Hair=Bun HairColor=#3A2416 SkinColor=#E8BC98|SM_L85
+UKArmy_Medic|TSA_Head_C4|TSA_Body_F|TSA_Legs_C|TSA_backpack|PackTexture=T_multicam SkinColor=#C49A78 HairColor=#151010|SM_L85
+UKArmy_Patrol|TSA_Head_H1|TSA_Body_E|TSA_Legs_C|TSA_equip_A|PackTexture=T_multicam SkinColor=#8A5A3C|SM_L85
+UKArmy_Officer|TSA_Head_I1|TSA_Body_H|TSA_Legs_A||PackTexture=T_multicam SkinColor=#F0C8A8 HeadShape=Slim Nose=Roman|SM_usp
+
+# UK Special Forces: mixed multicam and plain kit (Recolour=Top: a plain top over multicam trousers), FAST-style helmets
+# or ball caps with headsets, beards, shemaghs, suppressed carbines.
+UKSF_Assaulter|TSA_Head_D1|TSA_Body_B|TSA_Legs_B|TSA_equip_B|PackTexture=T_multicam FacialHair=Beard SkinColor=#E0B896 HairColor=#3A2416|SM_m4_tac
+UKSF_Assaulter_Plain|TSA_Head_D3|TSA_Body_I|TSA_Legs_C|TSA_equip_A|PackTexture=T_multicam Recolour=Top ShirtColor=#4A4A3E FacialHair=BushyBeard SkinColor=#D8A882 HairColor=#2A1A12|SM_hk433
+UKSF_Ballcap|TSA_Head_G4|TSA_Body_A|TSA_Legs_A|TSA_equip_B|PackTexture=T_multicam Recolour=Top ShirtColor=#8A7A5A FacialHair=Beard SkinColor=#E8BC98 HairColor=#5A3A22|SM_m4_tac
+UKSF_Headset|TSA_Head_J3|TSA_Body_G|TSA_Legs_B|TSA_equip_A|PackTexture=T_multicam Recolour=Top ShirtColor=#2E3236 FacialHair=BushyBeard SkinColor=#C49A78 HairColor=#151010|SM_mp5_silenced
+UKSF_Shemagh|TSA_Head_L4|TSA_Body_E|TSA_Legs_C|TSA_camelback|PackTexture=T_multicam FacialHair=Beard SkinColor=#D8A882|SM_m4_tac
+UKSF_Desert_Shemagh|MIL_Mesh_head_J|TSA_Body_K|TSA_Legs_A|TSA_equip_C|PackTexture=T_multicam FaceCover=Shemagh AccentColor=#C8B898 Recolour=Top ShirtColor=#9A8A6A|SM_hk433
+UKSF_Sniper|TSA_Head_K3|TSA_Body_K|TSA_Legs_A|TSA_light_backpack|PackTexture=T_multicam FacialHair=Stubble SkinColor=#F0C8A8 Build=0.3|SM_m110
+UKSF_Pointman|TSA_Head_D5|TSA_Body_C|TSA_Legs_B|TSA_equip_B|PackTexture=T_multicam Recolour=Top,Trousers ShirtColor=#3A3C30 TrousersColor=#4A4C3E FacialHair=Beard SkinColor=#8A5A3C|SM_usp_sil

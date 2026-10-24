@@ -4,6 +4,8 @@ comparison. Rebuilds the level from scratch each run (the characters must be imp
 Run inside the open editor:
     py "C:/source/Claude/LowPolyCharGen/tools/unreal_character_level.py"
 """
+import os
+
 import unreal
 
 LEVEL = "/Game/LowPolyCharGen/Maps/Lvl_Characters"
@@ -74,6 +76,19 @@ ROWS += [
     [(PACK_KIT + "UE5_" + n, AW + "SM_m4", "UE5 " + n, "kit rebuild") for n in UE5_PREBUILTS],
     [(PACK_KIT + "UE5Camo_" + n, AW + "SM_m4", "UE5 " + n, "kit, digital camo") for n in UE5_PREBUILTS],
 ]
+# The factions of tools/pack_factions.txt (imported to Kit/Pack with the prebuilts): a row each, with their weapons.
+FACTIONS_TXT = os.path.join(os.path.dirname(os.path.abspath(__file__)) if "__file__" in globals()
+                            else "C:/Source/Claude/LowPolyCharGen/tools", "pack_factions.txt")
+factions = {}
+for line in open(FACTIONS_TXT, encoding="utf-8"):
+    if line.startswith("#") or not line.strip():
+        continue
+    fields = line.strip().split("|")
+    name, weapon = fields[0], fields[6] if len(fields) > 6 else "SM_m4"
+    faction, role = name.split("_", 1)
+    weapon_path = next((f + weapon for f in (AW, MW) if unreal.EditorAssetLibrary.does_asset_exist(f + weapon)), AW + "SM_m4")
+    factions.setdefault(faction, []).append((PACK_KIT + name, weapon_path, faction, role.replace("_", " ")))
+ROWS += list(factions.values())
 ANIMS = ARMIES + "/Animations/"
 # Weapons that aren't held like a rifle get the pack's own idle for them (rifles use the C++ locomotion idle).
 WEAPON_IDLE = {
@@ -86,6 +101,7 @@ WEAPON_IDLE = {
     "SM_beretta92": ANIMS + "Handgun/handgun_combat_idle",
     "SM_weapon_glock": ANIMS + "Handgun/handgun_combat_idle",
     "SM_weapon_deserteagle": ANIMS + "Handgun/handgun_combat_idle",
+    "SM_usp_sil": ANIMS + "Handgun/handgun_combat_idle",
 }
 SPACING = 240.0      # between characters in a row (cm), room for the labels
 ROW_GAP = 600.0      # between rows
@@ -118,7 +134,7 @@ def spawn(cls, location, rotation=unreal.Rotator(0, 0, 0), label=None):
 
 
 # Floor: one large plane with the template's grid material.
-floor = spawn(unreal.StaticMeshActor, unreal.Vector(0, 0, 0), label="Floor")
+floor = spawn(unreal.StaticMeshActor, unreal.Vector((len(ROWS) - 1) * ROW_GAP / 2.0, 0, 0), label="Floor")   # under every row
 floor.static_mesh_component.set_static_mesh(unreal.load_asset("/Engine/BasicShapes/Plane"))
 floor.static_mesh_component.set_material(0, unreal.load_asset("/Game/LevelPrototyping/Materials/MI_PrototypeGrid_Gray"))
 floor.set_actor_scale3d(unreal.Vector(FLOOR_SIZE, FLOOR_SIZE, 1))

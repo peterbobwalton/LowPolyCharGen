@@ -42,6 +42,9 @@ while todo:
 
 unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True)
 content = os.path.join(PROJECT, "Content")
+# A fresh copy each time: a previous run's moved assets (/Game/LowPolySoldiers) would clash with the new ones.
+for stale in ("Content", "Saved", "Intermediate", "DerivedDataCache"):
+    shutil.rmtree(os.path.join(BUILDER, stale), ignore_errors=True)
 copied = 0
 for package in sorted(packages):
     relative = package[len("/Game/"):]

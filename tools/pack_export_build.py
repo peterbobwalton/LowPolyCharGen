@@ -28,6 +28,7 @@ ROOT = "/Game/LowPolySoldiers"
 OUT = "C:/Temp/LowPolySoldiers_Pack"
 
 registry = unreal.AssetRegistryHelpers.get_asset_registry()
+registry.wait_for_completion()   # just after the editor opens it is still scanning, and renames are refused meanwhile
 tools = unreal.AssetToolsHelpers.get_asset_tools()
 options = unreal.AssetRegistryDependencyOptions(
     include_soft_package_references=True, include_hard_package_references=True, include_searchable_names=False,
@@ -97,6 +98,21 @@ for folder in unreal.EditorAssetLibrary.list_assets("/Game", recursive=False, in
     if folder.rstrip("/") not in (ROOT, "/Game/Collections", "/Game/Developers") and not registry.get_assets_by_path(folder.rstrip("/"), recursive=True):
         unreal.EditorAssetLibrary.delete_directory(folder.rstrip("/"))
 
+# The editor-only preview meshes of the animations, skeleton and physics asset still name the packs' own meshes, and
+# the skeleton lists another pack's skeleton as compatible: point them at a character of the pack instead.
+preview = unreal.load_asset(ROOT + "/Characters/Armies/SK_Armies_Soldier_A")
+skeleton = unreal.load_asset(ROOT + "/Skeleton/SKEL_Soldier")
+if preview and skeleton:
+    # These setters don't mark the packages dirty, so each one is saved explicitly.
+    skeleton.set_editor_property("compatible_skeletons", [])
+    skeleton.set_skeleton_preview_mesh(preview)
+    unreal.EditorAssetLibrary.save_loaded_asset(skeleton, False)
+    for asset in registry.get_assets_by_path(ROOT + "/Animations", recursive=True):
+        if str(asset.asset_class_path.asset_name) == "AnimSequence":
+            anim = asset.get_asset()
+            anim.set_preview_skeletal_mesh(preview)
+            unreal.EditorAssetLibrary.save_loaded_asset(anim, False)
+
 # Self-contained check: nothing under ROOT may reference /Game outside ROOT.
 outside = set()
 for asset in registry.get_assets_by_path(ROOT, recursive=True):
@@ -118,4 +134,44 @@ count = {}
 for asset in registry.get_assets_by_path(ROOT, recursive=True):
     key = str(asset.asset_class_path.asset_name)
     count[key] = count.get(key, 0) + 1
+
+FACTIONS = {
+    "Armies": "army soldiers (Toon Soldiers Armies)",
+    "SpecOps": "special forces (Toon Soldiers Armies)",
+    "Militia": "militia (Toon Soldiers Militia)",
+    "UE5": "the Toon Soldiers UE5 pack's soldiers, in its blue",
+    "UE5Camo": "the same in olive digital camo",
+    "DesertStorm": "Operation Desert Storm 1991: US (chocolate chip) and British (desert DPM)",
+    "Taliban": "Taliban: turbans, shalwar kameez, chest rigs",
+    "UKArmy": "British Army today: MTP, Mk7/Virtus-style helmets, plate carriers",
+    "UKSF": "UK Special Forces: mixed multicam and plain kit, FAST helmets, ball caps, shemaghs",
+    "Custom": "the kit's custom characters (women, builds, faces, militia dress)",
+}
+lines = []
+characters = os.path.join(target, "Characters")
+for faction in sorted(os.listdir(characters), key=lambda f: (list(FACTIONS).index(f) if f in FACTIONS else 99, f)):
+    n = len([f for f in os.listdir(os.path.join(characters, faction)) if f.startswith("SK_")])
+    lines.append("  Characters/%-12s %3d  %s" % (faction, n, FACTIONS.get(faction, "")))
+readme = """LowPolySoldiers - Unreal Engine 5.8 character pack
+
+Copy the LowPolySoldiers folder into your project's Content folder (Content/LowPolySoldiers).
+Everything it uses is inside it, so it works in any UE 5.8 project, with or without the Toon Soldiers packs.
+
+Characters (%d skeletal meshes, Nanite enabled, all on Skeleton/SKEL_Soldier), by faction:
+%s
+  Characters/<Faction>/Faces   each character's own face texture and material
+
+Animations/  the Toon Soldiers animation set (Infantry, Handgun, Machinegun, RocketLauncher, Knife, Akimbo),
+             all on SKEL_Soldier, so any of them plays on any character
+Weapons/     Armies and Militia weapon meshes; attach to the skeleton socket WeaponSocket_R
+Materials/, Textures/  shared materials: M_LPCG_Kit (skin tint and cloth recolour from per-vertex data),
+             the packs' parent materials and textures
+
+Notes
+- To move or rename the folder after copying, do it inside the Unreal editor (not Explorer) so references follow.
+- Built with LowPolyCharGen (its pack_export_stage and pack_export_build tools) from the Toon Soldiers
+  Armies, Militia and UE5 packs; use it only in projects licensed for those packs.
+""" % (count.get("SkeletalMesh", 0), "\n".join(lines))
+with open(os.path.join(OUT, "README.txt"), "w") as f:
+    f.write(readme)
 print("pack: %s  %s  outside references: %d" % (target, count, len(outside)))

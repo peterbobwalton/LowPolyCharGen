@@ -172,11 +172,12 @@ public static class KitBuilder
             if (triangleMaterial[f] != 1 && ShowsSkin(triangleTexture[f], triangleUvs[f]))
                 foreach (var v in triangles[f]) colors[v] = new Vector4(tint, colors[v].W);
         var trainers = spec.Footwear == Footwear.Trainers;
+        var recolour = spec.RecolourClothes ? ClothesParts.All : spec.Recolour;
         Rgb? GroupColor(int group) => group switch
         {
-            1 when thobe || spec.RecolourClothes => spec.ShirtColor,
-            2 when spec.RecolourClothes => spec.TrousersColor,
-            3 when trainers || spec.RecolourClothes => spec.BootsColor,
+            1 when thobe || recolour.HasFlag(ClothesParts.Top) => spec.ShirtColor,
+            2 when recolour.HasFlag(ClothesParts.Trousers) => spec.TrousersColor,
+            3 when trainers || recolour.HasFlag(ClothesParts.Boots) => spec.BootsColor,
             _ => null,
         };
         for (var group = 1; group <= 3; group++)
