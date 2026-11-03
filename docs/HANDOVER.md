@@ -87,10 +87,12 @@ suffix, materials from `M_LPCG_Kit`.
 
 | Item | What |
 |---|---|
-| `LowPolySoldiers_Pack_UE5.8_2026-10-24_legsfix.zip` (166 MB) | **Latest.** 121 characters in 10 factions, with the legs/boots fix |
+| `LowPolySoldiers_Pack_UE5.8_2026-11-03.zip` (215 MB) | **Latest.** 168 characters in 14 factions: adds IraqiArmy, Civilians, Airline, Aircrew and `A_Unarmed_Idle` |
+| `LowPolySoldiers_Pack_2026-11-03\` (folder) | **Latest, unzipped:** the same build (1,122 files, 283 MB) |
+| `LowPolySoldiers_Pack_UE5.8_2026-10-24_legsfix.zip` (166 MB) | 121 characters in 10 factions, with the legs/boots fix |
 | `LowPolySoldiers_Pack_UE5.8_2026-10-24.zip` (172 MB) | 24 Oct, before the fix: the officers have no legs, the Taliban no legs or shoes |
 | `LowPolySoldiers_Pack_UE5.8.zip` (88 MB) | 23 Oct, the first pack (44 rebuilt prebuilts); kept for reference |
-| `LowPolySoldiers_Pack_2026-10-24_legsfix\` (folder) | **Latest, unzipped:** the same build as the legsfix zip (902 files, 227 MB) |
+| `LowPolySoldiers_Pack_2026-10-24_legsfix\` (folder) | The same build as the legsfix zip, unzipped (902 files, 227 MB) |
 | `LowPolySoldiers_Pack\` (folder) | The 13:33 build from before the fix (can't be overwritten); use the legsfix folder or zip |
 
 ## Done on the AMD9800X3D, 3 November 2026 (crash-rescue game: civilians, aircrew, Iraqi Army)

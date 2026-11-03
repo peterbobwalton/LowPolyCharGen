@@ -149,7 +149,7 @@ FACTIONS = {
     "Taliban": "Taliban: turbans, shalwar kameez, chest rigs",
     "UKArmy": "British Army today: MTP, Mk7/Virtus-style helmets, plate carriers",
     "UKSF": "UK Special Forces: mixed multicam and plain kit, FAST helmets, ball caps, shemaghs",
-    "IraqiArmy": "Iraqi Army 1991: olive drab and lizard camo, steel helmets, berets, AKs and PKMs; Republican Guard in red berets",
+    "IraqiArmy": "Iraqi Army 1991: olive drab and lizard camo, steel helmets, berets, AKs and PKMs; Republican Guard with red triangles",
     "Civilians": "air passengers: everyday, business, holiday and Middle Eastern dress; some injured (no weapons)",
     "Airline": "airline pilots and cabin crew; one injured (no weapons)",
     "Aircrew": "fighter pilots (some downed and injured), helicopter crew, search-and-rescue crew",
