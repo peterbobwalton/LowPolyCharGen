@@ -157,7 +157,7 @@ public static class KitBuilder
                     clothes.Add(new GarmentPainter.Tri(triangles.Count - 1, triangleKind, [part.Positions[t[0]], part.Positions[t[1]], part.Positions[t[2]]], uv, TextureOf(source0)));
                     triangleGroup.Add(0);
                     triangleUvs.Add(uv);
-                    triangleMaterial.Add(5);
+                    triangleMaterial.Add(triangleKind == 2 ? (byte)6 : (byte)5);
                     continue;
                 }
                 triangleGroup.Add(triangleKind);
@@ -211,7 +211,7 @@ public static class KitBuilder
         var colors2 = new Vector4[positions.Count];
         Array.Fill(colors, new Vector4(0.5f, 0.5f, 0.5f, 0));
         for (var f = 0; f < triangles.Count; f++)
-            if (triangleMaterial[f] is not (1 or 5) && ShowsSkin(triangleTexture[f], triangleUvs[f]))
+            if (triangleMaterial[f] is not (1 or 5 or 6) && ShowsSkin(triangleTexture[f], triangleUvs[f]))
                 foreach (var v in triangles[f]) colors[v] = new Vector4(tint, colors[v].W);
         for (var group = 1; group <= 3; group++)
         {
@@ -255,6 +255,7 @@ public static class KitBuilder
             ThirdTexture = ue5Texture,
             EquipmentTexture = equipmentTexture,
             ClothesTexture = painter?.Texture,
+            LegsTexture = painter?.LegsTexture,
         };
     }
 

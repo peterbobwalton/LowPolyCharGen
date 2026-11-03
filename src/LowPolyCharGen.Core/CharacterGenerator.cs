@@ -41,6 +41,9 @@ public sealed class CharacterModel
     /// <summary>Body = Pack: the character's painted clothes (material slot 5; see <see cref="Kit.GarmentPainter"/>).</summary>
     public TextureImage? ClothesTexture { get; init; }
 
+    /// <summary>Body = Pack: the character's painted trousers (material slot 6), which characters with the same legs share.</summary>
+    public TextureImage? LegsTexture { get; init; }
+
     /// <summary>Paints the character's texture at the given size (see <see cref="TextureBaker"/>).</summary>
     public TextureImage BakeTexture(int size) => FixedTexture ?? TextureBaker.Bake(this, size);
 }

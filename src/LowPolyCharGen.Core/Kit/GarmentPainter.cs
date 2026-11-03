@@ -4,7 +4,8 @@ using LowPolyCharGen.Texturing;
 namespace LowPolyCharGen.Kit;
 
 /// <summary>
-/// A character's own clothes texture (material slot 5): the body's and trousers' triangles get unique texels, laid out
+/// A character's own clothes textures: the body's triangles (material slot 5) and the trousers' (slot 6, separate so
+/// characters with the same legs can share one texture) get unique texels, laid out
 /// as box-projected charts, painted over the pack's fabric shading. The pack's UVs mirror left and right and share
 /// texels between garments, so they can't carry a tie on one side or a stain on one sleeve. Everything is drawn by 3D
 /// position on the unmorphed part (+X = left, -Y = front, +Z = up, cm), as <see cref="FacePainter"/> does on the face:
@@ -13,12 +14,18 @@ namespace LowPolyCharGen.Kit;
 /// </summary>
 public sealed class GarmentPainter
 {
-    public const int Size = 1024;
+    public const int Width = 1024;
+    public const int Height = 512;
 
     /// <summary>A body (group 1) or trousers (group 2) triangle: its position on the part and its pack texels.</summary>
     public sealed record Tri(int Face, int Group, Vector3[] P, Vector2[] Uv, TextureImage Texture);
 
-    public TextureImage Texture { get; }
+    /// <summary>The body's texture.</summary>
+    public TextureImage? Texture { get; }
+
+    /// <summary>The trousers' texture.</summary>
+    public TextureImage? LegsTexture { get; }
+
     private readonly Dictionary<int, Vector2[]> _uvs = [];
 
     /// <summary>True if the character needs a clothes texture at all.</summary>
@@ -31,6 +38,20 @@ public sealed class GarmentPainter
     /// <param name="groupColor">Recolour per group (1 top, 2 trousers), as the kit material does it; null keeps the pack's colours.</param>
     public GarmentPainter(CharacterSpec spec, IReadOnlyList<Tri> tris, Func<int, Rgb?> groupColor)
     {
+        var mean = new float[3];
+        for (var group = 1; group <= 2; group++)
+        {
+            var samples = tris.Where(t => t.Group == group).SelectMany(t => KitBuilder.ClothLuminance(t.Texture, t.Uv)).ToList();
+            mean[group] = samples.Count > 0 ? MathF.Max(samples.Average(), 0.01f) : 0.1f;
+        }
+        var paint = new Paint(spec, groupColor, mean);
+        Texture = Build(tris.Where(t => t.Group == 1).ToList(), paint);
+        LegsTexture = Build(tris.Where(t => t.Group == 2).ToList(), paint);
+    }
+
+    private TextureImage? Build(List<Tri> tris, Paint paint)
+    {
+        if (tris.Count == 0) return null;
         // Charts: one per limb and box face.
         var charts = new Dictionary<(int Limb, int Axis), List<Tri>>();
         foreach (var t in tris)
@@ -43,25 +64,17 @@ public sealed class GarmentPainter
         var scale = 10f;
         while (!Pack(layouts, scale)) scale *= 0.94f;
 
-        var mean = new float[3];
-        for (var group = 1; group <= 2; group++)
-        {
-            var samples = tris.Where(t => t.Group == group).SelectMany(t => KitBuilder.ClothLuminance(t.Texture, t.Uv)).ToList();
-            mean[group] = samples.Count > 0 ? MathF.Max(samples.Average(), 0.01f) : 0.1f;
-        }
-        var paint = new Paint(spec, groupColor, mean);
-
-        var color = new Vector3[Size * Size];
-        var has = new bool[Size * Size];
+        var color = new Vector3[Width * Height];
+        var has = new bool[Width * Height];
         foreach (var chart in layouts)
             foreach (var t in chart.Tris)
             {
                 var a = chart.Texel(t.P[0], scale); var b = chart.Texel(t.P[1], scale); var c = chart.Texel(t.P[2], scale);
-                _uvs[t.Face] = [new(a.X / Size, 1 - a.Y / Size), new(b.X / Size, 1 - b.Y / Size), new(c.X / Size, 1 - c.Y / Size)];
+                _uvs[t.Face] = [new(a.X / Width, 1 - a.Y / Height), new(b.X / Width, 1 - b.Y / Height), new(c.X / Width, 1 - c.Y / Height)];
                 var den = (b.Y - c.Y) * (a.X - c.X) + (c.X - b.X) * (a.Y - c.Y);
                 if (MathF.Abs(den) < 1e-9f) continue;
-                int x0 = Math.Max(0, (int)MathF.Floor(MathF.Min(a.X, MathF.Min(b.X, c.X))) - 1), x1 = Math.Min(Size - 1, (int)MathF.Ceiling(MathF.Max(a.X, MathF.Max(b.X, c.X))) + 1);
-                int y0 = Math.Max(0, (int)MathF.Floor(MathF.Min(a.Y, MathF.Min(b.Y, c.Y))) - 1), y1 = Math.Min(Size - 1, (int)MathF.Ceiling(MathF.Max(a.Y, MathF.Max(b.Y, c.Y))) + 1);
+                int x0 = Math.Max(0, (int)MathF.Floor(MathF.Min(a.X, MathF.Min(b.X, c.X))) - 1), x1 = Math.Min(Width - 1, (int)MathF.Ceiling(MathF.Max(a.X, MathF.Max(b.X, c.X))) + 1);
+                int y0 = Math.Max(0, (int)MathF.Floor(MathF.Min(a.Y, MathF.Min(b.Y, c.Y))) - 1), y1 = Math.Min(Height - 1, (int)MathF.Ceiling(MathF.Max(a.Y, MathF.Max(b.Y, c.Y))) + 1);
                 for (var y = y0; y <= y1; y++)
                     for (var x = x0; x <= x1; x++)
                     {
@@ -76,20 +89,27 @@ public sealed class GarmentPainter
                         var uv = t.Uv[0] * w0 + t.Uv[1] * w1 + t.Uv[2] * w2;
                         var px = (uv.X - MathF.Floor(uv.X)) * t.Texture.Size;
                         var py = (1 - (uv.Y - MathF.Floor(uv.Y))) * t.Texture.Size;
-                        color[y * Size + x] = paint.Texel(FacePainter.Sample(t.Texture, px, py), p, t.Group, chart.Axis);
-                        has[y * Size + x] = true;
+                        color[y * Width + x] = paint.Texel(FacePainter.Sample(t.Texture, px, py), p, t.Group, chart.Axis);
+                        has[y * Width + x] = true;
                     }
             }
+        // Past the padding, one flat colour: it keeps the file small and the low mips from going dark.
+        var flat = Vector3.Zero; var covered = 0;
+        for (var k = 0; k < color.Length; k++)
+            if (has[k]) { flat += color[k]; covered++; }
+        flat /= Math.Max(covered, 1);
         Pad(color, has, 6);
+        for (var k = 0; k < color.Length; k++)
+            if (!has[k]) color[k] = flat;
 
-        var rgb = new byte[Size * Size * 3];
+        var rgb = new byte[Width * Height * 3];
         for (var k = 0; k < color.Length; k++)
         {
             rgb[k * 3] = (byte)Math.Clamp((int)MathF.Round(color[k].X * 255), 0, 255);
             rgb[k * 3 + 1] = (byte)Math.Clamp((int)MathF.Round(color[k].Y * 255), 0, 255);
             rgb[k * 3 + 2] = (byte)Math.Clamp((int)MathF.Round(color[k].Z * 255), 0, 255);
         }
-        Texture = new TextureImage(Size, rgb);
+        return new TextureImage(Width, rgb, height: Height);
     }
 
     private static int Limb(Tri t)
@@ -151,8 +171,8 @@ public sealed class GarmentPainter
         foreach (var c in charts)
         {
             int w = (int)MathF.Ceiling(c.Width * scale), h = (int)MathF.Ceiling(c.Height * scale);
-            if (x + w + gap > Size) { x = gap; y += shelf + gap; shelf = 0; }
-            if (x + w + gap > Size || y + h + gap > Size) return false;
+            if (x + w + gap > Width) { x = gap; y += shelf + gap; shelf = 0; }
+            if (x + w + gap > Width || y + h + gap > Height) return false;
             c.X = x; c.Y = y;
             x += w + gap;
             shelf = Math.Max(shelf, h);
@@ -166,19 +186,19 @@ public sealed class GarmentPainter
         for (var pass = 0; pass < passes; pass++)
         {
             var next = (bool[])has.Clone();
-            for (var y = 0; y < Size; y++)
-                for (var x = 0; x < Size; x++)
+            for (var y = 0; y < Height; y++)
+                for (var x = 0; x < Width; x++)
                 {
-                    if (has[y * Size + x]) continue;
+                    if (has[y * Width + x]) continue;
                     var sum = Vector3.Zero; var n = 0;
                     for (var dy = -1; dy <= 1; dy++)
                         for (var dx = -1; dx <= 1; dx++)
                         {
                             int xx = x + dx, yy = y + dy;
-                            if (xx < 0 || yy < 0 || xx >= Size || yy >= Size || !has[yy * Size + xx]) continue;
-                            sum += color[yy * Size + xx]; n++;
+                            if (xx < 0 || yy < 0 || xx >= Width || yy >= Height || !has[yy * Width + xx]) continue;
+                            sum += color[yy * Width + xx]; n++;
                         }
-                    if (n > 0) { color[y * Size + x] = sum / n; next[y * Size + x] = true; }
+                    if (n > 0) { color[y * Width + x] = sum / n; next[y * Width + x] = true; }
                 }
             Array.Copy(next, has, has.Length);
         }

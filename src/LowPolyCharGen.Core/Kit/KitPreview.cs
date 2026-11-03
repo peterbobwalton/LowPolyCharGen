@@ -24,7 +24,7 @@ public static class KitPreview
         for (var f = 0; f < mesh.Faces.Length; f++)
         {
             var v = mesh.Faces[f].Vertices[0];
-            var own = mesh.Faces[f].Material is 1 or 5;   // the character's own textures: nothing to recolour
+            var own = mesh.Faces[f].Material is 1 or 5 or 6;   // the character's own textures: nothing to recolour
             var key = (mesh.Faces[f].Material, own ? Vector4.Zero : colors[v], own || colors2 is null ? Vector4.Zero : colors2[v]);
             if (!groups.TryGetValue(key, out var list)) groups[key] = list = [];
             list.Add(f);
@@ -33,11 +33,11 @@ public static class KitPreview
         TextureImage Source(int material)
         {
             if (scaled.TryGetValue(material, out var t)) return t;
-            var src = material switch { 1 => model.FaceTexture, 2 => model.SecondTexture, 3 => model.ThirdTexture, 4 => model.EquipmentTexture, 5 => model.ClothesTexture, _ => null } ?? model.FixedTexture!;
-            return scaled[material] = Resize(src, material is 1 or 5 ? src.Size : size);
+            var src = material switch { 1 => model.FaceTexture, 2 => model.SecondTexture, 3 => model.ThirdTexture, 4 => model.EquipmentTexture, 5 => model.ClothesTexture, 6 => model.LegsTexture, _ => null } ?? model.FixedTexture!;
+            return scaled[material] = Resize(src, material is 1 or 5 or 6 ? src.Size : size);
         }
         return groups.Select(g => new Group(
-            g.Key.Material is 1 or 5 ? Source(g.Key.Material) : Recolour(Source(g.Key.Material), g.Key.A, g.Key.B),
+            g.Key.Material is 1 or 5 or 6 ? Source(g.Key.Material) : Recolour(Source(g.Key.Material), g.Key.A, g.Key.B),
             g.Value.ToArray())).ToList();
     }
 

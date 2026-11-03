@@ -50,6 +50,8 @@ def destination(asset):
     cls = str(asset.asset_class_path.asset_name)
     if package.startswith(ROOT + "/"):
         return None
+    if re.match(r"(MI|T)_Legs_[0-9a-f]+$", name):
+        return ROOT + "/Characters/Legs", name
     custom = re.match(r"(SK|MI|T)_LPCG_((Kit|Mil)_.+)$", name)
     if "LPCG_Pack_" in name or (custom and (cls == "SkeletalMesh" or name.endswith("_Face") or name.endswith("_Clothes"))):
         if custom and "LPCG_Pack_" not in name:
@@ -168,7 +170,8 @@ Everything it uses is inside it, so it works in any UE 5.8 project, with or with
 Characters (%d skeletal meshes, Nanite enabled, all on Skeleton/SKEL_Soldier), by faction:
 %s
   Characters/<Faction>/Faces   each character's own face texture and material
-  Characters/<Faction>/Clothes painted clothes, for the characters that have them
+  Characters/<Faction>/Clothes painted tops, for the characters that have them
+  Characters/Legs              painted trousers, shared by the characters with the same legs
 
 Animations/  the Toon Soldiers animation set (Infantry, Handgun, Machinegun, RocketLauncher, Knife, Akimbo),
              all on SKEL_Soldier, so any of them plays on any character; Unarmed/A_Unarmed_Idle for civilians

@@ -12,6 +12,7 @@ Run inside the editor (Tools > Execute Python Script, or the Output Log's Python
 or headless:
   UnrealEditor-Cmd.exe Project.uproject -run=pythonscript -script="import_unreal.py D:/out /Game/LowPolyCharGen"
 """
+import hashlib
 import json
 import os
 import sys
@@ -157,8 +158,25 @@ def import_character(fbx, destination, mannequin, lods=DEFAULT_LODS):
             unreal.MaterialEditingLibrary.set_material_instance_texture_parameter_value(material, "Texture", texture)
             unreal.EditorAssetLibrary.save_loaded_asset(material)
             return material
+        def legs_material():
+            """The painted trousers (<name>_Legs.png): named by their pixels, so characters with the same legs share them."""
+            png = os.path.join(os.path.dirname(fbx), base + "_Legs.png")
+            if not os.path.exists(png):
+                return None
+            shared = "Legs_" + hashlib.sha1(open(png, "rb").read()).hexdigest()[:10]
+            mi_path = destination + "/MI_" + shared
+            if unreal.EditorAssetLibrary.does_asset_exist(mi_path):
+                return unreal.load_asset(mi_path)
+            texture = next(iter(import_task(png, destination, "T_" + shared)), None)
+            tools = unreal.AssetToolsHelpers.get_asset_tools()
+            material = tools.create_asset("MI_" + shared, destination, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+            unreal.MaterialEditingLibrary.set_material_instance_parent(material, unreal.load_asset(TOON_MATERIAL))
+            unreal.MaterialEditingLibrary.set_material_instance_texture_parameter_value(material, "Texture", texture)
+            unreal.EditorAssetLibrary.save_loaded_asset(material)
+            return material
         face_material = own_material("_Face")
         clothes_material = own_material("_Clothes")
+        legs = legs_material()
         body_material = kit_material_instance(spec.get("PackTexture", "T_Armies_Standard"))
         militia_material = kit_material_instance(spec.get("MilitiaTexture", "T_Militias_A"))
         ue5_material = kit_material_instance(spec.get("UE5Texture", "T_Soldiers_Olive"))
@@ -168,6 +186,8 @@ def import_character(fbx, destination, mannequin, lods=DEFAULT_LODS):
                 return face_material
             if name.endswith("_Clothes") and clothes_material:
                 return clothes_material
+            if name.endswith("_Legs") and legs:
+                return legs
             if name.endswith("_UE5"):
                 return ue5_material
             if name.endswith("_Equipment"):
