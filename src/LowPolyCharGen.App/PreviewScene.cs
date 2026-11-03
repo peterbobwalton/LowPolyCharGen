@@ -70,7 +70,7 @@ internal static class PreviewScene
     /// <summary>Wraps a baked texture as a WPF image.</summary>
     public static ImageSource ToImage(Texturing.TextureImage texture)
     {
-        var image = System.Windows.Media.Imaging.BitmapSource.Create(texture.Size, texture.Size, 96, 96,
+        var image = System.Windows.Media.Imaging.BitmapSource.Create(texture.Size, texture.Height, 96, 96,
             PixelFormats.Rgb24, null, texture.Rgb, texture.Size * 3);
         image.Freeze();
         return image;

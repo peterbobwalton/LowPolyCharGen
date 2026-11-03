@@ -4,10 +4,13 @@ using System.Numerics;
 
 namespace LowPolyCharGen.Texturing;
 
-/// <summary>A square RGB image, 8 bits per channel, rows top to bottom.</summary>
-public sealed class TextureImage(int size, byte[] rgb, int channels = 3)
+/// <summary>An RGB image, 8 bits per channel, rows top to bottom. Square unless given a height.</summary>
+public sealed class TextureImage(int size, byte[] rgb, int channels = 3, int height = 0)
 {
+    /// <summary>The width.</summary>
     public int Size { get; } = size;
+
+    public int Height { get; } = height > 0 ? height : size;
 
     /// <summary>Pixel data, row by row: RGB, or RGBA when <see cref="Channels"/> is 4.</summary>
     public byte[] Rgb { get; } = rgb;
@@ -16,15 +19,15 @@ public sealed class TextureImage(int size, byte[] rgb, int channels = 3)
     public byte[] EncodePng()
     {
         var stride = Size * Channels;
-        var raw = new byte[Size * (stride + 1)];
-        for (var y = 0; y < Size; y++)   // each scanline starts with filter type 0
+        var raw = new byte[Height * (stride + 1)];
+        for (var y = 0; y < Height; y++)   // each scanline starts with filter type 0
             Buffer.BlockCopy(Rgb, y * stride, raw, y * (stride + 1) + 1, stride);
 
         using var ms = new MemoryStream();
         ms.Write([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
         Span<byte> header = stackalloc byte[13];
         BinaryPrimitives.WriteInt32BigEndian(header, Size);
-        BinaryPrimitives.WriteInt32BigEndian(header[4..], Size);
+        BinaryPrimitives.WriteInt32BigEndian(header[4..], Height);
         header[8] = 8;   // bit depth
         header[9] = (byte)(Channels == 4 ? 6 : 2);   // colour type: RGBA or RGB
         WriteChunk(ms, "IHDR", header);

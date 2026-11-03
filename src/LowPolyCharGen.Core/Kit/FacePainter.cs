@@ -8,34 +8,44 @@ namespace LowPolyCharGen.Kit;
 /// repainted for gender, eyes, brows, lips and facial hair, in the pack's painted style.
 /// </summary>
 /// <remarks>
-/// Each pack head's face triangles (UVs in the face tiles along the top of the pack texture) are moved
-/// to this texture, which keeps the tile's layout at twice its resolution. Painting works through the
+/// Each pack head's face triangles (UVs in the face tiles along the top of the pack texture) are moved to this
+/// texture, at twice the tile's resolution. Only the pieces the head uses come across: the largest fills the left half,
+/// and any others (a cap's or helmet's bits that share the tile) go to the right of it. Painting works through the
 /// 3D position under every texel on the pack's face, which all heads share: features are drawn as
 /// shapes seen from the front (u = |x| because the two halves share the tile, z = height, in cm).
-/// The strip on the right holds hair for the hair pieces (ponytail, bun).
+/// The right side holds what the character's pieces need: headwear cloth or colour swatches, and strips for
+/// hair, headwear and garments. Whatever nothing uses is left a flat colour.
 /// </remarks>
 public sealed class FacePainter
 {
-    public const int Size = 1024;
+    public const int Width = 1024;
+    public const int Height = 512;
 
+    /// <summary>Left edge (texture u) of the right side, and so the right edge of the head's largest piece.</summary>
+    public const float ClothU = 0.5f;
     /// <summary>
-    /// Top of the headwear cloth region (texture v): u 0..<see cref="HairStripU"/>, v 0..ClothV, under the
-    /// face tile (turbans and keffiyehs: room for a woven pattern at about a millimetre a texel).
+    /// Top of the headwear cloth region (texture v): u <see cref="ClothU"/>..<see cref="HairStripU"/>, v 0..ClothV
+    /// (turbans and keffiyehs, with a woven pattern).
     /// </summary>
-    public const float ClothV = 0.5f;
+    public const float ClothV = 1f;
     /// <summary>Left edge (texture u) of the hair strip.</summary>
-    public const float HairStripU = 0.8f;
-    /// <summary>Left edge of the headwear cloth strip (turban, keffiyeh); its bottom (v &lt; 0.06) is black.</summary>
-    public const float HatStripU = 0.87f;
-    /// <summary>Left edge of the garment cloth strip (thobe).</summary>
-    public const float GarmentStripU = 0.935f;
+    public const float HairStripU = 904f / Width;
+    /// <summary>Left edge of the headwear cloth strip (the agal); its bottom (v &lt; 0.06) is black.</summary>
+    public const float HatStripU = 944f / Width;
+    /// <summary>Left edge of the garment cloth strip (thobe, skirt).</summary>
+    public const float GarmentStripU = 984f / Width;
 
-    /// <summary>Colour columns across the headwear cloth region, for flight gear and bandages (see <see cref="KitPieces"/>).</summary>
+    /// <summary>Colour columns across the bottom of the cloth region, for flight gear and bandages (see <see cref="KitPieces"/>).</summary>
     public const int SwatchCount = 12;
+    /// <summary>Top of the swatches (texture v). A head's smaller pieces go above them.</summary>
+    public const float SwatchV = 0.25f;
 
     /// <summary>A UV inside a swatch; <paramref name="t"/>, 0 to 1, runs from its dark end to its light end.</summary>
     public static Vector2 Swatch(int index, float t) =>
-        new((index + 0.5f) / SwatchCount * HairStripU, 0.02f + (ClothV - 0.04f) * Math.Clamp(t, 0f, 1f));
+        new(ClothU + (index + 0.5f) / SwatchCount * (HairStripU - ClothU), 0.02f + (SwatchV - 0.04f) * Math.Clamp(t, 0f, 1f));
+
+    /// <summary>True if the character wears a cloth headdress, which takes the whole cloth region.</summary>
+    private static bool UsesCloth(CharacterSpec spec) => spec.Hijab || spec.Hat is HatStyle.Keffiyeh or HatStyle.Turban;
 
     /// <summary>True if the character wears anything coloured from the swatches (not with a turban or keffiyeh, which use that region).</summary>
     private static bool UsesSwatches(CharacterSpec spec) =>
@@ -44,7 +54,17 @@ public sealed class FacePainter
     private static readonly Rgb DefaultSkin = Rgb.FromHex("#D9A274");
     private static readonly Rgb DefaultHair = Rgb.FromHex("#4A3222");
 
-    private readonly float _x0, _y0, _scale;   // pack pixels -> face texels
+    /// <summary>One piece of the head: a box of pack pixels from (X0, Y0), scaled and placed at (DstX, DstY) in this texture.</summary>
+    private sealed record Chart(float X0, float Y0, float W, float H)
+    {
+        public float Scale { get; set; }
+        public float DstX { get; set; }
+        public float DstY { get; set; }
+        public Vector2 Texel(Vector2 px) => (px - new Vector2(X0, Y0)) * Scale + new Vector2(DstX, DstY);
+        public bool Holds(Vector2 px) => px.X >= X0 && px.Y >= Y0 && px.X <= X0 + W && px.Y <= Y0 + H;
+    }
+
+    private readonly List<Chart> _charts;
     private readonly int _packSize;
 
     public TextureImage Texture { get; }
@@ -59,9 +79,84 @@ public sealed class FacePainter
     /// <summary>The face texture's UV for a pack UV inside the face tile.</summary>
     public Vector2 Remap(Vector2 uv)
     {
-        var px = (uv.X - MathF.Floor(uv.X)) * _packSize;
-        var py = (1 - (uv.Y - MathF.Floor(uv.Y))) * _packSize;
-        return new Vector2((px - _x0) * _scale / Size, 1 - (py - _y0) * _scale / Size);
+        var px = PackPixel(uv);
+        var t = ChartAt(px).Texel(px);
+        return new Vector2(t.X / Width, 1 - t.Y / Height);
+    }
+
+    private Vector2 PackPixel(Vector2 uv) =>
+        new((uv.X - MathF.Floor(uv.X)) * _packSize, (1 - (uv.Y - MathF.Floor(uv.Y))) * _packSize);
+
+    private Chart ChartAt(Vector2 px) => _charts.FirstOrDefault(c => c.Holds(px)) ?? _charts[0];
+
+    /// <summary>
+    /// The head's pieces, largest first: triangles joined by a UV are one piece, and pieces whose boxes come close in the
+    /// pack's tile stay together, so a pack pixel belongs to one chart. The largest alone sets the scale, so a
+    /// helmet's bits elsewhere in the tile can't shrink the face.
+    /// </summary>
+    private List<Chart> Layout(PackPart head, List<int[]> tris)
+    {
+        const float margin = 3;   // pack pixels round each piece
+        var parent = Enumerable.Range(0, tris.Count).ToArray();
+        int Find(int i) { while (parent[i] != i) i = parent[i] = parent[parent[i]]; return i; }
+        var seen = new Dictionary<(int, int), int>();
+        for (var t = 0; t < tris.Count; t++)
+            foreach (var v in tris[t])
+            {
+                var p = PackPixel(head.Uvs[v]);
+                var key = ((int)MathF.Round(p.X * 8), (int)MathF.Round(p.Y * 8));
+                if (seen.TryGetValue(key, out var other)) parent[Find(t)] = Find(other);
+                else seen[key] = t;
+            }
+        var boxes = new Dictionary<int, (float X0, float Y0, float X1, float Y1, float Area)>();
+        for (var t = 0; t < tris.Count; t++)
+        {
+            Vector2 a = PackPixel(head.Uvs[tris[t][0]]), b = PackPixel(head.Uvs[tris[t][1]]), c = PackPixel(head.Uvs[tris[t][2]]);
+            var area = MathF.Abs((b.X - a.X) * (c.Y - a.Y) - (c.X - a.X) * (b.Y - a.Y)) / 2;
+            (float X0, float Y0, float X1, float Y1, float Area) box = boxes.TryGetValue(Find(t), out var known) ? known : (float.MaxValue, float.MaxValue, 0f, 0f, 0f);
+            boxes[Find(t)] = (MathF.Min(box.X0, MathF.Min(a.X, MathF.Min(b.X, c.X))), MathF.Min(box.Y0, MathF.Min(a.Y, MathF.Min(b.Y, c.Y))),
+                MathF.Max(box.X1, MathF.Max(a.X, MathF.Max(b.X, c.X))), MathF.Max(box.Y1, MathF.Max(a.Y, MathF.Max(b.Y, c.Y))), box.Area + area);
+        }
+        var merged = boxes.Values.ToList();
+        for (var again = true; again;)
+        {
+            again = false;
+            for (var i = 0; i < merged.Count && !again; i++)
+                for (var j = i + 1; j < merged.Count && !again; j++)
+                {
+                    var (a, b) = (merged[i], merged[j]);
+                    if (a.X0 > b.X1 + margin * 2 || b.X0 > a.X1 + margin * 2 || a.Y0 > b.Y1 + margin * 2 || b.Y0 > a.Y1 + margin * 2) continue;
+                    merged[i] = (MathF.Min(a.X0, b.X0), MathF.Min(a.Y0, b.Y0), MathF.Max(a.X1, b.X1), MathF.Max(a.Y1, b.Y1), a.Area + b.Area);
+                    merged.RemoveAt(j);
+                    again = true;
+                }
+        }
+        var charts = merged.OrderByDescending(b => b.Area)
+            .Select(b => new Chart(b.X0 - margin, b.Y0 - margin, b.X1 - b.X0 + margin * 2, b.Y1 - b.Y0 + margin * 2)).ToList();
+
+        var main = charts[0];
+        main.Scale = MathF.Min(ClothU * Width / main.W, Height / main.H);
+
+        // The other pieces, tallest first in rows above the swatches, smaller if they have to be.
+        const int gap = 12;   // room for padding and mips
+        int left = (int)(ClothU * Width) + gap, right = (int)(HairStripU * Width) - gap, bottom = (int)((1 - SwatchV) * Height) - gap;
+        var others = charts.Skip(1).OrderByDescending(c => c.H).ToList();
+        for (var scale = main.Scale; others.Count > 0; scale *= 0.94f)
+        {
+            float x = left, y = gap, row = 0;
+            var fits = true;
+            foreach (var c in others)
+            {
+                c.Scale = scale;
+                if (x + c.W * scale > right) { x = left; y += row + gap; row = 0; }
+                c.DstX = x; c.DstY = y;
+                x += c.W * scale + gap;
+                row = MathF.Max(row, c.H * scale);
+                if (x - gap > right || y + row > bottom) { fits = false; break; }
+            }
+            if (fits) break;
+        }
+        return charts;
     }
 
     public FacePainter(CharacterSpec spec, PackPart head, TextureImage pack)
@@ -69,38 +164,31 @@ public sealed class FacePainter
         _packSize = pack.Size;
         var tris = head.Triangles.Where(t => t.All(i => IsFaceUv(head.Uvs[i]))).ToList();
         if (tris.Count == 0) throw new InvalidDataException($"{head.Name} has no face triangles");
-        Vector2 Px(int i)
-        {
-            var uv = head.Uvs[i];
-            return new Vector2((uv.X - MathF.Floor(uv.X)) * _packSize, (1 - (uv.Y - MathF.Floor(uv.Y))) * _packSize);
-        }
-        float minX = float.MaxValue, minY = float.MaxValue, maxX = 0, maxY = 0;
-        foreach (var t in tris)
-            foreach (var i in t)
-            {
-                var p = Px(i);
-                minX = MathF.Min(minX, p.X); minY = MathF.Min(minY, p.Y);
-                maxX = MathF.Max(maxX, p.X); maxY = MathF.Max(maxY, p.Y);
-            }
-        _x0 = minX - 3; _y0 = minY - 3;
-        _scale = MathF.Min(Size * HairStripU / (maxX - minX + 6), Size * (1 - ClothV) / (maxY - minY + 6));
+        _charts = Layout(head, tris);
 
-        // Base: the pack tile, bilinear.
-        var color = new Vector3[Size * Size];
-        for (var j = 0; j < Size; j++)
-            for (var i = 0; i < Size; i++)
-                color[j * Size + i] = Sample(pack, _x0 + (i + 0.5f) / _scale, _y0 + (j + 0.5f) / _scale);
+        // Base: the pack's pixels under each piece, bilinear, with room for the padding.
+        const int pad = 8;
+        var color = new Vector3[Width * Height];
+        foreach (var chart in _charts)
+        {
+            int cx0 = Math.Max(0, (int)chart.DstX - pad), cx1 = Math.Min(Width, (int)MathF.Ceiling(chart.DstX + chart.W * chart.Scale) + pad);
+            int cy0 = Math.Max(0, (int)chart.DstY - pad), cy1 = Math.Min(Height, (int)MathF.Ceiling(chart.DstY + chart.H * chart.Scale) + pad);
+            for (var j = cy0; j < cy1; j++)
+                for (var i = cx0; i < cx1; i++)
+                    color[j * Width + i] = Sample(pack, chart.X0 + (i + 0.5f - chart.DstX) / chart.Scale, chart.Y0 + (j + 0.5f - chart.DstY) / chart.Scale);
+        }
 
         // The 3D point under each texel (on the pack's own face), grown a few texels past the edges.
-        var pos = new Vector3[Size * Size];
-        var has = new bool[Size * Size];
+        var pos = new Vector3[Width * Height];
+        var has = new bool[Width * Height];
         foreach (var t in tris)
         {
-            Vector2 a = (Px(t[0]) - new Vector2(_x0, _y0)) * _scale, b = (Px(t[1]) - new Vector2(_x0, _y0)) * _scale, c = (Px(t[2]) - new Vector2(_x0, _y0)) * _scale;
+            var chart = ChartAt(PackPixel(head.Uvs[t[0]]));
+            Vector2 a = chart.Texel(PackPixel(head.Uvs[t[0]])), b = chart.Texel(PackPixel(head.Uvs[t[1]])), c = chart.Texel(PackPixel(head.Uvs[t[2]]));
             var den = (b.Y - c.Y) * (a.X - c.X) + (c.X - b.X) * (a.Y - c.Y);
             if (MathF.Abs(den) < 1e-9f) continue;
-            int x0 = Math.Max(0, (int)MathF.Floor(MathF.Min(a.X, MathF.Min(b.X, c.X)))), x1 = Math.Min(Size - 1, (int)MathF.Ceiling(MathF.Max(a.X, MathF.Max(b.X, c.X))));
-            int y0 = Math.Max(0, (int)MathF.Floor(MathF.Min(a.Y, MathF.Min(b.Y, c.Y)))), y1 = Math.Min(Size - 1, (int)MathF.Ceiling(MathF.Max(a.Y, MathF.Max(b.Y, c.Y))));
+            int x0 = Math.Max(0, (int)MathF.Floor(MathF.Min(a.X, MathF.Min(b.X, c.X)))), x1 = Math.Min(Width - 1, (int)MathF.Ceiling(MathF.Max(a.X, MathF.Max(b.X, c.X))));
+            int y0 = Math.Max(0, (int)MathF.Floor(MathF.Min(a.Y, MathF.Min(b.Y, c.Y)))), y1 = Math.Min(Height - 1, (int)MathF.Ceiling(MathF.Max(a.Y, MathF.Max(b.Y, c.Y))));
             for (var y = y0; y <= y1; y++)
                 for (var x = x0; x <= x1; x++)
                 {
@@ -109,27 +197,27 @@ public sealed class FacePainter
                     var w1 = ((c.Y - a.Y) * (gx - c.X) + (a.X - c.X) * (gy - c.Y)) / den;
                     var w2 = 1 - w0 - w1;
                     if (w0 < -0.02f || w1 < -0.02f || w2 < -0.02f) continue;
-                    pos[y * Size + x] = head.Positions[t[0]] * w0 + head.Positions[t[1]] * w1 + head.Positions[t[2]] * w2;
-                    has[y * Size + x] = true;
+                    pos[y * Width + x] = head.Positions[t[0]] * w0 + head.Positions[t[1]] * w1 + head.Positions[t[2]] * w2;
+                    has[y * Width + x] = true;
                 }
         }
         var inside = (bool[])has.Clone();
         for (var pass = 0; pass < 6; pass++)
         {
             var grown = (bool[])has.Clone();
-            for (var y = 0; y < Size; y++)
-                for (var x = 0; x < Size; x++)
+            for (var y = 0; y < Height; y++)
+                for (var x = 0; x < Width; x++)
                 {
-                    if (has[y * Size + x]) continue;
+                    if (has[y * Width + x]) continue;
                     var sum = Vector3.Zero; var n = 0;
                     for (var dy = -1; dy <= 1; dy++)
                         for (var dx = -1; dx <= 1; dx++)
                         {
                             int xx = x + dx, yy = y + dy;
-                            if (xx < 0 || yy < 0 || xx >= Size || yy >= Size || !has[yy * Size + xx]) continue;
-                            sum += pos[yy * Size + xx]; n++;
+                            if (xx < 0 || yy < 0 || xx >= Width || yy >= Height || !has[yy * Width + xx]) continue;
+                            sum += pos[yy * Width + xx]; n++;
                         }
-                    if (n > 0) { pos[y * Size + x] = sum / n; grown[y * Size + x] = true; }
+                    if (n > 0) { pos[y * Width + x] = sum / n; grown[y * Width + x] = true; }
                 }
             has = grown;
         }
@@ -137,45 +225,53 @@ public sealed class FacePainter
         var paint = new Paint(spec);
         for (var k = 0; k < color.Length; k++)
             if (has[k]) color[k] = paint.Marks(paint.Texel(color[k], pos[k]), pos[k]);
-        Pad(color, inside, 24);
+        // The rest of the texture is one flat colour, which also keeps the file small.
+        var flat = Vector3.Zero; var covered = 0;
+        for (var k = 0; k < color.Length; k++)
+            if (inside[k]) { flat += color[k]; covered++; }
+        flat /= Math.Max(covered, 1);
+        var padded = Pad(color, inside, pad);
+        for (var k = 0; k < color.Length; k++)
+            if (!padded[k]) color[k] = flat;
         paint.HairStrip(color);
 
-        var rgb = new byte[Size * Size * 3];
+        var rgb = new byte[Width * Height * 3];
         for (var k = 0; k < color.Length; k++)
         {
             rgb[k * 3] = (byte)Math.Clamp((int)MathF.Round(color[k].X * 255), 0, 255);
             rgb[k * 3 + 1] = (byte)Math.Clamp((int)MathF.Round(color[k].Y * 255), 0, 255);
             rgb[k * 3 + 2] = (byte)Math.Clamp((int)MathF.Round(color[k].Z * 255), 0, 255);
         }
-        Texture = new TextureImage(Size, rgb);
+        Texture = new TextureImage(Width, rgb, height: Height);
     }
 
     /// <summary>
     /// Fills the texels no face triangle covers with the colour of the covered ones next to them, so
     /// the gaps between the tile's pieces (dark in the pack texture) cannot bleed in at lower mips.
     /// </summary>
-    private static void Pad(Vector3[] color, bool[] covered, int passes)
+    private static bool[] Pad(Vector3[] color, bool[] covered, int passes)
     {
         var done = (bool[])covered.Clone();
         for (var pass = 0; pass < passes; pass++)
         {
             var next = (bool[])done.Clone();
-            for (var y = 0; y < Size; y++)
-                for (var x = 0; x < (int)(HairStripU * Size); x++)
+            for (var y = 0; y < Height; y++)
+                for (var x = 0; x < (int)(HairStripU * Width); x++)
                 {
-                    if (done[y * Size + x]) continue;
+                    if (done[y * Width + x]) continue;
                     var sum = Vector3.Zero; var n = 0;
                     for (var dy = -1; dy <= 1; dy++)
                         for (var dx = -1; dx <= 1; dx++)
                         {
                             int xx = x + dx, yy = y + dy;
-                            if (xx < 0 || yy < 0 || xx >= Size || yy >= Size || !done[yy * Size + xx]) continue;
-                            sum += color[yy * Size + xx]; n++;
+                            if (xx < 0 || yy < 0 || xx >= Width || yy >= Height || !done[yy * Width + xx]) continue;
+                            sum += color[yy * Width + xx]; n++;
                         }
-                    if (n > 0) { color[y * Size + x] = sum / n; next[y * Size + x] = true; }
+                    if (n > 0) { color[y * Width + x] = sum / n; next[y * Width + x] = true; }
                 }
             done = next;
         }
+        return done;
     }
 
     internal static Vector3 Sample(TextureImage t, float x, float y)
@@ -450,24 +546,27 @@ public sealed class FacePainter
         {
             var hat = ToVec(_spec.HatColor);
             var accent = ToVec(_spec.AccentColor);
-            int x1 = (int)(HairStripU * Size), y0 = (int)((1 - ClothV) * Size);
+            int x0 = (int)(ClothU * Width), x1 = (int)(HairStripU * Width);
             var keffiyeh = _spec.Hat == HatStyle.Keffiyeh;
-            var swatches = UsesSwatches(_spec) && !_spec.Hijab && _spec.Hat is not (HatStyle.Keffiyeh or HatStyle.Turban);
+            var swatches = UsesSwatches(_spec) && !UsesCloth(_spec);
+            if (!swatches && !UsesCloth(_spec)) return;
+            // Swatches share this side with the head's smaller pieces, so they stay at the bottom.
+            var y0 = swatches ? (int)((1 - SwatchV) * Height) : (int)((1 - ClothV) * Height);
             static float Line(float t, float width)
             {
                 var f = t - MathF.Floor(t);
                 return S((width - MathF.Abs(f - 0.5f)) / 0.04f);
             }
-            for (var y = y0; y < Size; y++)
-                for (var x = 0; x < x1; x++)
+            for (var y = y0; y < Height; y++)
+                for (var x = x0; x < x1; x++)
                 {
-                    float cx = x / (float)x1 * 75f, cy = (y - y0) / (float)(Size - y0) * 45f;
+                    float cx = (x - x0) / (float)(x1 - x0) * 75f, cy = (y - y0) / (float)(Height - y0) * 45f;
                     Vector3 c;
                     if (swatches)
                     {
                         // Flat colours, dark at t = 0 to light at t = 1 (t runs up the texture).
-                        var t = Math.Clamp(((1 - (y + 0.5f) / Size) - 0.02f) / (ClothV - 0.04f), 0f, 1f);
-                        c = SwatchColor(Math.Min((int)(x / (float)x1 * SwatchCount), SwatchCount - 1)) * (0.68f + 0.5f * t);
+                        var t = Math.Clamp(((1 - (y + 0.5f) / Height) - 0.02f) / (SwatchV - 0.04f), 0f, 1f);
+                        c = SwatchColor(Math.Min((int)((x - x0) / (float)(x1 - x0) * SwatchCount), SwatchCount - 1)) * (0.68f + 0.5f * t);
                     }
                     else if (_spec.Hijab)
                     {
@@ -493,7 +592,7 @@ public sealed class FacePainter
                         var shade = 0.76f + 0.3f * MathF.Sin(f * MathF.PI) - 0.04f * MathF.Sin(cx * 3.1f + cy);
                         c = hat * shade;
                     }
-                    color[y * Size + x] = c;
+                    color[y * Width + x] = c;
                 }
         }
 
@@ -517,14 +616,18 @@ public sealed class FacePainter
         public void HairStrip(Vector3[] color)
         {
             ClothRegion(color);
-            int hair0 = (int)(HairStripU * Size) + 1, hat0 = (int)(HatStripU * Size), garment0 = (int)(GarmentStripU * Size);
+            int hair0 = (int)(HairStripU * Width) + 1, hat0 = (int)(HatStripU * Width), garment0 = (int)(GarmentStripU * Width);
+            var hairPieces = _spec.Hair is HairStyle.Long or HairStyle.Bob or HairStyle.Ponytail or HairStyle.Bun;
+            var agal = _spec.Hat == HatStyle.Keffiyeh;
+            var garment = _spec.Legs is LegsStyle.Thobe or LegsStyle.Skirt;
             var hat = ToVec(_spec.HatColor);
             var accent = ToVec(_spec.AccentColor);
             var cloth = ToVec(_spec.Legs == LegsStyle.Skirt ? _spec.TrousersColor : _spec.ShirtColor);
             var checks = _spec.Hat == HatStyle.Keffiyeh;
-            for (var y = 0; y < Size; y++)
-                for (var x = hair0; x < Size; x++)
+            for (var y = 0; y < Height; y++)
+                for (var x = hair0; x < Width; x++)
                 {
+                    if (!(x < hat0 ? hairPieces : x < garment0 ? agal : garment)) continue;
                     Vector3 c;
                     if (x < hat0)
                     {
@@ -533,11 +636,11 @@ public sealed class FacePainter
                     }
                     else if (x < garment0)
                     {
-                        if (y > Size * 0.94f) c = new Vector3(0.06f, 0.055f, 0.05f);   // agal (black cord)
+                        if (y > Height * 0.94f) c = new Vector3(0.06f, 0.055f, 0.05f);   // agal (black cord)
                         else
                         {
                             // Wrapped cloth: a fold band per row of the wrap, a shadow between bands.
-                            var band = y / (Size * 0.88f / 6f);
+                            var band = y / (Height * 0.88f / 6f);
                             var f = band - MathF.Floor(band);
                             var shade = 0.78f + 0.3f * MathF.Sin(f * MathF.PI) - 0.06f * MathF.Sin(x * 0.6f);
                             c = hat * shade;
@@ -555,7 +658,7 @@ public sealed class FacePainter
                         var shade = 0.86f + 0.1f * MathF.Sin((x - garment0) * 0.45f) + 0.05f * MathF.Sin((x - garment0) * 1.3f + y * 0.01f);
                         c = cloth * shade;
                     }
-                    color[y * Size + x] = c;
+                    color[y * Width + x] = c;
                 }
         }
     }

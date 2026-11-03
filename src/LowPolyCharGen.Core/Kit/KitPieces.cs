@@ -70,7 +70,7 @@ public static class KitPieces
         var normals = new List<Vector3>();
         var uvs = new List<Vector2>();
         var tris = new List<int[]>();
-        float U(int c) => 0.01f + (FacePainter.HairStripU - 0.02f) * c / columns;   // the headwear cloth region
+        float U(int c) => FacePainter.ClothU + 0.01f + (FacePainter.HairStripU - FacePainter.ClothU - 0.02f) * c / columns;   // the headwear cloth region
 
         var crownDir = Vector3.UnitZ;
         positions.Add(Origin + crownDir * (Reach(head, Origin, crownDir, 14f) + 9.2f));
@@ -102,7 +102,7 @@ public static class KitPieces
     /// <summary>A keffiyeh: a cloth over the head to the shoulders, open round the face, held by a black agal.</summary>
     public static PackPart Keffiyeh(PackPart head, bool agal = true)
     {
-        var cloth = HairPieces.LongHair(head, 145f, "Keffiyeh", 0f, FacePainter.HairStripU, 1.2f, FacePainter.ClothV - 0.01f, 0.01f);
+        var cloth = HairPieces.LongHair(head, 145f, "Keffiyeh", FacePainter.ClothU, FacePainter.HairStripU, 1.2f, FacePainter.ClothV - 0.01f, 0.01f);
         if (!agal) return cloth;
         // The agal: a band of black cord round the crown.
         const int columns = 14;
@@ -118,7 +118,7 @@ public static class KitPieces
                 band[r, c] = positions.Count;
                 positions.Add(Origin + dir * (skull + (r < 2 ? 2.3f : 1.3f)));
                 normals.Add(r < 2 ? dir : r == 2 ? -Vector3.UnitZ : Vector3.UnitZ);
-                uvs.Add(new Vector2(FacePainter.HatStripU + 0.01f + 0.04f * c / columns, 0.03f));
+                uvs.Add(new Vector2(FacePainter.HatStripU + 0.01f + (FacePainter.GarmentStripU - FacePainter.HatStripU - 0.02f) * c / columns, 0.03f));
             }
         for (var r = 0; r < 4; r++)
         {
@@ -149,7 +149,7 @@ public static class KitPieces
         var uvs = new List<Vector2>();
         var tris = new List<int[]>();
         var weights = new List<(string, float)[]>();
-        float U(int c) => FacePainter.GarmentStripU + 0.01f + (0.99f - FacePainter.GarmentStripU - 0.02f) * c / columns;
+        float U(int c) => FacePainter.GarmentStripU + 0.01f + (1f - FacePainter.GarmentStripU - 0.02f) * c / columns;
         // The cloth hangs straight from the hips: as wide as the legs at the hips all the way down,
         // flaring a little towards the hem.
         var hips = legs.Positions.Where(p => p.Z > topZ - 14f && p.Z < topZ + 2f).ToList();

@@ -50,7 +50,7 @@ def render(stem, w, h, zmin, zmax, back):
     light /= np.linalg.norm(light)
     for g, faces in enumerate(groups):
         tex = np.asarray(Image.open("%s_Preview%d.png" % (stem, g)).convert("RGB"))
-        size = tex.shape[0]
+        tex_h, tex_w = tex.shape[:2]
         for f in faces:
             a, b, c = mesh["faces"][f]
             uv = np.array(mesh["uvs"][f])
@@ -76,8 +76,8 @@ def render(stem, w, h, zmin, zmax, back):
                 continue
             u = w0 * uv[0, 0] + w1 * uv[1, 0] + w2 * uv[2, 0]
             v = w0 * uv[0, 1] + w1 * uv[1, 1] + w2 * uv[2, 1]
-            tx = ((u % 1) * size).astype(int).clip(0, size - 1)
-            ty = ((1 - (v % 1)) * size).astype(int).clip(0, size - 1)
+            tx = ((u % 1) * tex_w).astype(int).clip(0, tex_w - 1)
+            ty = ((1 - (v % 1)) * tex_h).astype(int).clip(0, tex_h - 1)
             nn = w0[..., None] * n[0] + w1[..., None] * n[1] + w2[..., None] * n[2]
             lit = np.clip(0.6 + 0.55 * (nn @ light) / (np.linalg.norm(nn, axis=-1) + 1e-6), 0.35, 1.15)
             col = (tex[ty, tx] * lit[..., None]).clip(0, 255).astype(np.uint8)

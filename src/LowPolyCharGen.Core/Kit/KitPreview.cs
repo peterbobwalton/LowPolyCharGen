@@ -52,7 +52,7 @@ public static class KitPreview
         var tintLinear = new Vector3(MathF.Pow(tint.X, 2.2f), MathF.Pow(tint.Y, 2.2f), MathF.Pow(tint.Z, 2.2f));
         var lut = new float[256];
         for (var i = 0; i < 256; i++) lut[i] = MathF.Pow(i / 255f, 2.2f);
-        var rgb = new byte[t.Size * t.Size * 3];
+        var rgb = new byte[t.Size * t.Height * 3];
         for (int i = 0, o = 0; i < rgb.Length; i += 3, o += t.Channels)
         {
             var c = new Vector3(lut[t.Rgb[o]], lut[t.Rgb[o + 1]], lut[t.Rgb[o + 2]]);
@@ -62,7 +62,7 @@ public static class KitPreview
             if (hasCloth) col = Vector3.Lerp(cloth * Vector3.Dot(c, new Vector3(0.3f, 0.59f, 0.11f)), col, skin);
             rgb[i] = ToByte(col.X); rgb[i + 1] = ToByte(col.Y); rgb[i + 2] = ToByte(col.Z);
         }
-        return new TextureImage(t.Size, rgb);
+        return new TextureImage(t.Size, rgb, height: t.Height);
     }
 
     private static byte ToByte(float linear) => (byte)Math.Clamp((int)MathF.Round(MathF.Pow(Math.Clamp(linear, 0, 1), 1 / 2.2f) * 255), 0, 255);
