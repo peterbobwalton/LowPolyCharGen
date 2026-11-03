@@ -161,7 +161,8 @@ lines = []
 characters = os.path.join(target, "Characters")
 for faction in sorted(os.listdir(characters), key=lambda f: (list(FACTIONS).index(f) if f in FACTIONS else 99, f)):
     n = len([f for f in os.listdir(os.path.join(characters, faction)) if f.startswith("SK_")])
-    lines.append("  Characters/%-12s %3d  %s" % (faction, n, FACTIONS.get(faction, "")))
+    if n:
+        lines.append("  Characters/%-12s %3d  %s" % (faction, n, FACTIONS.get(faction, "")))
 readme = """LowPolySoldiers - Unreal Engine 5.8 character pack
 
 Copy the LowPolySoldiers folder into your project's Content folder (Content/LowPolySoldiers).

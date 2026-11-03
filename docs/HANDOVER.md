@@ -46,10 +46,10 @@ never changed, so every pack animation still works.
   inserted).
 - **HeadMorph:** female jaw/chin/nose; head shapes Square/Slim/Round/Heavy; `Nose` = Pack/Small/Button/Broad/Roman
   (moves the pack face's known nose vertices).
-- **FacePainter:** a per-character 1024 face texture (material slot 1). Layout:
-  - the face tile at the top (v 0.5–1);
-  - the headwear cloth region (keffiyeh check, turban wraps) at v 0–0.5;
-  - the hair, hat and garment strips at u 0.8–1.
+- **FacePainter:** a per-character 1024x512 face texture (material slot 1). Layout:
+  - the head's largest piece on the left half;
+  - on the right, the head's smaller pieces and colour swatches, or the headwear cloth (keffiyeh check, turban wraps);
+  - the hair, hat and garment strips at u 0.883–1.
 
   Male: facial hair. Female: a clean repaint (soft modelling, thin brows, lashes, lips). Almond toon eyes. Skin and
   hair recolour.
@@ -58,8 +58,8 @@ never changed, so every pack animation still works.
 - **KitHands:** `GloveStyle` Bare/Tan/Dark.
 - **Low footwear:** Shoes and Trainers.
 - **RecolourClothes:** recolours the clothes.
-- **GarmentPainter (`Outfit`, `Injury`, `Grime`, `Insignia`, `Legs=Skirt/Shorts`):** a per-character 1024 clothes
-  texture (slot 5, `_Clothes`). Body and trouser triangles get unique box-projected charts, painted by 3D position over
+- **GarmentPainter (`Outfit`, `Injury`, `Grime`, `Insignia`, `Legs=Skirt/Shorts`):** per-character 1024x512 clothes
+  textures (top in slot 5, `_Clothes`; trousers in slot 6, `_Legs`, shared when identical). Body and trouser triangles get unique box-projected charts, painted by 3D position over
   the pack's cloth shading, so left and right can differ. Outfits: `TShirt`, `StripedTee`, `Polo`, `Shirt`,
   `RolledShirt`, `CheckShirt`, `FloralShirt`, `Blouse`, `Suit`, `SuitOpenNeck`, `CabinBlazer`, `CabinWaistcoat`,
   `PilotShirt`, `FlightSuit`, `RescueSuit`. Colours: `ShirtColor`, `TrousersColor`, `AccentColor` (tie, scarf, pattern),
@@ -68,7 +68,7 @@ never changed, so every pack animation still works.
   `HeadBandage`, `ArmBandage`, `LegBandage`. A UE5 pack body (legs and boots in one piece) stays unpainted.
 - **Flight gear (`KitPieces`, flat colours from `FacePainter.Swatch`):** `FlightHelmet` Jet or Helo in `HatColor`, `Visor`
   true/false, `OxygenMask`; `FlightGear` flags `Harness` (painted), `GSuit`, `LifeVest`. Also `Hijab`, `Glasses`, `Age`.
-- **Material slots:** 0 = Armies texture (kit MI), 1 = face, 2 = Militia texture, 3 = UE5, 4 = equipment, 5 = clothes.
+- **Material slots:** 0 = Armies texture (kit MI), 1 = face, 2 = Militia texture, 3 = UE5, 4 = equipment, 5 = clothes, 6 = legs.
 - **Per-vertex data in UV1–3**, because Nanite skinned meshes drop vertex colours and GPU skinning allows at most
   4 UV sets: skin tint and cloth recolour. `M_LPCG_Kit` decodes it with custom HLSL (pow 2.2 on the sRGB ratio).
   `KitPreview` reproduces this on the CPU for the WPF app and the CLI's `--preview`.
@@ -87,8 +87,10 @@ suffix, materials from `M_LPCG_Kit`.
 
 | Item | What |
 |---|---|
-| `LowPolySoldiers_Pack_UE5.8_2026-11-03_airline.zip` (226 MB) | **Latest.** 178 characters in 14 factions: the full airline crew (16). Before the helmet, cheek and hair fixes |
-| `LowPolySoldiers_Pack_2026-11-03_airline\` (folder) | **Latest, unzipped:** the same build (1,172 files, 295 MB) |
+| `LowPolySoldiers_Pack_UE5.8_2026-11-03_texturepacking.zip` (118 MB) | **Latest.** 178 characters in 14 factions, with the helmet, cheek and hair fixes, 1024x512 faces and shared legs |
+| `LowPolySoldiers_Pack_2026-11-03_texturepacking\` (folder) | **Latest, unzipped:** the same build (1,240 files, 189 MB) |
+| `LowPolySoldiers_Pack_UE5.8_2026-11-03_airline.zip` (226 MB) | 178 characters: the full airline crew (16). Before the helmet, cheek and hair fixes |
+| `LowPolySoldiers_Pack_2026-11-03_airline\` (folder) | The same build, unzipped (1,172 files, 295 MB) |
 | `LowPolySoldiers_Pack_UE5.8_2026-11-03.zip` (215 MB) | 168 characters: adds IraqiArmy, Civilians, Airline (6), Aircrew and `A_Unarmed_Idle` |
 | `LowPolySoldiers_Pack_2026-11-03\` (folder) | The same build as that zip, unzipped (1,122 files, 283 MB) |
 | `LowPolySoldiers_Pack_UE5.8_2026-10-24_legsfix.zip` (166 MB) | 121 characters in 10 factions, with the legs/boots fix |
@@ -96,16 +98,6 @@ suffix, materials from `M_LPCG_Kit`.
 | `LowPolySoldiers_Pack_UE5.8.zip` (88 MB) | 23 Oct, the first pack (44 rebuilt prebuilts); kept for reference |
 | `LowPolySoldiers_Pack_2026-10-24_legsfix\` (folder) | The same build as the legsfix zip, unzipped (902 files, 227 MB) |
 | `LowPolySoldiers_Pack\` (folder) | The 13:33 build from before the fix (can't be overwritten); use the legsfix folder or zip |
-
-## Next, in Pete's order (3 November 2026)
-
-1. **Face textures to 1024x512** (the audit is in the proposals doc: https://claude.ai/artifact/4NmwB4N5Hmv5wbojvjcyT5).
-2. **Consolidate the common leg textures.**
-
-Both are the texture-packing work, which **builds the next pack**. **`Z:\Media\Models` doesn't have the 3 November fixes
-below yet:** `..._2026-11-03_airline` predates them. They're in the repo and imported into LowPolyCharTest only. Note for
-step 1: the flight gear, bandages and cloth headwear use `FacePainter`'s swatch and cloth regions in the lower half of the
-face texture (u 0–0.8, v 0–0.5), and the hair and garment strips are at u 0.8–1. A 1024x512 layout has to move those, not drop them.
 
 ## Fixes from Pete's snapshots, 3 November 2026
 
@@ -143,6 +135,37 @@ his camera unless noted. Pitch wasn't recorded for the crew chief and cheek came
   characters. **Not re-checked:** the other jet and helo characters and most of the 46 close up; `--check` covers their geometry.
 - **Still visible, not changed:** a pale patch of skin at the back of the collar on some painted clothes, where the clothes
   painter's skin is lighter than the head's neck; the pack's wrist bands on bare hands.
+
+## Texture packing, 3 November 2026
+
+Pete found the textures half blank: faces used 17% of their 1024x1024 on average, clothes 37%. The pack went from 295 MB
+to 189 MB, and its zip from 226 MB to 118 MB. Review and measurements: https://claude.ai/artifact/4NmwB4N5Hmv5wbojvjcyT5
+
+- **This is the first pack with the snapshot fixes above** (`456d1bd`).
+- **Faces are 1024x512 (`FacePainter`, 170 textures).** Only the pieces the head uses come across. The largest fills the left half
+  and sets the scale, so a helmet's bits elsewhere in the pack's tile can't shrink the face. That fixed 13 blurry faces
+  (`Armies_Engineer` used 1.4% of its texture). On the right side (u 0.5 to 1): smaller pieces at the top, swatches at the
+  bottom (v under 0.25), or cloth over the full height, and the hair, agal and garment strips at u 0.883 to 1. These are
+  painted only for characters who use them; everything else is one flat colour, which is what shrinks the files. Eleven
+  heads with very wide charts (mostly shemaghs) now hit the width limit and get about 30% fewer texels across than before.
+- **Legs have their own texture (`GarmentPainter`, material slot 6, `_Legs`).** Tops (slot 5) and legs are each 1024x512
+  at about the old density. `import_unreal.py` names a leg texture by a hash of its pixels (`T_Legs_<hash>`, `MI_Legs_<hash>`),
+  so identical legs share one: 46 become 34. In the pack they're in `Characters/Legs`. This saves little by itself, about
+  4 MB of memory, and adds a material slot.
+- **`TextureImage` can now be non-square** (`Size` is the width, plus `Height`).
+- **Memory with every mip loaded** (BC1): character textures 149 MB to 94 MB; the shared 32 MB is unchanged.
+- **Not done (proposed, not asked for):** 26 faces are exact duplicates and could share a texture; `T_Soldiers_Red` is a whole
+  2048 for one beret; a tighter clothes packer would give about 9% sharper clothes.
+- **GPU crashes:** LowPolyCharTest hit `DXGI_ERROR_DRIVER_INTERNAL_ERROR` three times on 3 November: 18:58 (idle, before any of
+  this work), 19:55 (during re-import) and 20:39 (just after Lvl_Characters loaded). Video memory was not the limit (7 to 10 GB of 10.5 to
+  11 GB, no page fault) and Windows logged nothing. The cause is unknown. Importing from an empty level (`/Engine/Maps/Entry`)
+  survived all of the last 122 characters.
+- **Pack build without the GPU:** both steps run from the command line, in about 30 seconds each, which avoids those crashes.
+  With LowPolyCharTest closed:
+  `UnrealEditor-Cmd.exe <LowPolyCharTest.uproject> -run=pythonscript -script=<tools/pack_export_stage.py> -nullrhi -unattended -nopause -nosplash`,
+  then the same with `LpcgPackBuilder.uproject` and `pack_export_build.py`. `print` output goes to each project's `Saved/Logs`.
+- **Not checked:** this pack hasn't been opened in a rendering editor. Six characters were checked close up from the same assets
+  before the crash (a captain, keffiyeh, crew chief and others), and the rest on `kit_sheet.py` sheets for Civilians and Aircrew.
 
 ## Done on the AMD9800X3D, 3 November 2026 (crash-rescue game: civilians, aircrew, Iraqi Army)
 
