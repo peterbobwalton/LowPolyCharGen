@@ -357,6 +357,8 @@ static int Check()
         }
         foreach (var normals in mesh.Normals)
             if (normals.Any(n => MathF.Abs(n.Length() - 1f) > 1e-3f)) { Fail(label, "bad normal"); break; }
+        if (spec.Body == BodyModel.Pack && LowPolyCharGen.Kit.KitBuilder.HeadwearProtrusions(spec) is { Count: > 0 } through)
+            Fail(label, $"{through.Count} head vertices poke through the headwear, such as {through[0]:F1}");
 
         if (label == "Default")
             Console.WriteLine($"default: {mesh.Positions.Length} verts, {mesh.TriangleCount} tris, bounds {min:F1} .. {max:F1}");

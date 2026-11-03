@@ -29,16 +29,7 @@ public static class KitBuilder
 
         // The head: a face cover (the Militia pack's balaclava and shemaghs) or a cloth headdress
         // (which needs a bare head) can replace the chosen one.
-        var headName = spec.PackHead;
-        if (spec.FaceCover == FaceCover.Balaclava) headName = "MIL_Mesh_head_L";
-        else if (spec.FaceCover == FaceCover.Shemagh)
-            headName = FacePainter.ToVec(spec.AccentColor).Length() < 0.45f ? "MIL_Mesh_head_K" : "MIL_Mesh_head_J";
-        var headPart = PackLibrary.Part(headName);
-        var headscarf = spec.Hijab && spec.FaceCover == FaceCover.None;
-        var flightHelmet = spec.FlightHelmet != FlightHelmet.None && spec.FaceCover == FaceCover.None;
-        var headdress = headscarf || flightHelmet || (spec.FaceCover == FaceCover.None && spec.Hat is HatStyle.Turban or HatStyle.Keffiyeh);
-        if (headdress && !HairPieces.IsBare(headPart))
-            headPart = PackLibrary.Part(IsMilitia(headPart) ? "MIL_Mesh_Head_A" : IsUE5(headPart) ? "TS_Head_00_unequipped" : "TSA_Head_A1");
+        var headPart = ChooseHead(spec, out var headdress);
 
         // The character's own texture (material slot 1): face painted from the head's face tile, and
         // the hair and cloth strips.
@@ -64,11 +55,7 @@ public static class KitBuilder
         var lowFootwear = spec.Footwear is Footwear.Trainers or Footwear.Shoes;
         if (face is not null)
         {
-            if (flightHelmet) parts.AddRange(KitPieces.FlightHelmet(spec));
-            else if (headscarf) parts.Add(KitPieces.Keffiyeh(headPart, agal: false));
-            else if (headdress && spec.Hat == HatStyle.Turban) parts.Add(KitPieces.Turban(headPart));
-            else if (headdress && spec.Hat == HatStyle.Keffiyeh) parts.Add(KitPieces.Keffiyeh(headPart));
-            else if (HairPieces.For(spec, headPart) is { } hair) parts.Add(hair);
+            parts.AddRange(Headwear(spec, headPart, headdress));
             // Low shoes sit under the boots' height: the hem comes down to them.
             if (thobe) parts.Add(KitPieces.ThobeSkirt(legsPart, bottomZ: lowFootwear ? 11f : 16f));
             // Its top just tucks under the hem of the body: any higher and it pokes through a light shirt.
@@ -269,6 +256,54 @@ public static class KitBuilder
             EquipmentTexture = equipmentTexture,
             ClothesTexture = painter?.Texture,
         };
+    }
+
+    /// <summary>The character's head: a face cover picks its own, and a headdress or flight helmet needs a bare one.</summary>
+    private static PackPart ChooseHead(CharacterSpec spec, out bool headdress)
+    {
+        var headName = spec.PackHead;
+        if (spec.FaceCover == FaceCover.Balaclava) headName = "MIL_Mesh_head_L";
+        else if (spec.FaceCover == FaceCover.Shemagh)
+            headName = FacePainter.ToVec(spec.AccentColor).Length() < 0.45f ? "MIL_Mesh_head_K" : "MIL_Mesh_head_J";
+        var head = PackLibrary.Part(headName);
+        var uncovered = spec.FaceCover == FaceCover.None;
+        headdress = uncovered && (spec.Hijab || spec.FlightHelmet != FlightHelmet.None || spec.Hat is HatStyle.Turban or HatStyle.Keffiyeh);
+        if (headdress && !HairPieces.IsBare(head))
+            head = PackLibrary.Part(IsMilitia(head) ? "MIL_Mesh_Head_A" : IsUE5(head) ? "TS_Head_00_unequipped" : "TSA_Head_A1");
+        if (uncovered && spec.FlightHelmet != FlightHelmet.None) head = KitPieces.TuckUnderHelmet(head, spec.FlightHelmet == FlightHelmet.Jet);
+        return head;
+    }
+
+    /// <summary>What's worn over the head, or the hair pieces if nothing is.</summary>
+    private static IEnumerable<PackPart> Headwear(CharacterSpec spec, PackPart head, bool headdress)
+    {
+        if (headdress && spec.FlightHelmet != FlightHelmet.None) return KitPieces.FlightHelmet(spec);
+        if (headdress && spec.Hijab) return [KitPieces.Keffiyeh(head, agal: false)];
+        if (headdress && spec.Hat == HatStyle.Turban) return [KitPieces.Turban(head)];
+        if (headdress && spec.Hat == HatStyle.Keffiyeh) return [KitPieces.Keffiyeh(head)];
+        return HairPieces.For(spec, head) is { } hair ? [hair] : [];
+    }
+
+    /// <summary>
+    /// How many of the head's vertices poke out through what's worn over it: those above the brow, or at ear level and
+    /// behind. Rays from inside the skull tell, as the pieces are fitted. For --check. Zero if nothing covers the head.
+    /// </summary>
+    public static List<Vector3> HeadwearProtrusions(CharacterSpec spec)
+    {
+        var through = new List<Vector3>();
+        var head = ChooseHead(spec, out var headdress);
+        if (!headdress && !(spec.Hair is HairStyle.Long or HairStyle.Bob && HairPieces.IsBare(head))) return through;
+        var covers = Headwear(spec, head, headdress).ToList();
+        if (covers.Count == 0) return through;
+        var origin = new Vector3(0, -1.5f, 166f);
+        foreach (var p in head.Positions.Distinct())
+        {
+            if (p.Z <= 172f && !(p.Z > 158f && p.Y > -4f)) continue;
+            var dir = Vector3.Normalize(p - origin);
+            var cover = covers.Max(c => KitPieces.Hit(c, origin, dir));
+            if (cover > 0 ? Vector3.Distance(p, origin) > cover + 0.02f : p.Z > 172f) through.Add(p);
+        }
+        return through;
     }
 
     /// <summary>Height of a skirt's hem (cm): just above the knee.</summary>

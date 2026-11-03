@@ -285,6 +285,13 @@ public sealed class FacePainter
 
             if (!_female) FacialHair(ref c, u, z, y, skinness * (1 - hairness));
             var k = front * skinness * (1 - hairness);
+            // A woman's face is repainted clean (Female, below). The side of the head has to match it, or the pack's darker
+            // painting, with its hard shadows round the temple and ear, shows as a differently coloured panel.
+            if (_female)
+            {
+                var sideOfFace = (1 - front) * skinness * (1 - hairness) * S((z - 149.2f) / 1.2f);
+                c = Mix(c, Vector3.Lerp(_skin * (0.9f - 0.05f * S((157f - z) / 6f)), c, 0.12f), sideOfFace);
+            }
             if (k <= 0.001f) return Vector3.Clamp(c, Vector3.Zero, Vector3.One);
 
             // The pack paints the nostril shadow wider than its nose: its outer end reads as a mark on the cheek.
@@ -357,7 +364,7 @@ public sealed class FacePainter
             c = Mix(c, _skin * 1.06f, Stroke(u, z, [new(0, 166.5f, 0.5f), new(0, 162f, 0.6f)], 0.3f) * k * 0.5f);   // bridge highlight
             c = Mix(c, _skin * 0.86f, Ellipse(u, z, 0, 155.0f, 1.8f, 0.45f, 0.8f) * k * 0.5f);
             c = Mix(c, _skin * 0.8f, Ellipse(u, z, 0, 150.2f, 3.2f, 0.8f, 0.8f) * k * 0.5f);
-            c = Mix(c, _skin * new Vector3(1f, 0.74f, 0.76f), Ellipse(u, z, 5.3f, 159.8f, 2.2f, 1.5f, 0.9f) * k * 0.3f);   // blush
+            c = Mix(c, _skin * new Vector3(1f, 0.95f, 0.94f), Ellipse(u, z, 5.3f, 159.8f, 3f, 2.2f, 1.2f) * k * 0.25f);   // the faintest warmth, in the skin's own tone
 
             // Thin arched brows.
             c = Mix(c, _hair * 1.1f, Stroke(u, z, [new(1.5f, 168.5f, 0.28f), new(3.1f, 169.3f, 0.38f), new(4.7f, 169.4f, 0.3f), new(6.3f, 168.8f, 0.1f)], 0.1f) * k);

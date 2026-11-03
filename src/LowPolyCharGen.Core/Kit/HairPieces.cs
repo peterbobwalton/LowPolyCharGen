@@ -8,6 +8,9 @@ namespace LowPolyCharGen.Kit;
 /// </summary>
 public static class HairPieces
 {
+    /// <summary>Degrees round each of a long-hair or cloth shell's points within which it clears the head: its rays are about 25° apart.</summary>
+    internal const float ClearanceCone = 20f;
+
     public static bool IsHair(PackPart part) => part.Name is "Ponytail" or "Bun" or "LongHair" or "Turban" or "Keffiyeh" or "Thobe" or KitPieces.GearPiece;
 
     /// <summary>True if the head has no headgear: nothing above the skull or wider than the ears.</summary>
@@ -43,25 +46,7 @@ public static class HairPieces
         var origin = new Vector3(0, -1.5f, 166f);
         float[] elevations = [72f, 50f, 30f, 15f, 2f, -12f];   // degrees; rows at and above 15° close over the face (the fringe)
         const float openAngle = 62f;                           // degrees each side of the front left open below the fringe
-        float Hit(Vector3 dir)
-        {
-            var best = 0f;
-            foreach (var t in head.Triangles)
-            {
-                Vector3 a = head.Positions[t[0]], e1 = head.Positions[t[1]] - a, e2 = head.Positions[t[2]] - a;
-                var h = Vector3.Cross(dir, e2);
-                var det = Vector3.Dot(e1, h);
-                if (MathF.Abs(det) < 1e-9f) continue;
-                var s0 = origin - a;
-                var u = Vector3.Dot(s0, h) / det;
-                if (u < 0 || u > 1) continue;
-                var q = Vector3.Cross(s0, e1);
-                var v = Vector3.Dot(dir, q) / det;
-                if (v < 0 || u + v > 1) continue;
-                best = MathF.Max(best, Vector3.Dot(e2, q) / det);
-            }
-            return best;
-        }
+        float Hit(Vector3 dir) => KitPieces.Reach(head, origin, dir, ClearanceCone);
         Vector3 Dir(float theta, float phi) =>
             new(MathF.Sin(theta) * MathF.Cos(phi), -MathF.Cos(theta) * MathF.Cos(phi), MathF.Sin(phi));
 
@@ -71,7 +56,9 @@ public static class HairPieces
         {
             var phi = e * MathF.PI / 180f;
             var isOpen = e < 15f;
-            var start = isOpen ? openAngle * MathF.PI / 180f : 0f;
+            // Every row keeps the same columns, so the shell doesn't twist where it opens round the face; the forehead
+            // between the first and last columns is a patch of its own, below.
+            var start = openAngle * MathF.PI / 180f;
             var row = new Vector3[columns + 1];
             for (var c = 0; c <= columns; c++)
             {
@@ -119,6 +106,29 @@ public static class HairPieces
                 uvs.Add(new Vector2(U(c), V(r + 1)));
             }
         for (var c = 0; c < columns; c++) tris.Add([0, outer[0, c + 1], outer[0, c]]);
+        // The fringe: the patch over the forehead, from one side of the face to the other.
+        const int patchColumns = 4;
+        var closedRows = elevations.Count(e => e >= 15f);
+        var patch = new int[closedRows, patchColumns + 1];
+        for (var r = 0; r < closedRows; r++)
+            for (var c = 0; c <= patchColumns; c++)
+            {
+                var angle = openAngle * MathF.PI / 180f;
+                var theta = -angle + 2 * angle * c / patchColumns;
+                var dir = Dir(theta, elevations[r] * MathF.PI / 180f);
+                var offset = thickness + 0.5f * (1 - MathF.Abs(MathF.Cos(theta)));
+                patch[r, c] = positions.Count;
+                positions.Add(origin + dir * (Hit(dir) + offset));
+                normals.Add(dir);
+                uvs.Add(new Vector2(U(c * columns / patchColumns), V(r + 1)));
+            }
+        for (var c = 0; c < patchColumns; c++) tris.Add([0, patch[0, c + 1], patch[0, c]]);
+        for (var r = 0; r + 1 < closedRows; r++)
+            for (var c = 0; c < patchColumns; c++)
+            {
+                tris.Add([patch[r, c], patch[r, c + 1], patch[r + 1, c]]);
+                tris.Add([patch[r, c + 1], patch[r + 1, c + 1], patch[r + 1, c]]);
+            }
         for (var r = 0; r + 1 < rows.Count; r++)
             for (var c = 0; c < columns; c++)
             {

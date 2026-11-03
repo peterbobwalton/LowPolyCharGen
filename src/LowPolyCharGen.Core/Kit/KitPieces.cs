@@ -32,6 +32,23 @@ public static class KitPieces
         return best;
     }
 
+    /// <summary>
+    /// How far a shell point along <paramref name="dir"/> must stand to clear the head: the farthest hit, and every head
+    /// vertex within <paramref name="coneDegrees"/>. Hits alone miss the ridges and corners between a coarse shell's rays.
+    /// </summary>
+    internal static float Reach(PackPart head, Vector3 origin, Vector3 dir, float coneDegrees)
+    {
+        var reach = Hit(head, origin, dir);
+        var cone = MathF.Cos(coneDegrees * MathF.PI / 180f);
+        foreach (var p in head.Positions)
+        {
+            var to = p - origin;
+            var distance = to.Length();
+            if (distance > reach && Vector3.Dot(to, dir) > cone * distance) reach = distance;
+        }
+        return reach;
+    }
+
     private static Vector3 Dir(float theta, float phi) =>
         new(MathF.Sin(theta) * MathF.Cos(phi), -MathF.Cos(theta) * MathF.Cos(phi), MathF.Sin(phi));
 
@@ -56,7 +73,7 @@ public static class KitPieces
         float U(int c) => 0.01f + (FacePainter.HairStripU - 0.02f) * c / columns;   // the headwear cloth region
 
         var crownDir = Vector3.UnitZ;
-        positions.Add(Origin + crownDir * (Hit(head, Origin, crownDir) + 9.2f));
+        positions.Add(Origin + crownDir * (Reach(head, Origin, crownDir, 14f) + 9.2f));
         normals.Add(Vector3.UnitZ);
         uvs.Add(new Vector2(U(columns / 2), FacePainter.ClothV - 0.01f));
         var ring = new int[rows.Length, columns + 1];
@@ -68,7 +85,7 @@ public static class KitPieces
                 var phi = Rad(float.Lerp(rows[r].Front, rows[r].Back, back));
                 var dir = Dir(theta, phi);
                 ring[r, c] = positions.Count;
-                positions.Add(Origin + dir * (Hit(head, Origin, dir) + rows[r].Offset));
+                positions.Add(Origin + dir * (Reach(head, Origin, dir, 14f) + rows[r].Offset));
                 normals.Add(Vector3.Normalize(dir with { Z = dir.Z * 0.6f }));
                 uvs.Add(new Vector2(U(c), FacePainter.ClothV - 0.02f - (FacePainter.ClothV - 0.04f) * (r + 1) / rows.Length));
             }
@@ -97,7 +114,7 @@ public static class KitPieces
             {
                 var theta = MathF.Tau * c / columns;
                 var dir = Dir(theta, Rad(elevations[r is 0 or 3 ? 0 : 1]));
-                var skull = Hit(head, Origin, dir);
+                var skull = Reach(head, Origin, dir, HairPieces.ClearanceCone);   // as the cloth is fitted, so it stays on top of it
                 band[r, c] = positions.Count;
                 positions.Add(Origin + dir * (skull + (r < 2 ? 2.3f : 1.3f)));
                 normals.Add(r < 2 ? dir : r == 2 ? -Vector3.UnitZ : Vector3.UnitZ);
@@ -212,9 +229,11 @@ public static class KitPieces
     /// <summary>
     /// A shell over a (rows + 1) x (columns + 1) grid of points: the kept cells, smooth shaded, and a wall down to the
     /// inner surface along every open edge, so it has thickness. Wound by the builder from its normals.
+    /// <paramref name="wrap"/>: the first and last columns meet (else they are open edges). <paramref name="inward"/>: a
+    /// lining, facing the center and without walls: everything is single sided, so a shell seen from inside shows the sky.
     /// </summary>
     private static PackPart Shell(int rows, int columns, Func<int, int, Vector3> outer, Func<int, int, Vector3> inner, Func<int, int, bool> keep,
-        Func<int, int, Vector2> uv, Func<Vector3, (string, float)[]> weight, Vector3 center)
+        Func<int, int, Vector2> uv, Func<Vector3, (string, float)[]> weight, Vector3 center, bool wrap = true, bool inward = false)
     {
         var positions = new List<Vector3>();
         var normals = new List<Vector3>();
@@ -226,7 +245,7 @@ public static class KitPieces
             {
                 var p = outer(r, c);
                 positions.Add(p);
-                var n = p - center;
+                var n = inward ? center - p : p - center;
                 normals.Add(n.LengthSquared() > 1e-6f ? Vector3.Normalize(n) : Vector3.UnitZ);
                 uvs.Add(uv(r, c));
             }
@@ -242,13 +261,14 @@ public static class KitPieces
             tris.Add([i, i + 1, i + 2]);
             tris.Add([i + 1, i + 3, i + 2]);
         }
-        bool Kept(int r, int c) => r >= 0 && r < rows && keep(r, (c + columns) % columns);
+        bool Kept(int r, int c) => r >= 0 && r < rows && (wrap || (c >= 0 && c < columns)) && keep(r, (c + columns) % columns);
         for (var r = 0; r < rows; r++)
             for (var c = 0; c < columns; c++)
             {
                 if (!keep(r, c)) continue;
                 tris.Add([At(r, c), At(r, c + 1), At(r + 1, c)]);
                 tris.Add([At(r, c + 1), At(r + 1, c + 1), At(r + 1, c)]);
+                if (inward) continue;
                 var cell = (outer(r, c) + outer(r, c + 1) + outer(r + 1, c) + outer(r + 1, c + 1)) / 4;
                 if (!Kept(r - 1, c)) Wall(r, c, r, c + 1, cell);
                 if (!Kept(r + 1, c)) Wall(r + 1, c, r + 1, c + 1, cell);
@@ -304,29 +324,78 @@ public static class KitPieces
         return Origin + new Vector3(MathF.Sin(theta) * cosPhi * sides, -cosTheta * cosPhi * (cosTheta > 0 ? front : back), sinPhi * (phi > 0 ? top : top * 0.9f)) * scale;
     }
 
+    /// <summary>The lining's size against the shell's, clear of the head at the ears and jaw.</summary>
+    private const float HelmetLiner = 0.92f;
+
+    /// <summary>A helmet's sizes (cm) from the origin inside the head, whose sides are 11.5 and top 14.3 away.</summary>
+    private static (float Sides, float Front, float Back, float Top) HelmetSize(bool jet) =>
+        jet ? (14.2f, 15.4f, 14.2f, 17.4f) : (14.6f, 16f, 14.6f, 17.8f);
+
+    /// <summary>
+    /// The head with whatever rises above the brow inside the helmet's lining, pulled in: the pack's hair comes to a peak
+    /// over the forehead, further out than any helmet shape that still looks like one.
+    /// </summary>
+    public static PackPart TuckUnderHelmet(PackPart head, bool jet)
+    {
+        var (sides, front, back, top) = HelmetSize(jet);
+        var tucked = head.Clone();
+        for (var v = 0; v < tucked.Positions.Count; v++)
+        {
+            var to = tucked.Positions[v] - Origin;
+            if (tucked.Positions[v].Z <= 172f) continue;
+            var length = to.Length();
+            var dir = to / length;
+            // The lining's radius along this direction, from the helmet's ellipsoid.
+            var depth = dir.Y < 0 ? front : back;
+            var radius = HelmetLiner / MathF.Sqrt(dir.X * dir.X / (sides * sides) + dir.Y * dir.Y / (depth * depth) + dir.Z * dir.Z / (top * top));
+            if (length > radius - 0.2f) tucked.Positions[v] = Origin + dir * (radius - 0.2f);
+        }
+        return tucked;
+    }
+
     /// <summary>A flight helmet's parts: the shell, the visor and its housing, then the mask or the mic.</summary>
     public static IEnumerable<PackPart> FlightHelmet(CharacterSpec spec)
     {
         var jet = spec.FlightHelmet == LowPolyCharGen.FlightHelmet.Jet;
-        const int columns = 24;
-        // Sizes (cm) from the origin inside the head, whose sides are 11.5 and top 14.3 away.
-        float sides = jet ? 14.2f : 15f, front = jet ? 15.4f : 16.4f, back = jet ? 14f : 15.2f, top = jet ? 17.3f : 18.2f;
-        float[] elevations = [90, 72, 54, 38, 24, 8, -8, -24, -40];
-        var open = Rad(jet ? 64 : 68);
-        var rim = jet ? 26f : 22f;
-        // The front of the shell is cut away round the face, lower at the sides and back.
-        bool Keep(int r, int c)
-        {
-            var mid = (c + 0.5f) / columns * MathF.Tau;
-            var fromFront = MathF.Abs(MathF.Atan2(MathF.Sin(mid), MathF.Cos(mid)));
-            var e = (elevations[r] + elevations[r + 1]) / 2;
-            if (fromFront < open && e < rim) return false;
-            return e > -28f || fromFront > Rad(115);   // only the neck guard goes all the way down
-        }
+        const int columns = 24, skirtColumns = 18;
+        const float liner = HelmetLiner;
+        var (sides, front, back, top) = HelmetSize(jet);
+        var earBulge = jet ? 0.7f : 1.5f;
+        var rim = jet ? 26f : 24f;
+        // The dome, down to the brow all the way round.
+        float[] elevations = [90, 72, 54, 38, rim];
+        float ShellTone(float z) => 0.3f + 0.7f * Math.Clamp((z - 150f) / 34f, 0f, 1f);
         yield return Shell(elevations.Length - 1, columns,
             (r, c) => Dome(MathF.Tau * c / columns, Rad(elevations[r]), sides, front, back, top),
-            (r, c) => Dome(MathF.Tau * c / columns, Rad(elevations[r]), sides, front, back, top, 0.9f),
-            Keep, (r, c) => FacePainter.Swatch(SwatchShell, 0.3f + 0.7f * (elevations[r] + 40f) / 130f), _ => OnHead, Origin);
+            (r, c) => Dome(MathF.Tau * c / columns, Rad(elevations[r]), sides, front, back, top, liner),
+            (_, _) => true, (r, _) => FacePainter.Swatch(SwatchShell, ShellTone(Origin.Z + MathF.Sin(Rad(elevations[r])) * top)), _ => OnHead, Origin);
+        yield return Shell(elevations.Length - 1, columns,
+            (r, c) => Dome(MathF.Tau * c / columns, Rad(elevations[r]), sides, front, back, top, liner),
+            (r, c) => Dome(MathF.Tau * c / columns, Rad(elevations[r]), sides, front, back, top, liner),
+            (_, _) => true, (_, _) => FacePainter.Swatch(SwatchRubber, 0.3f), _ => OnHead, Origin, inward: true);
+
+        // The skirt below it: from the edge of the face round the back and on to the other edge, down over the ears to
+        // the jaw hinge and the nape, swelling over the ears. Each row keeps its own edge, so the opening is a smooth curve:
+        // (height, width, degrees from the front left open).
+        var brow = MathF.Sin(Rad(rim)) * top;
+        (float Z, float Width, float Open)[] skirt =
+        [
+            (Origin.Z + brow, MathF.Cos(Rad(rim)), 58), (Origin.Z + MathF.Sin(Rad(12)) * top, MathF.Cos(Rad(12)), 58), (Origin.Z, 1f, 58),
+            (162f, 0.985f, 60), (158f, 0.96f, 66), (154f, 0.93f, 82), (jet ? 152.5f : 150.5f, 0.9f, 108),
+        ];
+        Vector3 Skirt(int r, int c, float size)
+        {
+            var open = Rad(skirt[r].Open);
+            var theta = float.Lerp(open, MathF.Tau - open, (float)c / skirtColumns);
+            float cos = MathF.Cos(theta), sin = MathF.Sin(theta), z = skirt[r].Z;
+            var bulge = size < 1f ? 0f : earBulge * MathF.Exp(-(cos / 0.42f) * (cos / 0.42f)) * MathF.Exp(-((z - 160f) / 5.5f) * ((z - 160f) / 5.5f));
+            var depth = cos > 0 ? front : back;
+            return new Vector3(sin * (sides * skirt[r].Width * size + bulge), Origin.Y - cos * (depth * skirt[r].Width * size + bulge), z);
+        }
+        yield return Shell(skirt.Length - 1, skirtColumns, (r, c) => Skirt(r, c, 1f), (r, c) => Skirt(r, c, liner), (_, _) => true,
+            (r, _) => FacePainter.Swatch(SwatchShell, ShellTone(skirt[r].Z)), _ => OnHead, Origin, wrap: false);
+        yield return Shell(skirt.Length - 1, skirtColumns, (r, c) => Skirt(r, c, liner), (r, c) => Skirt(r, c, liner), (_, _) => true,
+            (_, _) => FacePainter.Swatch(SwatchRubber, 0.3f), _ => OnHead, Origin with { Z = 160f }, wrap: false, inward: true);
 
         // The visor: down over the eyes, clear of the nose; or raised up the front of the helmet.
         const int visorColumns = 14;
@@ -363,12 +432,14 @@ public static class KitPieces
 
         if (!jet)
         {
-            // Ear cups, a boom mic to the mouth on the left, and a night-vision mount above the brow.
+            // The ear cups' caps set into the shell's bulges, a boom mic from the shell's left side to the mouth, and a
+            // night-vision mount above the brow.
             foreach (var sign in new[] { -1f, 1f })
-                yield return Tube([new(sign * 13.5f, -2f, 160f), new(sign * 16.2f, -2f, 160f), new(sign * 17f, -2f, 160f)], [5.6f, 5.2f, 3.8f], SwatchShellDark, _ => OnHead, 10);
-            yield return Tube([new(14f, -7f, 156f), new(10.5f, -15f, 153.5f), new(5f, -21f, 154.6f), new(2.2f, -21.8f, 155.4f)], [0.5f, 0.45f, 0.4f, 0.4f], SwatchRubber, _ => OnHead, 6);
+                yield return Tube([new(sign * 14f, -1.5f, 160f), new(sign * (sides + 1.3f), -1.5f, 160f)], [4.4f, 3.7f], SwatchShellDark, _ => OnHead, 10);
+            yield return Tube([new(12.6f, -6.5f, 156.5f), new(13.6f, -8f, 156f)], [1.3f, 1.1f], SwatchRubber, _ => OnHead, 7);
+            yield return Tube([new(13.4f, -8f, 156f), new(10.5f, -15f, 153.5f), new(5f, -21f, 154.6f), new(2.2f, -21.8f, 155.4f)], [0.5f, 0.45f, 0.4f, 0.4f], SwatchRubber, _ => OnHead, 6);
             yield return Tube([new(2.8f, -21.8f, 155.3f), new(1.2f, -22f, 155.6f)], [1.25f, 1.25f], SwatchRubber, _ => OnHead, 7);
-            yield return Tube([new(0, -14.5f, 180f), new(0, -18f, 177.8f)], [2.2f, 1.7f], SwatchRubber, _ => OnHead, 7);
+            yield return Tube([new(0, -13.5f, 178.5f), new(0, -17.5f, 176.5f)], [2.2f, 1.7f], SwatchRubber, _ => OnHead, 7);
         }
         if (jet && spec.OxygenMask)
         {
@@ -387,7 +458,7 @@ public static class KitPieces
             yield return Tube([new(1f, -25f, 150f), new(3.5f, -23f, 143f), new(6.5f, -20.5f, 133f), new(8f, -18.5f, 122f)], [1.25f, 1.2f, 1.2f, 1.2f], SwatchRubber,
                 p => p.Z > 141f ? OnHead : [("Bip001-Spine", 1f)], 7);
             foreach (var sign in new[] { -1f, 1f })
-                yield return Tube([new(sign * 7f, -15f, 159f), new(sign * 13.6f, -6f, 163f)], [0.5f, 0.5f], SwatchRubber, _ => OnHead, 5);
+                yield return Tube([new(sign * 7f, -15f, 159f), new(sign * 12.6f, -8f, 162.5f)], [0.5f, 0.5f], SwatchRubber, _ => OnHead, 5);
         }
     }
 
@@ -399,7 +470,7 @@ public static class KitPieces
         var hits = new float[angles.Length, columns + 1];
         for (var r = 0; r < angles.Length; r++)
             for (var c = 0; c <= columns; c++)
-                hits[r, c] = Hit(head, Origin, Dir(MathF.Tau * c / columns, Rad(angles[r])));
+                hits[r, c] = Reach(head, Origin, Dir(MathF.Tau * c / columns, Rad(angles[r])), 12f);
         return Shell(angles.Length - 1, columns,
             (r, c) => Origin + Dir(MathF.Tau * c / columns, Rad(angles[r])) * (hits[r, c] + 0.7f),
             (r, c) => Origin + Dir(MathF.Tau * c / columns, Rad(angles[r])) * hits[r, c],
@@ -435,7 +506,8 @@ public static class KitPieces
                 // The farthest hit could be on an arm: never wider than the chest.
                 var limit = 1f / MathF.Sqrt(dir.X * dir.X / (23f * 23f) + dir.Y * dir.Y / (18.5f * 18.5f));
                 var hit = Hit(body, center + Vector3.UnitZ * heights[r], dir);
-                hits[r, c] = hit > 0 ? MathF.Min(hit, limit) : limit;
+                // Above the shoulders the rays can miss the body altogether: the strap carries on from the row below.
+                hits[r, c] = hit > 0 ? MathF.Min(hit, limit) : r > 0 ? MathF.Max(hits[r - 1, c] - 1.5f, 6f) : limit;
             }
         Vector3 Point(int r, int c, float grow)
         {

@@ -87,7 +87,7 @@ suffix, materials from `M_LPCG_Kit`.
 
 | Item | What |
 |---|---|
-| `LowPolySoldiers_Pack_UE5.8_2026-11-03_airline.zip` (226 MB) | **Latest.** 178 characters in 14 factions: the full airline crew (16) |
+| `LowPolySoldiers_Pack_UE5.8_2026-11-03_airline.zip` (226 MB) | **Latest.** 178 characters in 14 factions: the full airline crew (16). Before the helmet, cheek and hair fixes |
 | `LowPolySoldiers_Pack_2026-11-03_airline\` (folder) | **Latest, unzipped:** the same build (1,172 files, 295 MB) |
 | `LowPolySoldiers_Pack_UE5.8_2026-11-03.zip` (215 MB) | 168 characters: adds IraqiArmy, Civilians, Airline (6), Aircrew and `A_Unarmed_Idle` |
 | `LowPolySoldiers_Pack_2026-11-03\` (folder) | The same build as that zip, unzipped (1,122 files, 283 MB) |
@@ -96,6 +96,53 @@ suffix, materials from `M_LPCG_Kit`.
 | `LowPolySoldiers_Pack_UE5.8.zip` (88 MB) | 23 Oct, the first pack (44 rebuilt prebuilts); kept for reference |
 | `LowPolySoldiers_Pack_2026-10-24_legsfix\` (folder) | The same build as the legsfix zip, unzipped (902 files, 227 MB) |
 | `LowPolySoldiers_Pack\` (folder) | The 13:33 build from before the fix (can't be overwritten); use the legsfix folder or zip |
+
+## Next, in Pete's order (3 November 2026)
+
+1. **Face textures to 1024x512** (the audit is in the proposals doc: https://claude.ai/artifact/4NmwB4N5Hmv5wbojvjcyT5).
+2. **Consolidate the common leg textures.**
+
+Both are the texture-packing work, which **builds the next pack**. **`Z:\Media\Models` doesn't have the 3 November fixes
+below yet:** `..._2026-11-03_airline` predates them. They're in the repo and imported into LowPolyCharTest only. Note for
+step 1: the flight gear, bandages and cloth headwear use `FacePainter`'s swatch and cloth regions in the lower half of the
+face texture (u 0–0.8, v 0–0.5), and the hair and garment strips are at u 0.8–1. A 1024x512 layout has to move those, not drop them.
+
+## Fixes from Pete's snapshots, 3 November 2026
+
+In `C:\Unreal Projects\5.8\LowPolyCharTest\Saved\McpSnapshots`. Each "before" is Pete's own snapshot, each "after" is from
+his camera unless noted. Pitch wasn't recorded for the crew chief and cheek cameras, so those use 0.
+
+| Fix | Before | After |
+|---|---|---|
+| Helo helmet, crew chief | `20261103-190105-079.png` | `after_helmet_crew_chief.png`, plus `after_helo_crew_chief_front`, `_side`, `_34` |
+| Helo helmet, woman | Pete's first screenshot (not saved here) | `after_helo_copilot_front.png` |
+| Jet helmet | none taken | `after_jet_visor_up_front.png`, `after_jet_visor_up_side.png` |
+| Cheeks, Captain_Female | `20261103-190145-074.png` | `after_cheeks_captain_female.png` |
+| Cheeks, Tourist_Woman | `20261103-190348-748.png` | `after_cheeks_tourist_woman.png` |
+| Cheeks, dark skin (Cabin_Crew_Waistcoat) | none taken | `after_cheeks_dark_skin_waistcoat.png` (my own camera) |
+| Hair through headwear, Hijab_Traveller | `20261103-190437-604.png` | `after_hair_hijab_traveller.png` |
+
+- **Helmets closed in (`KitPieces.FlightHelmet`).** The real fault: everything is single sided, so from the front you saw
+  through the inside of the side panels, and only their edges showed, as "straps", with sky between them. Now a dome to the
+  brow, then a skirt from one edge of the face round the back to the other, down over the ears to the jaw hinge and the
+  nape, swelling over the ears, with a dark lining (`Shell(inward: true)`). The earcups' caps sit in the bulges and the boom
+  mic starts on the shell. Each skirt row has its own opening angle, so the face opening is a smooth curve. Jet and helo share this.
+- **`KitPieces.TuckUnderHelmet`:** the pack head's hair rises to a peak over the forehead, further out than any believable
+  helmet, so a flight helmet's head gets everything above the brow pulled inside the lining.
+- **Women's cheeks (`FacePainter`).** The clean repaint stopped at the front of the face, so the sides kept the pack's
+  darker, hard-shadowed painting. The side of the head now gets the same clean skin. The pink blush is now the faintest warmth in the skin's own tone.
+- **Hair through headwear.** Pete's snapshot is `Civilians_Hijab_Traveller`, a woman. The head's hair poked through
+  because a coarse shell's rays miss its ridges. `KitPieces.Reach` clears every head vertex near each shell point; `LongHair`
+  (long hair, bobs, keffiyeh, hijab), `Turban`, the agal and `HeadBandage` use it. `LongHair` also no longer twists where it
+  opens round the face: its rows keep the same columns, with a separate forehead patch.
+- **`--check` now fails a head vertex through its headwear** (`KitBuilder.HeadwearProtrusions`): it flagged 12 characters
+  before these fixes, and passes all 750 after them.
+- **Life vest straps:** above the shoulders the rays missed the body and fell back to a wide radius, leaving a thin black
+  line across the chest and a strap sticking forward. Fixed.
+- **Re-imported into LowPolyCharTest:** every flight helmet, woman, cloth headwear, long hair, bob and head bandage: 46
+  characters. **Not re-checked:** the other jet and helo characters and most of the 46 close up; `--check` covers their geometry.
+- **Still visible, not changed:** a pale patch of skin at the back of the collar on some painted clothes, where the clothes
+  painter's skin is lighter than the head's neck; the pack's wrist bands on bare hands.
 
 ## Done on the AMD9800X3D, 3 November 2026 (crash-rescue game: civilians, aircrew, Iraqi Army)
 
