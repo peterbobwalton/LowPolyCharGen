@@ -172,6 +172,15 @@ static void Export(CharacterSpec spec, string path, bool preview = false)
         var stem = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(path))!, Path.GetFileNameWithoutExtension(path));
         for (var g = 0; g < groups.Count; g++) File.WriteAllBytes($"{stem}_Preview{g}.png", groups[g].Texture.EncodePng());
         File.WriteAllText(stem + "_Preview.json", System.Text.Json.JsonSerializer.Serialize(groups.Select(g => g.Faces)));
+        // The mesh too, for tools/kit_sheet.py's contact sheets: positions, each face's corners and its corners' UVs.
+        var mesh = model.Mesh;
+        File.WriteAllText(stem + "_PreviewMesh.json", System.Text.Json.JsonSerializer.Serialize(new
+        {
+            positions = mesh.Positions.Select(p => new[] { p.X, p.Y, p.Z }),
+            faces = mesh.Faces.Select(f => f.Vertices),
+            uvs = mesh.Uvs.Select(u => u.Select(q => new[] { q.X, q.Y })),
+            normals = mesh.Normals.Select(n => n.Select(q => new[] { q.X, q.Y, q.Z })),
+        }));
     }
     Console.WriteLine($"{result.FbxPath}  ({model.Mesh.Positions.Length} verts, {model.Mesh.TriangleCount} tris, {model.Skeleton.Bones.Count} bones)");
 }

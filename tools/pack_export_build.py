@@ -51,21 +51,25 @@ def destination(asset):
     if package.startswith(ROOT + "/"):
         return None
     custom = re.match(r"(SK|MI|T)_LPCG_((Kit|Mil)_.+)$", name)
-    if "LPCG_Pack_" in name or (custom and (cls == "SkeletalMesh" or name.endswith("_Face"))):
+    if "LPCG_Pack_" in name or (custom and (cls == "SkeletalMesh" or name.endswith("_Face") or name.endswith("_Clothes"))):
         if custom and "LPCG_Pack_" not in name:
             # The custom characters (SK_LPCG_Kit_Rifleman, SK_LPCG_Mil_Turban_Thobe...): faction Custom.
-            faction, short = "Custom", re.sub(r"_Face$", "", custom.group(2))
+            faction, short = "Custom", re.sub(r"_(Face|Clothes)$", "", custom.group(2))
         else:
-            faction, short = character_name(re.sub(r"^(SK|MI|T)_|_Face$", "", name))
+            faction, short = character_name(re.sub(r"^(SK|MI|T)_|_(Face|Clothes)$", "", name))
         prefix = name.split("_", 1)[0]
         if cls == "SkeletalMesh":
             return "%s/Characters/%s" % (ROOT, faction), "SK_" + short
+        if name.endswith("_Clothes"):
+            return "%s/Characters/%s/Clothes" % (ROOT, faction), "%s_%s_Clothes" % (prefix, short)
         return "%s/Characters/%s/Faces" % (ROOT, faction), "%s_%s_Face" % (prefix, short)
     if cls in ("Skeleton", "PhysicsAsset"):
         return ROOT + "/Skeleton", {"Characters_Skeleton": "SKEL_Soldier", "Characters_PhysicsAsset": "PHYS_Soldier"}.get(name, name)
     m = re.match(r"/Game/Toon_Soldiers_\w+/Animations(/.*)?/[^/]+$", package)
     if cls == "AnimSequence" and m:
         return ROOT + "/Animations" + (m.group(1) or ""), name
+    if cls == "AnimSequence" and package.startswith("/Game/LowPolyCharGen/Animations/"):
+        return ROOT + "/Animations/Unarmed", name
     m = re.match(r"/Game/Toon_Soldiers_(Armies|Militia)/Meshes/Weapons(/.*)?/[^/]+$", package)
     if cls == "StaticMesh" and m:
         return "%s/Weapons/%s%s" % (ROOT, m.group(1), m.group(2) or ""), name
@@ -145,6 +149,10 @@ FACTIONS = {
     "Taliban": "Taliban: turbans, shalwar kameez, chest rigs",
     "UKArmy": "British Army today: MTP, Mk7/Virtus-style helmets, plate carriers",
     "UKSF": "UK Special Forces: mixed multicam and plain kit, FAST helmets, ball caps, shemaghs",
+    "IraqiArmy": "Iraqi Army 1991: olive drab and lizard camo, steel helmets, berets, AKs and PKMs; Republican Guard in red berets",
+    "Civilians": "air passengers: everyday, business, holiday and Middle Eastern dress; some injured (no weapons)",
+    "Airline": "airline pilots and cabin crew; one injured (no weapons)",
+    "Aircrew": "fighter pilots (some downed and injured), helicopter crew, search-and-rescue crew",
     "Custom": "the kit's custom characters (women, builds, faces, militia dress)",
 }
 lines = []
@@ -160,9 +168,10 @@ Everything it uses is inside it, so it works in any UE 5.8 project, with or with
 Characters (%d skeletal meshes, Nanite enabled, all on Skeleton/SKEL_Soldier), by faction:
 %s
   Characters/<Faction>/Faces   each character's own face texture and material
+  Characters/<Faction>/Clothes painted clothes, for the characters that have them
 
 Animations/  the Toon Soldiers animation set (Infantry, Handgun, Machinegun, RocketLauncher, Knife, Akimbo),
-             all on SKEL_Soldier, so any of them plays on any character
+             all on SKEL_Soldier, so any of them plays on any character; Unarmed/A_Unarmed_Idle for civilians
 Weapons/     Armies and Militia weapon meshes; attach to the skeleton socket WeaponSocket_R
 Materials/, Textures/  shared materials: M_LPCG_Kit (skin tint and cloth recolour from per-vertex data),
              the packs' parent materials and textures

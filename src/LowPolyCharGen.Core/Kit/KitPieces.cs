@@ -83,9 +83,10 @@ public static class KitPieces
     }
 
     /// <summary>A keffiyeh: a cloth over the head to the shoulders, open round the face, held by a black agal.</summary>
-    public static PackPart Keffiyeh(PackPart head)
+    public static PackPart Keffiyeh(PackPart head, bool agal = true)
     {
         var cloth = HairPieces.LongHair(head, 145f, "Keffiyeh", 0f, FacePainter.HairStripU, 1.2f, FacePainter.ClothV - 0.01f, 0.01f);
+        if (!agal) return cloth;
         // The agal: a band of black cord round the crown.
         const int columns = 14;
         float[] elevations = [33f, 26f];
@@ -197,4 +198,291 @@ public static class KitPieces
     private static PackPart Part(string name, List<Vector3> positions, List<Vector3> normals, List<Vector2> uvs, List<int[]> tris,
         Func<Vector3, (string, float)[]> weight) =>
         new() { Name = name, Positions = positions, Normals = normals, Uvs = uvs, Triangles = tris, Weights = positions.Select(weight).ToList() };
+
+    // ---- flight gear and bandages: flat colours from the swatches of the face texture ----------------------------
+
+    /// <summary>The name of every piece coloured from the swatches (see <see cref="FacePainter.Swatch"/>).</summary>
+    public const string GearPiece = "GearPiece";
+
+    public const int SwatchShell = 0, SwatchShellDark = 1, SwatchVisor = 2, SwatchHousing = 3, SwatchMask = 4, SwatchRubber = 5,
+        SwatchVest = 6, SwatchVestDark = 7, SwatchGSuit = 8, SwatchBandage = 9, SwatchReflective = 10;
+
+    private static readonly (string, float)[] OnHead = [("Bip001-Head", 1f)];
+
+    /// <summary>
+    /// A shell over a (rows + 1) x (columns + 1) grid of points: the kept cells, smooth shaded, and a wall down to the
+    /// inner surface along every open edge, so it has thickness. Wound by the builder from its normals.
+    /// </summary>
+    private static PackPart Shell(int rows, int columns, Func<int, int, Vector3> outer, Func<int, int, Vector3> inner, Func<int, int, bool> keep,
+        Func<int, int, Vector2> uv, Func<Vector3, (string, float)[]> weight, Vector3 center)
+    {
+        var positions = new List<Vector3>();
+        var normals = new List<Vector3>();
+        var uvs = new List<Vector2>();
+        var tris = new List<int[]>();
+        int At(int r, int c) => r * (columns + 1) + c;
+        for (var r = 0; r <= rows; r++)
+            for (var c = 0; c <= columns; c++)
+            {
+                var p = outer(r, c);
+                positions.Add(p);
+                var n = p - center;
+                normals.Add(n.LengthSquared() > 1e-6f ? Vector3.Normalize(n) : Vector3.UnitZ);
+                uvs.Add(uv(r, c));
+            }
+        void Wall(int r0, int c0, int r1, int c1, Vector3 cell)
+        {
+            Vector3 a = outer(r0, c0), b = outer(r1, c1), a2 = inner(r0, c0), b2 = inner(r1, c1);
+            var n = (a + b) / 2 - cell;
+            n = n.LengthSquared() > 1e-6f ? Vector3.Normalize(n) : Vector3.UnitZ;
+            var i = positions.Count;
+            positions.AddRange([a, b, a2, b2]);
+            normals.AddRange([n, n, n, n]);
+            uvs.AddRange([uv(r0, c0), uv(r1, c1), uv(r0, c0), uv(r1, c1)]);
+            tris.Add([i, i + 1, i + 2]);
+            tris.Add([i + 1, i + 3, i + 2]);
+        }
+        bool Kept(int r, int c) => r >= 0 && r < rows && keep(r, (c + columns) % columns);
+        for (var r = 0; r < rows; r++)
+            for (var c = 0; c < columns; c++)
+            {
+                if (!keep(r, c)) continue;
+                tris.Add([At(r, c), At(r, c + 1), At(r + 1, c)]);
+                tris.Add([At(r, c + 1), At(r + 1, c + 1), At(r + 1, c)]);
+                var cell = (outer(r, c) + outer(r, c + 1) + outer(r + 1, c) + outer(r + 1, c + 1)) / 4;
+                if (!Kept(r - 1, c)) Wall(r, c, r, c + 1, cell);
+                if (!Kept(r + 1, c)) Wall(r + 1, c, r + 1, c + 1, cell);
+                if (!Kept(r, c - 1)) Wall(r, c, r + 1, c, cell);
+                if (!Kept(r, c + 1)) Wall(r, c + 1, r + 1, c + 1, cell);
+            }
+        return Part(GearPiece, positions, normals, uvs, tris, weight);
+    }
+
+    /// <summary>A round tube through the points, with closed ends.</summary>
+    private static PackPart Tube(Vector3[] points, float[] radii, int swatch, Func<Vector3, (string, float)[]> weight, int sides = 8)
+    {
+        var positions = new List<Vector3>();
+        var normals = new List<Vector3>();
+        var uvs = new List<Vector2>();
+        var tris = new List<int[]>();
+        for (var i = 0; i < points.Length; i++)
+        {
+            var along = Vector3.Normalize(points[Math.Min(i + 1, points.Length - 1)] - points[Math.Max(i - 1, 0)]);
+            var side = Vector3.Normalize(Vector3.Cross(along, MathF.Abs(along.Z) > 0.9f ? Vector3.UnitX : Vector3.UnitZ));
+            var up = Vector3.Cross(side, along);
+            for (var s = 0; s < sides; s++)
+            {
+                var a = MathF.Tau * s / sides;
+                var n = side * MathF.Cos(a) + up * MathF.Sin(a);
+                positions.Add(points[i] + n * radii[i]);
+                normals.Add(n);
+                uvs.Add(FacePainter.Swatch(swatch, 0.35f + 0.5f * MathF.Max(0, n.Z)));
+            }
+        }
+        for (var i = 0; i + 1 < points.Length; i++)
+            for (var s = 0; s < sides; s++)
+            {
+                int a = i * sides + s, b = i * sides + (s + 1) % sides, c = a + sides, d = b + sides;
+                tris.Add([a, b, c]);
+                tris.Add([b, d, c]);
+            }
+        foreach (var (ring, dir) in new[] { (0, points[0] - points[1]), (points.Length - 1, points[^1] - points[^2]) })
+        {
+            var cap = positions.Count;
+            positions.Add(points[ring] + Vector3.Normalize(dir) * radii[ring] * 0.5f);
+            normals.Add(Vector3.Normalize(dir));
+            uvs.Add(FacePainter.Swatch(swatch, 0.6f));
+            for (var s = 0; s < sides; s++) tris.Add([cap, ring * sides + s, ring * sides + (s + 1) % sides]);
+        }
+        return Part(GearPiece, positions, normals, uvs, tris, weight);
+    }
+
+    /// <summary>A point on the ellipsoid of a helmet, round <see cref="Origin"/>; a smooth shape, unlike the head's planes.</summary>
+    private static Vector3 Dome(float theta, float phi, float sides, float front, float back, float top, float scale = 1f)
+    {
+        float cosPhi = MathF.Cos(phi), sinPhi = MathF.Sin(phi), cosTheta = MathF.Cos(theta);
+        return Origin + new Vector3(MathF.Sin(theta) * cosPhi * sides, -cosTheta * cosPhi * (cosTheta > 0 ? front : back), sinPhi * (phi > 0 ? top : top * 0.9f)) * scale;
+    }
+
+    /// <summary>A flight helmet's parts: the shell, the visor and its housing, then the mask or the mic.</summary>
+    public static IEnumerable<PackPart> FlightHelmet(CharacterSpec spec)
+    {
+        var jet = spec.FlightHelmet == LowPolyCharGen.FlightHelmet.Jet;
+        const int columns = 24;
+        // Sizes (cm) from the origin inside the head, whose sides are 11.5 and top 14.3 away.
+        float sides = jet ? 14.2f : 15f, front = jet ? 15.4f : 16.4f, back = jet ? 14f : 15.2f, top = jet ? 17.3f : 18.2f;
+        float[] elevations = [90, 72, 54, 38, 24, 8, -8, -24, -40];
+        var open = Rad(jet ? 64 : 68);
+        var rim = jet ? 26f : 22f;
+        // The front of the shell is cut away round the face, lower at the sides and back.
+        bool Keep(int r, int c)
+        {
+            var mid = (c + 0.5f) / columns * MathF.Tau;
+            var fromFront = MathF.Abs(MathF.Atan2(MathF.Sin(mid), MathF.Cos(mid)));
+            var e = (elevations[r] + elevations[r + 1]) / 2;
+            if (fromFront < open && e < rim) return false;
+            return e > -28f || fromFront > Rad(115);   // only the neck guard goes all the way down
+        }
+        yield return Shell(elevations.Length - 1, columns,
+            (r, c) => Dome(MathF.Tau * c / columns, Rad(elevations[r]), sides, front, back, top),
+            (r, c) => Dome(MathF.Tau * c / columns, Rad(elevations[r]), sides, front, back, top, 0.9f),
+            Keep, (r, c) => FacePainter.Swatch(SwatchShell, 0.3f + 0.7f * (elevations[r] + 40f) / 130f), _ => OnHead, Origin);
+
+        // The visor: down over the eyes, clear of the nose; or raised up the front of the helmet.
+        const int visorColumns = 14;
+        var span = Rad(70);
+        float Theta(int c) => -span + 2 * span * c / visorColumns;
+        if (spec.Visor)
+        {
+            // A curved lens: deepest in the middle, tapering to the pivots at the temples, its top edge under the housing.
+            float[] heights = [1f, 0.55f, 0f, -0.5f, -1f];
+            const float mid = 168.5f, halfHeight = 8f;
+            Vector3 Lens(int r, int c, float grow)
+            {
+                var along = Theta(c) / span;
+                var z = mid + heights[r] * halfHeight * (1 - 0.55f * along * along) + 1.6f * along * along;
+                return new Vector3(MathF.Sin(Theta(c)) * (sides + 0.8f + grow), Origin.Y - MathF.Cos(Theta(c)) * (21.2f + grow - MathF.Abs(heights[r] - 0.1f) * 1.2f), z);
+            }
+            yield return Shell(heights.Length - 1, visorColumns, (r, c) => Lens(r, c, 0), (r, c) => Lens(r, c, -0.6f), (_, _) => true,
+                (r, c) => FacePainter.Swatch(SwatchVisor, (r is 1 ? 0.75f : 0.25f) + 0.25f * MathF.Abs(c - visorColumns / 2f) / visorColumns), _ => OnHead, Origin);
+        }
+        else
+        {
+            float[] angles = [34, 44, 54, 64];
+            yield return Shell(angles.Length - 1, visorColumns,
+                (r, c) => Dome(Theta(c), Rad(angles[r]), sides, front, back, top, 1.08f),
+                (r, c) => Dome(Theta(c), Rad(angles[r]), sides, front, back, top, 1.0f),
+                (_, _) => true, (r, _) => FacePainter.Swatch(SwatchHousing, 0.3f + 0.25f * r), _ => OnHead, Origin);
+        }
+        // The visor's housing: a band across the brow, its ends at the temples.
+        float[] band = [24, 33];
+        yield return Shell(1, visorColumns,
+            (r, c) => Dome(Theta(c) * 1.08f, Rad(band[r]), sides, front, back, top, 1.07f),
+            (r, c) => Dome(Theta(c) * 1.08f, Rad(band[r]), sides, front, back, top, 0.98f),
+            (_, _) => true, (r, _) => FacePainter.Swatch(SwatchHousing, 0.4f + 0.4f * r), _ => OnHead, Origin);
+
+        if (!jet)
+        {
+            // Ear cups, a boom mic to the mouth on the left, and a night-vision mount above the brow.
+            foreach (var sign in new[] { -1f, 1f })
+                yield return Tube([new(sign * 13.5f, -2f, 160f), new(sign * 16.2f, -2f, 160f), new(sign * 17f, -2f, 160f)], [5.6f, 5.2f, 3.8f], SwatchShellDark, _ => OnHead, 10);
+            yield return Tube([new(14f, -7f, 156f), new(10.5f, -15f, 153.5f), new(5f, -21f, 154.6f), new(2.2f, -21.8f, 155.4f)], [0.5f, 0.45f, 0.4f, 0.4f], SwatchRubber, _ => OnHead, 6);
+            yield return Tube([new(2.8f, -21.8f, 155.3f), new(1.2f, -22f, 155.6f)], [1.25f, 1.25f], SwatchRubber, _ => OnHead, 7);
+            yield return Tube([new(0, -14.5f, 180f), new(0, -18f, 177.8f)], [2.2f, 1.7f], SwatchRubber, _ => OnHead, 7);
+        }
+        if (jet && spec.OxygenMask)
+        {
+            // Rings from the seal on the cheeks to the valve, then the hose down to the chest and the straps to the helmet.
+            (float Y, float Z, float W, float H)[] rings = [(-13f, 155.5f, 8f, 8.6f), (-19f, 155f, 7f, 7.2f), (-23f, 154f, 4.4f, 4.6f), (-25f, 153.5f, 2.7f, 2.8f)];
+            const int around = 14;
+            Vector3 Ring(int r, int c, float grow)
+            {
+                var a = MathF.Tau * c / around;
+                var (y, z, w, h) = rings[r];
+                return new Vector3(MathF.Sin(a) * (w + grow), y, z + MathF.Cos(a) * (h + grow));
+            }
+            yield return Shell(rings.Length - 1, around, (r, c) => Ring(r, c, 0), (r, c) => Ring(r, c, -0.5f), (_, _) => true,
+                (r, c) => FacePainter.Swatch(SwatchMask, 0.3f + 0.15f * r + 0.2f * MathF.Max(0, MathF.Cos(MathF.Tau * c / around))), _ => OnHead, new Vector3(0, -16, 155));
+            yield return Tube([new(0, -25f, 152f), new(0, -25.6f, 153.5f), new(0, -25.6f, 155f)], [2.6f, 2.5f, 1.8f], SwatchRubber, _ => OnHead, 8);
+            yield return Tube([new(1f, -25f, 150f), new(3.5f, -23f, 143f), new(6.5f, -20.5f, 133f), new(8f, -18.5f, 122f)], [1.25f, 1.2f, 1.2f, 1.2f], SwatchRubber,
+                p => p.Z > 141f ? OnHead : [("Bip001-Spine", 1f)], 7);
+            foreach (var sign in new[] { -1f, 1f })
+                yield return Tube([new(sign * 7f, -15f, 159f), new(sign * 13.6f, -6f, 163f)], [0.5f, 0.5f], SwatchRubber, _ => OnHead, 5);
+        }
+    }
+
+    /// <summary>A bandage round the head: two turns above the brow, fitted to the skull.</summary>
+    public static PackPart HeadBandage(PackPart head)
+    {
+        const int columns = 18;
+        float[] angles = [39, 31, 23, 16];
+        var hits = new float[angles.Length, columns + 1];
+        for (var r = 0; r < angles.Length; r++)
+            for (var c = 0; c <= columns; c++)
+                hits[r, c] = Hit(head, Origin, Dir(MathF.Tau * c / columns, Rad(angles[r])));
+        return Shell(angles.Length - 1, columns,
+            (r, c) => Origin + Dir(MathF.Tau * c / columns, Rad(angles[r])) * (hits[r, c] + 0.7f),
+            (r, c) => Origin + Dir(MathF.Tau * c / columns, Rad(angles[r])) * hits[r, c],
+            (_, _) => true, (r, _) => FacePainter.Swatch(SwatchBandage, r == 1 ? 0.55f : 0.9f), _ => OnHead, Origin);
+    }
+
+    /// <summary>The weights of the part's nearest vertex: a piece over a part moves with it.</summary>
+    private static Func<Vector3, (string, float)[]> Follow(PackPart part, float side = 0) =>
+        p =>
+        {
+            var best = 0; var distance = float.MaxValue;
+            for (var v = 0; v < part.Positions.Count; v++)
+            {
+                if (part.Positions[v].X * side < 0) continue;   // a chap's inside edge must not follow the other leg
+                var d = Vector3.DistanceSquared(part.Positions[v], p);
+                if (d < distance) { distance = d; best = v; }
+            }
+            return part.Weights[best];
+        };
+
+    /// <summary>A vest over the torso: rays from the spine find the body, cut away round the arms, straps over the shoulders.</summary>
+    public static PackPart LifeVest(PackPart body)
+    {
+        const int columns = 20;
+        float[] heights = [103, 108, 114, 120, 127, 133, 139, 145, 149.5f];
+        var center = new Vector3(0, 1.2f, 0);
+        var hits = new float[heights.Length, columns + 1];
+        for (var r = 0; r < heights.Length; r++)
+            for (var c = 0; c <= columns; c++)
+            {
+                var theta = MathF.Tau * c / columns;
+                var dir = new Vector3(MathF.Sin(theta), -MathF.Cos(theta), 0);
+                // The farthest hit could be on an arm: never wider than the chest.
+                var limit = 1f / MathF.Sqrt(dir.X * dir.X / (23f * 23f) + dir.Y * dir.Y / (18.5f * 18.5f));
+                var hit = Hit(body, center + Vector3.UnitZ * heights[r], dir);
+                hits[r, c] = hit > 0 ? MathF.Min(hit, limit) : limit;
+            }
+        Vector3 Point(int r, int c, float grow)
+        {
+            var theta = MathF.Tau * c / columns;
+            var dir = new Vector3(MathF.Sin(theta), -MathF.Cos(theta), 0);
+            var bulge = r is >= 1 and <= 3 ? 0.9f : 0.2f;
+            return center + Vector3.UnitZ * heights[r] + dir * (hits[r, c] + grow + bulge);
+        }
+        bool Keep(int r, int c)
+        {
+            var angle = (c + 0.5f) / columns * MathF.Tau;
+            var x = MathF.Abs(MathF.Sin(angle)) * 22f;
+            var frontGap = MathF.Cos(angle) > 0.97f;   // it closes down the front, over the suit's zip
+            // Full rings to the armpits, then the straps over the shoulders.
+            return r < 4 ? !frontGap : x is > 7f and < 15f;
+        }
+        return Shell(heights.Length - 1, columns, (r, c) => Point(r, c, 1.2f), (r, c) => Point(r, c, 0.2f), Keep,
+            (r, c) => FacePainter.Swatch(r <= 3 ? SwatchVest : SwatchVestDark, r is 2 ? 0.85f : 0.5f), Follow(body), center + Vector3.UnitZ * 122f);
+    }
+
+    /// <summary>G-suit chaps: a band round the waist, the thighs and the shins, leaving the knees and the backs of the legs free.</summary>
+    public static IEnumerable<PackPart> GSuit(PackPart legs)
+    {
+        const int columns = 12;
+        foreach (var sign in new[] { -1f, 1f })
+            foreach (var (heights, _) in new[] { (new float[] { 97, 88, 78, 68, 60 }, 0), (new float[] { 48, 42, 35, 27 }, 1) })
+            {
+                var centers = new Vector3[heights.Length];
+                var size = new Vector2[heights.Length];
+                for (var r = 0; r < heights.Length; r++)
+                {
+                    var near = legs.Positions.Where(p => MathF.Abs(p.Z - heights[r]) < 6f && p.X * sign > 1f).ToList();
+                    if (near.Count == 0) near = legs.Positions.Where(p => p.X * sign > 1f).ToList();
+                    float x0 = near.Min(p => p.X), x1 = near.Max(p => p.X), y0 = near.Min(p => p.Y), y1 = near.Max(p => p.Y);
+                    // The pack's cargo pockets and holsters stick out: never wider than a leg.
+                    centers[r] = new Vector3(sign * 13.5f, (y0 + y1) / 2, heights[r]);
+                    size[r] = new Vector2(MathF.Min((x1 - x0) / 2, 11.5f), MathF.Min((y1 - y0) / 2, 13.5f));
+                }
+                Vector3 Point(int r, int c, float grow)
+                {
+                    var a = MathF.Tau * c / columns;
+                    return centers[r] + new Vector3(MathF.Sin(a) * (size[r].X + grow), -MathF.Cos(a) * (size[r].Y + grow), 0);
+                }
+                var zip = columns / 2;
+                yield return Shell(heights.Length - 1, columns, (r, c) => Point(r, c, 1.3f), (r, c) => Point(r, c, 0.1f),
+                    (_, c) => c != zip && c != zip - 1,
+                    (_, _) => FacePainter.Swatch(SwatchGSuit, 0.55f), Follow(legs, sign), centers[heights.Length / 2]);
+            }
+    }
 }

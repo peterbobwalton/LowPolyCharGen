@@ -58,7 +58,17 @@ never changed, so every pack animation still works.
 - **KitHands:** `GloveStyle` Bare/Tan/Dark.
 - **Low footwear:** Shoes and Trainers.
 - **RecolourClothes:** recolours the clothes.
-- **Material slots:** 0 = Armies texture (kit MI), 1 = face, 2 = Militia texture.
+- **GarmentPainter (`Outfit`, `Injury`, `Grime`, `Insignia`, `Legs=Skirt/Shorts`):** a per-character 1024 clothes
+  texture (slot 5, `_Clothes`). Body and trouser triangles get unique box-projected charts, painted by 3D position over
+  the pack's cloth shading, so left and right can differ. Outfits: `TShirt`, `StripedTee`, `Polo`, `Shirt`,
+  `RolledShirt`, `CheckShirt`, `FloralShirt`, `Blouse`, `Suit`, `SuitOpenNeck`, `CabinBlazer`, `CabinWaistcoat`,
+  `PilotShirt`, `FlightSuit`, `RescueSuit`. Colours: `ShirtColor`, `TrousersColor`, `AccentColor` (tie, scarf, pattern),
+  `GearColor` (the shirt under a jacket; the vest). Best on the plain `TSA_Body_G`, with `TSA_Legs_A` or `MIL_Mesh_Legs_B/D`.
+- **Injury and dirt work on any Armies or Militia body:** `Grime` 0–1 (dust, soot, mud), `Injury` flags `Blood`, `Torn`,
+  `HeadBandage`, `ArmBandage`, `LegBandage`. A UE5 pack body (legs and boots in one piece) stays unpainted.
+- **Flight gear (`KitPieces`, flat colours from `FacePainter.Swatch`):** `FlightHelmet` Jet or Helo in `HatColor`, `Visor`
+  true/false, `OxygenMask`; `FlightGear` flags `Harness` (painted), `GSuit`, `LifeVest`. Also `Hijab`, `Glasses`, `Age`.
+- **Material slots:** 0 = Armies texture (kit MI), 1 = face, 2 = Militia texture, 3 = UE5, 4 = equipment, 5 = clothes.
 - **Per-vertex data in UV1–3**, because Nanite skinned meshes drop vertex colours and GPU skinning allows at most
   4 UV sets: skin tint and cloth recolour. `M_LPCG_Kit` decodes it with custom HLSL (pow 2.2 on the sRGB ratio).
   `KitPreview` reproduces this on the CPU for the WPF app and the CLI's `--preview`.
@@ -82,6 +92,40 @@ suffix, materials from `M_LPCG_Kit`.
 | `LowPolySoldiers_Pack_UE5.8.zip` (88 MB) | 23 Oct, the first pack (44 rebuilt prebuilts); kept for reference |
 | `LowPolySoldiers_Pack_2026-10-24_legsfix\` (folder) | **Latest, unzipped:** the same build as the legsfix zip (902 files, 227 MB) |
 | `LowPolySoldiers_Pack\` (folder) | The 13:33 build from before the fix (can't be overwritten); use the legsfix folder or zip |
+
+## Done on the AMD9800X3D, 3 November 2026 (crash-rescue game: civilians, aircrew, Iraqi Army)
+
+Pete's game has a crashed aircraft to rescue people from. Four new factions in `tools/pack_factions.txt`, 47 characters:
+
+- **Civilians (17):** passengers in business, everyday, holiday and Middle Eastern dress, with elderly and young adults.
+  Four are injured versions (`Civilians_Injured_*`). Unarmed.
+- **Airline (6):** captain, first officer, cabin crew in blazer and waistcoat, one injured. Unarmed. The peaked cap is
+  the UE5 pack's general's cap (`TS_Head_09_general`, `UE5Texture=T_Soldiers_Blue`).
+- **Aircrew (13):** fighter pilots (mask, visor up, female, cap), two downed and injured, helicopter pilot, co-pilot,
+  door gunner and crew chief, then the rescuers: search-and-rescue winchman, rescue swimmer, paramedic.
+- **IraqiArmy (11):** 1991, olive drab (`T_military_green`) and a lizard-like pattern (`T_gulfwar_B`, the nearest
+  pack camo), steel helmets, berets, caps, officers with pistols. Three Republican Guard with `Insignia=RedTriangle`.
+  Only the officer has a true red beret, because it's the UE5 pack's beret with sunglasses built in. The guard
+  rifleman wears the Militia pack's black beret instead, and that head has a built-in beard. There's no RPK in the
+  packs, so the RPK gunner carries `SM_ak12_drum_mag`.
+
+Also:
+
+- **`A_Unarmed_Idle`** (`tools/make_unarmed_idle.py`, `/Game/LowPolyCharGen/Animations`, in the pack as
+  `Animations/Unarmed`): the packs have no unarmed idle. It's built from the bind pose: straight stance, arms down,
+  breathing. An empty weapon field in `pack_factions.txt` means unarmed with this idle. Pilots with pistols use the
+  pack's handgun idle, so the downed pilots stand aiming, not hurt: there are no wounded animations yet.
+- **Shoe tops closed** (`KitBuilder.WithShoeTops`): the floor showed through low shoes, because the folded boot's top
+  was open and single sided. A thobe's hem now comes down to low shoes (`bottomZ`), which closed a gap at the ankle.
+  Both change existing characters, so the Taliban and the custom characters were re-imported.
+- **`tools/kit_sheet.py`:** contact sheets from the CLI, no editor needed: `py tools/kit_sheet.py out.png "Civilians_*" [--close]`.
+  It reads a mesh dump that the CLI's `--preview` now writes.
+- **Not done:** a sling (a separate piece wouldn't follow the arm in animation; the bandages are painted), wounded
+  animations, and these options in the WPF app (they work from the CLI and the lists). Modern (post-2003) Iraqi Army
+  isn't built, but would be easy: Iraqi Army settings with `T_digital_desert` and `TSA_Head_C*` helmets.
+
+Importing only some characters: `import_unreal.py` takes a whole folder, so copy the ones you want into a new one
+(`out/kit_new` was used here).
 
 ## Done on the AMD9800X3D (24 October 2026, newest first)
 

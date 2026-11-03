@@ -19,6 +19,7 @@ ROOTS = [
     # Every kit character: the packs' rebuilt prebuilts and factions (Kit/Pack) and the custom ones (Kit).
     ("/Game/LowPolyCharGen/Kit", "SkeletalMesh"),
     ("/Game/Toon_Soldiers_Armies/Animations", "AnimSequence"),
+    ("/Game/LowPolyCharGen/Animations", "AnimSequence"),   # the unarmed idle (make_unarmed_idle.py)
     ("/Game/Toon_Soldiers_Armies/Meshes/Weapons", "StaticMesh"),
     ("/Game/Toon_Soldiers_Militia/Meshes/Weapons", "StaticMesh"),
 ]

@@ -34,7 +34,9 @@ public static class KitBuilder
         else if (spec.FaceCover == FaceCover.Shemagh)
             headName = FacePainter.ToVec(spec.AccentColor).Length() < 0.45f ? "MIL_Mesh_head_K" : "MIL_Mesh_head_J";
         var headPart = PackLibrary.Part(headName);
-        var headdress = spec.FaceCover == FaceCover.None && spec.Hat is HatStyle.Turban or HatStyle.Keffiyeh;
+        var headscarf = spec.Hijab && spec.FaceCover == FaceCover.None;
+        var flightHelmet = spec.FlightHelmet != FlightHelmet.None && spec.FaceCover == FaceCover.None;
+        var headdress = headscarf || flightHelmet || (spec.FaceCover == FaceCover.None && spec.Hat is HatStyle.Turban or HatStyle.Keffiyeh);
         if (headdress && !HairPieces.IsBare(headPart))
             headPart = PackLibrary.Part(IsMilitia(headPart) ? "MIL_Mesh_Head_A" : IsUE5(headPart) ? "TS_Head_00_unequipped" : "TSA_Head_A1");
 
@@ -53,16 +55,30 @@ public static class KitBuilder
         names.AddRange(spec.PackEquipment.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(PackLibrary.Exists));
         var parts = names.Where(n => n.Length > 0).Select(PackLibrary.Part).ToList();
         parts.Add(headPart);
+        var lowShoes = spec.Footwear is Footwear.Trainers or Footwear.Shoes;
+        if (!bodyHasLegs && lowShoes && parts[0].Name == spec.PackLegs) parts[0] = WithShoeTops(parts[0]);
         var legsPart = parts[0];
         var thobe = spec.Legs == LegsStyle.Thobe && face is not null;
+        var skirt = spec.Legs == LegsStyle.Skirt && face is not null;
+        var bareBelow = BareBelow(spec);
         var lowFootwear = spec.Footwear is Footwear.Trainers or Footwear.Shoes;
         if (face is not null)
         {
-            if (headdress && spec.Hat == HatStyle.Turban) parts.Add(KitPieces.Turban(headPart));
+            if (flightHelmet) parts.AddRange(KitPieces.FlightHelmet(spec));
+            else if (headscarf) parts.Add(KitPieces.Keffiyeh(headPart, agal: false));
+            else if (headdress && spec.Hat == HatStyle.Turban) parts.Add(KitPieces.Turban(headPart));
             else if (headdress && spec.Hat == HatStyle.Keffiyeh) parts.Add(KitPieces.Keffiyeh(headPart));
             else if (HairPieces.For(spec, headPart) is { } hair) parts.Add(hair);
-            if (thobe) parts.Add(KitPieces.ThobeSkirt(legsPart));
+            // Low shoes sit under the boots' height: the hem comes down to them.
+            if (thobe) parts.Add(KitPieces.ThobeSkirt(legsPart, bottomZ: lowFootwear ? 11f : 16f));
+            if (skirt) parts.Add(KitPieces.ThobeSkirt(legsPart, 100f, SkirtHem));
+            if (!headdress && spec.Injury.HasFlag(Injury.HeadBandage) && HairPieces.IsBare(headPart)) parts.Add(KitPieces.HeadBandage(headPart));
+            var bodyForGear = parts.FirstOrDefault(p => p.Name == spec.PackBody);
+            if (spec.FlightGear.HasFlag(FlightGear.LifeVest) && bodyForGear is not null) parts.Add(KitPieces.LifeVest(bodyForGear));
+            if (spec.FlightGear.HasFlag(FlightGear.GSuit)) parts.AddRange(KitPieces.GSuit(legsPart));
         }
+        var paintClothes = GarmentPainter.Applies(spec);
+        var (legLeft, legRight) = bareBelow > 0 ? LegCenters(legsPart) : (Vector3.Zero, Vector3.Zero);
         // The body: the PackBody part (some UE5 bodies have no clavicle weights), else the first with arms.
         var bodyIndex = parts.FindIndex(p => p.Name == spec.PackBody && !ReferenceEquals(p, headPart));
         if (bodyIndex < 0) bodyIndex = parts.FindIndex(p => p.Uses("Clavicle") && !ReferenceEquals(p, headPart));
@@ -79,6 +95,7 @@ public static class KitBuilder
         var triangleMaterial = new List<byte>();
         var triangleGroup = new List<int>();   // clothes to recolour: 0 none, 1 body, 2 trousers, 3 boots
         var triangleTexture = new List<TextureImage>();
+        var clothes = new List<GarmentPainter.Tri>();
         foreach (var source0 in parts)
         {
             var part = source0;
@@ -102,6 +119,13 @@ public static class KitBuilder
                 source.Add(part.Positions[v]);
                 var p = reshapeHead ? HeadMorph.Apply(part.Positions[v], spec) : part.Positions[v];
                 if (bootOf is not null && (bootOf[v] || stretchHem)) p = LowFootwear(p, bootOf[v]);
+                // Bare legs are thinner than the trousers they were modelled as.
+                if (isLegsPart && bareBelow > 0 && part.Positions[v].Z < bareBelow + 2f && !(bootOf ?? BootVertices(part))[v])
+                {
+                    var leg = p.X < 0 ? legRight : legLeft;
+                    var f = float.Lerp(1f, 0.74f, Math.Clamp((bareBelow + 2f - part.Positions[v].Z) / 5f, 0f, 1f));
+                    p = new Vector3(leg.X + (p.X - leg.X) * f, leg.Y + (p.Y - leg.Y) * f, p.Z);
+                }
                 positions.Add(morph.Apply(p));
                 normals.Add(part.Normals[v]);
                 uvs.Add(part.Uvs[v]);
@@ -129,14 +153,26 @@ public static class KitBuilder
                 }
                 // Under a thobe only the boots and the shins above them show (of a body with legs, only its legs go).
                 if (thobe && isLegs && t.All(i => part.Positions[i].Z > 20f) && (!isBody || t.All(i => OnLeg(part, i)))) continue;
+                if (skirt && isLegs && t.All(i => part.Positions[i].Z > SkirtHem + 6f) && (!isBody || t.All(i => OnLeg(part, i)))) continue;
                 triangles.Add([t[0] + offset, t[1] + offset, t[2] + offset]);
                 // Hands (bare or gloved) keep their colours when the shirt is recoloured.
-                triangleGroup.Add(boot is not null && boot[t[0]] ? 3
+                var triangleKind = boot is not null && boot[t[0]] ? 3
                     : isBody && t.All(i => OnHand(part, i)) ? 0
                     : isBody && !(isLegs && t.All(i => OnLeg(part, i))) ? 1
-                    : boot is null ? 0 : 2);
+                    : boot is null ? 0 : 2;
                 triangleTexture.Add(TextureOf(source0));
                 Vector2[] uv = [part.Uvs[t[0]], part.Uvs[t[1]], part.Uvs[t[2]]];
+                // Painted clothes: this triangle's UVs are filled in below, from its chart. (A UE5 pack body comes
+                // with its legs and boots in one piece, so it counts as boots here and stays unpainted.)
+                if (paintClothes && triangleKind is 1 or 2)
+                {
+                    clothes.Add(new GarmentPainter.Tri(triangles.Count - 1, triangleKind, [part.Positions[t[0]], part.Positions[t[1]], part.Positions[t[2]]], uv, TextureOf(source0)));
+                    triangleGroup.Add(0);
+                    triangleUvs.Add(uv);
+                    triangleMaterial.Add(5);
+                    continue;
+                }
+                triangleGroup.Add(triangleKind);
                 byte material = militia ? (byte)2 : IsUE5Equipment(source0) ? (byte)4 : IsUE5(source0) ? (byte)3 : (byte)0;
                 if (face is not null && (isHair || (isHead && uv.All(FacePainter.IsFaceUv))))
                 {
@@ -146,6 +182,22 @@ public static class KitBuilder
                 triangleUvs.Add(uv);
                 triangleMaterial.Add(material);
             }
+        }
+
+        var trainers = spec.Footwear == Footwear.Trainers;
+        var recolour = spec.RecolourClothes ? ClothesParts.All : spec.Recolour;
+        Rgb? GroupColor(int group) => group switch
+        {
+            1 when thobe || spec.Outfit != Outfit.None || recolour.HasFlag(ClothesParts.Top) => spec.ShirtColor,
+            2 when spec.Outfit != Outfit.None || recolour.HasFlag(ClothesParts.Trousers) => spec.TrousersColor,
+            3 when trainers || recolour.HasFlag(ClothesParts.Boots) => spec.BootsColor,
+            _ => null,
+        };
+        GarmentPainter? painter = null;
+        if (clothes.Count > 0)
+        {
+            painter = new GarmentPainter(spec, clothes, GroupColor);
+            foreach (var t in clothes) triangleUvs[t.Face] = painter.Uvs(t.Face);
         }
 
         var shaded = morph.IsIdentity && !reshapeHead ? normals.ToArray() : Renormal(source, positions, normals, triangles);
@@ -171,17 +223,8 @@ public static class KitBuilder
         var colors2 = new Vector4[positions.Count];
         Array.Fill(colors, new Vector4(0.5f, 0.5f, 0.5f, 0));
         for (var f = 0; f < triangles.Count; f++)
-            if (triangleMaterial[f] != 1 && ShowsSkin(triangleTexture[f], triangleUvs[f]))
+            if (triangleMaterial[f] is not (1 or 5) && ShowsSkin(triangleTexture[f], triangleUvs[f]))
                 foreach (var v in triangles[f]) colors[v] = new Vector4(tint, colors[v].W);
-        var trainers = spec.Footwear == Footwear.Trainers;
-        var recolour = spec.RecolourClothes ? ClothesParts.All : spec.Recolour;
-        Rgb? GroupColor(int group) => group switch
-        {
-            1 when thobe || recolour.HasFlag(ClothesParts.Top) => spec.ShirtColor,
-            2 when recolour.HasFlag(ClothesParts.Trousers) => spec.TrousersColor,
-            3 when trainers || recolour.HasFlag(ClothesParts.Boots) => spec.BootsColor,
-            _ => null,
-        };
         for (var group = 1; group <= 3; group++)
         {
             if (GroupColor(group) is not { } color) continue;
@@ -223,7 +266,31 @@ public static class KitBuilder
             SecondTexture = militiaTexture,
             ThirdTexture = ue5Texture,
             EquipmentTexture = equipmentTexture,
+            ClothesTexture = painter?.Texture,
         };
+    }
+
+    /// <summary>Height of a skirt's hem (cm): just above the knee.</summary>
+    private const float SkirtHem = 56f;
+
+    /// <summary>The height below which the legs are bare (under a skirt or below shorts), or -1.</summary>
+    internal static float BareBelow(CharacterSpec spec) => spec.Legs switch
+    {
+        LegsStyle.Skirt => SkirtHem + 3f,
+        LegsStyle.Shorts => 60f,
+        _ => -1f,
+    };
+
+    /// <summary>The middle of each lower leg (left, right), from the part's shins.</summary>
+    private static (Vector3 Left, Vector3 Right) LegCenters(PackPart legs)
+    {
+        var shins = legs.Positions.Where(p => p.Z is > 24f and < 50f).ToList();
+        Vector3 Mean(IEnumerable<Vector3> points)
+        {
+            var list = points.ToList();
+            return list.Count == 0 ? Vector3.Zero : list.Aggregate(Vector3.Zero, (a, b) => a + b) / list.Count;
+        }
+        return (Mean(shins.Where(p => p.X >= 0)), Mean(shins.Where(p => p.X < 0)));
     }
 
     /// <summary>
@@ -239,6 +306,34 @@ public static class KitBuilder
         // Trousers between the old hem and `reach` stretch down so the hem sits on the collar.
         var t = Math.Clamp((p.Z - hem) / (reach - hem), 0f, 1f);
         return p with { Z = float.Lerp(collar + 1f, reach, t) };
+    }
+
+    /// <summary>
+    /// The legs with each boot's open top closed, in the boot's own colours and joined to it: folded down into a low
+    /// shoe, the opening shows above the hem, and being single sided it would show the floor through the shoe.
+    /// </summary>
+    private static PackPart WithShoeTops(PackPart legs)
+    {
+        var result = legs.Clone();
+        var boot = BootVertices(legs);
+        foreach (var sign in new[] { -1f, 1f })
+        {
+            var top = Enumerable.Range(0, legs.Positions.Count).Where(v => boot[v] && legs.Positions[v].X * sign > 0).Select(v => legs.Positions[v].Z).DefaultIfEmpty(0).Max();
+            // The pack's vertices are split at UV seams: one rim point per position.
+            var rim = Enumerable.Range(0, legs.Positions.Count).Where(v => boot[v] && legs.Positions[v].X * sign > 0 && legs.Positions[v].Z > top - 2.5f)
+                .DistinctBy(v => (MathF.Round(legs.Positions[v].X * 10), MathF.Round(legs.Positions[v].Y * 10), MathF.Round(legs.Positions[v].Z * 10))).ToList();
+            if (rim.Count < 3) continue;
+            var center = rim.Aggregate(Vector3.Zero, (a, v) => a + legs.Positions[v]) / rim.Count;
+            rim = rim.OrderBy(v => MathF.Atan2(legs.Positions[v].Y - center.Y, legs.Positions[v].X - center.X)).ToList();
+            var hub = result.Positions.Count;
+            result.Positions.Add(center);
+            result.Normals.Add(Vector3.UnitZ);
+            result.Uvs.Add(legs.Uvs[rim[0]]);
+            result.Weights.Add(legs.Weights[rim[0]]);
+            for (var i = 0; i < rim.Count; i++)
+                result.Triangles.Add([hub, rim[i], rim[(i + 1) % rim.Count]]);   // counter-clockwise seen from above
+        }
+        return result;
     }
 
     /// <summary>The boots of a legs part: the pieces (joined by shared vertices) that reach the ground.</summary>
@@ -272,7 +367,7 @@ public static class KitBuilder
     private static float Lin(float c) => MathF.Pow(c, 2.2f);
 
     /// <summary>Linear luminance of the non-skin texels sampled over a triangle.</summary>
-    private static IEnumerable<float> ClothLuminance(TextureImage texture, Vector2[] uv)
+    internal static IEnumerable<float> ClothLuminance(TextureImage texture, Vector2[] uv)
     {
         const int n = 4;
         for (var i = 0; i <= n; i++)

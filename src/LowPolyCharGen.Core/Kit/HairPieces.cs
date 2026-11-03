@@ -8,7 +8,7 @@ namespace LowPolyCharGen.Kit;
 /// </summary>
 public static class HairPieces
 {
-    public static bool IsHair(PackPart part) => part.Name is "Ponytail" or "Bun" or "LongHair" or "Turban" or "Keffiyeh" or "Thobe";
+    public static bool IsHair(PackPart part) => part.Name is "Ponytail" or "Bun" or "LongHair" or "Turban" or "Keffiyeh" or "Thobe" or KitPieces.GearPiece;
 
     /// <summary>True if the head has no headgear: nothing above the skull or wider than the ears.</summary>
     public static bool IsBare(PackPart head) => !head.Positions.Any(p => p.Z > 181.5f || MathF.Abs(p.X) > 12.5f);

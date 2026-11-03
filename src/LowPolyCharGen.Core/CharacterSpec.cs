@@ -49,6 +49,19 @@ public enum EyewearStyle { None, Sunglasses, Goggles }
 public enum BackpackStyle { None, Light, Rucksack, Hydration, Radio, Demolition, Tools }
 public enum VestStyle { None, ChestRig, PlateCarrier }
 public enum BeltStyle { None, Plain, Pouches, Utility }
+/// <summary>
+/// Body = Pack: clothes painted over the pack's fabric shading (see <see cref="Kit.GarmentPainter"/>), in ShirtColor and
+/// TrousersColor, with AccentColor for the tie, scarf or pattern and GearColor for the shirt under a jacket.
+/// </summary>
+public enum Outfit { None, TShirt, StripedTee, Polo, Shirt, RolledShirt, CheckShirt, FloralShirt, Blouse, Suit, SuitOpenNeck, CabinBlazer, CabinWaistcoat, PilotShirt, FlightSuit, RescueSuit }
+/// <summary>Body = Pack: wounds and damage (combine with commas: "Blood,Torn,HeadBandage"). Dirt and soot are <see cref="CharacterSpec.Grime"/>.</summary>
+[Flags] public enum Injury { None = 0, Blood = 1, Torn = 2, HeadBandage = 4, ArmBandage = 8, LegBandage = 16 }
+/// <summary>Body = Pack: a flight helmet (needs a bare head, swapped in if not), in HatColor. Jet: rounded, with OxygenMask; Helo: ear cups and a boom mic.</summary>
+public enum FlightHelmet { None, Jet, Helo }
+/// <summary>Body = Pack: flight kit. Harness: painted straps; GSuit: chaps round the legs (ShirtColor, darker); LifeVest: a vest (GearColor).</summary>
+[Flags] public enum FlightGear { None = 0, Harness = 1, GSuit = 2, LifeVest = 4 }
+/// <summary>Body = Pack: unit insignia painted on the sleeves. RedTriangle: Iraq's Republican Guard.</summary>
+public enum Insignia { None, RedTriangle }
 
 /// <summary>Everything that defines one generated character. Bindable and JSON-serialisable.</summary>
 public sealed class CharacterSpec : INotifyPropertyChanged
@@ -68,6 +81,13 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     private GloveStyle _gloveStyle = GloveStyle.Auto;
     private bool _recolourClothes;
     private ClothesParts _recolour = ClothesParts.None;
+    private Outfit _outfit = Outfit.None;
+    private Injury _injury = Injury.None;
+    private FlightHelmet _flightHelmet = FlightHelmet.None;
+    private FlightGear _flightGear = FlightGear.None;
+    private Insignia _insignia = Insignia.None;
+    private bool _visor = true, _oxygenMask, _hijab, _glasses;
+    private float _age;
     private EarShape _ears = EarShape.Normal;
     private HairStyle _hair = HairStyle.Short;
     private FacialHair _facialHair = FacialHair.None;
@@ -138,6 +158,26 @@ public sealed class CharacterSpec : INotifyPropertyChanged
 
     /// <summary>Body = Pack: recolour only these garments (a plain top over camo trousers, desert boots); RecolourClothes = all.</summary>
     public ClothesParts Recolour { get => _recolour; set => Set(ref _recolour, value); }
+    public Outfit Outfit { get => _outfit; set => Set(ref _outfit, value); }
+    public Injury Injury { get => _injury; set => Set(ref _injury, value); }
+    public FlightHelmet FlightHelmet { get => _flightHelmet; set => Set(ref _flightHelmet, value); }
+    public FlightGear FlightGear { get => _flightGear; set => Set(ref _flightGear, value); }
+    public Insignia Insignia { get => _insignia; set => Set(ref _insignia, value); }
+
+    /// <summary>Flight helmet: the visor down over the eyes, or raised on the helmet.</summary>
+    public bool Visor { get => _visor; set => Set(ref _visor, value); }
+
+    /// <summary>Jet helmet: an oxygen mask with its hose.</summary>
+    public bool OxygenMask { get => _oxygenMask; set => Set(ref _oxygenMask, value); }
+
+    /// <summary>Body = Pack: a plain headscarf in HatColor (with Hat = Keffiyeh's shape, no agal or check).</summary>
+    public bool Hijab { get => _hijab; set => Set(ref _hijab, value); }
+
+    /// <summary>Body = Pack: thin painted spectacles.</summary>
+    public bool Glasses { get => _glasses; set => Set(ref _glasses, value); }
+
+    /// <summary>Body = Pack: lines on the face, 0 = young, 1 = elderly (grey hair is HairColor).</summary>
+    public float Age { get => _age; set => Set(ref _age, Math.Clamp(value, 0f, 1f)); }
     public EarShape Ears { get => _ears; set => Set(ref _ears, value); }
     public HairStyle Hair { get => _hair; set => Set(ref _hair, value); }
     public FacialHair FacialHair { get => _facialHair; set => Set(ref _facialHair, value); }

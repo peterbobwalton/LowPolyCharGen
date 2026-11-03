@@ -38,6 +38,9 @@ public sealed class CharacterModel
     /// <summary>The texture of material slot 4 (the UE5 pack's equipment texture), if any.</summary>
     public TextureImage? EquipmentTexture { get; init; }
 
+    /// <summary>Body = Pack: the character's painted clothes (material slot 5; see <see cref="Kit.GarmentPainter"/>).</summary>
+    public TextureImage? ClothesTexture { get; init; }
+
     /// <summary>Paints the character's texture at the given size (see <see cref="TextureBaker"/>).</summary>
     public TextureImage BakeTexture(int size) => FixedTexture ?? TextureBaker.Bake(this, size);
 }

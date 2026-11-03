@@ -19,7 +19,7 @@ public static class KitHands
     };
 
     public static GloveStyle StyleFor(CharacterSpec spec) =>
-        spec.GloveStyle != GloveStyle.Auto ? spec.GloveStyle : spec.Gloves ? GloveStyle.Tan : GloveStyle.Auto;
+        spec.GloveStyle != GloveStyle.Auto ? spec.GloveStyle : spec.Gloves ? GloveStyle.Tan : spec.Outfit != Outfit.None ? GloveStyle.Bare : GloveStyle.Auto;
 
     private static bool IsHandTriangle(PackPart part, int[] t) =>
         t.All(i =>

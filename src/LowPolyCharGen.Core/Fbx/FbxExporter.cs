@@ -36,6 +36,8 @@ public static class FbxExporter
             // character, so they batch); only their own face texture and the options are written.
             if (model.FaceTexture is { } face)
                 File.WriteAllBytes(FaceTexturePath(fbxPath), face.EncodePng());
+            if (model.ClothesTexture is { } clothes)
+                File.WriteAllBytes(ClothesTexturePath(fbxPath), clothes.EncodePng());
             File.WriteAllText(specPath, model.Spec.ToJson());
             return new FbxExportResult(fbxPath, null, null, specPath);
         }
@@ -48,6 +50,9 @@ public static class FbxExporter
 
     public static string FaceTexturePath(string fbxPath) =>
         Path.Combine(Path.GetDirectoryName(Path.GetFullPath(fbxPath))!, Path.GetFileNameWithoutExtension(fbxPath) + "_Face.png");
+
+    public static string ClothesTexturePath(string fbxPath) =>
+        Path.Combine(Path.GetDirectoryName(Path.GetFullPath(fbxPath))!, Path.GetFileNameWithoutExtension(fbxPath) + "_Clothes.png");
 
     public static string SafeName(string name)
     {
@@ -285,10 +290,10 @@ public static class FbxExporter
             connections.Add("C", "OP", textureObjectId, id, "DiffuseColor");
         }
         AddMaterial(materialId, textureId, videoId, "M_" + name, "T_" + name + "_Diffuse", texturePath);
-        string[] suffixes = ["", "_Face", "_Militia", "_UE5", "_Equipment"];
+        string[] suffixes = ["", "_Face", "_Militia", "_UE5", "_Equipment", "_Clothes"];
         for (var slot = 1; slot < materialCount; slot++)
             AddMaterial(NewId(), NewId(), NewId(), "M_" + name + suffixes[slot], "T_" + name + suffixes[slot],
-                slot == 1 ? FaceTexturePath(fbxPath) : texturePath);
+                slot == 1 ? FaceTexturePath(fbxPath) : slot == 5 ? ClothesTexturePath(fbxPath) : texturePath);
 
         // ---- skin ------------------------------------------------------------------------
         var skin = objects.Add("Deformer", skinId, name + Sep + "Deformer", "Skin");

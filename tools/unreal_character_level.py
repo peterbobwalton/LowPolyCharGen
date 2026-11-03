@@ -90,10 +90,12 @@ for line in open(FACTIONS_TXT, encoding="utf-8"):
     fields = line.strip().split("|")
     name, weapon = fields[0], fields[6] if len(fields) > 6 else "SM_m4"
     faction, role = name.split("_", 1)
-    weapon_path = next((f + weapon for f in (AW, MW) if unreal.EditorAssetLibrary.does_asset_exist(f + weapon)), AW + "SM_m4")
+    # An empty weapon field: unarmed (civilians).
+    weapon_path = weapon and next((f + weapon for f in (AW, MW) if unreal.EditorAssetLibrary.does_asset_exist(f + weapon)), AW + "SM_m4")
     factions.setdefault(faction, []).append((PACK_KIT + name, weapon_path, faction, role.replace("_", " ")))
 ROWS += list(factions.values())
-FACTION_NAMES = {"DesertStorm": "Desert Storm 1991", "Taliban": "Taliban", "UKArmy": "UK Army", "UKSF": "UK Special Forces"}
+FACTION_NAMES = {"DesertStorm": "Desert Storm 1991", "Taliban": "Taliban", "UKArmy": "UK Army", "UKSF": "UK Special Forces",
+                 "IraqiArmy": "Iraqi Army 1991", "Civilians": "Civilians: air passengers", "Airline": "Airline crew", "Aircrew": "Aircrew and rescue"}
 LABELS += [FACTION_NAMES.get(f, f) for f in factions]
 assert len(LABELS) == len(ROWS)
 ANIMS = ARMIES + "/Animations/"
@@ -110,6 +112,7 @@ WEAPON_IDLE = {
     "SM_weapon_deserteagle": ANIMS + "Handgun/handgun_combat_idle",
     "SM_usp_sil": ANIMS + "Handgun/handgun_combat_idle",
 }
+UNARMED_IDLE = "/Game/LowPolyCharGen/Animations/A_Unarmed_Idle"   # tools/make_unarmed_idle.py
 SPACING = 240.0      # between characters in a row (cm), room for the labels
 ROW_GAP = 600.0      # between rows
 FLOOR_SIZE = 200.0   # metres
@@ -174,11 +177,11 @@ for r, row in enumerate(ROWS):
         actor = spawn(unreal.LpcgDisplaySoldier, unreal.Vector(x, y, 0), unreal.Rotator(0, 0, 180),
                       "Char_%d_%02d_%s" % (r, i, (line1 + "_" + line2).replace(" ", "_").replace(",", "")))
         actor.set_editor_property("mesh", unreal.load_asset(mesh))
-        idle = UE5_IDLE if mesh.startswith(UE5) else WEAPON_IDLE.get(weapon.rsplit("/", 1)[-1])
+        idle = UE5_IDLE if mesh.startswith(UE5) else UNARMED_IDLE if not weapon else WEAPON_IDLE.get(weapon.rsplit("/", 1)[-1])
         actor.set_editor_property("animation", unreal.load_asset(idle) if idle else None)
         actor.set_editor_property("locomotion_speed", 0.0)
         actor.set_editor_property("crouched", False)
-        actor.set_editor_property("weapon_mesh", unreal.load_asset(weapon))
+        actor.set_editor_property("weapon_mesh", unreal.load_asset(weapon) if weapon else None)
         if mesh.startswith(UE5):
             # The UE5 skeleton is 1.18 times the shared one (its own weapons are scaled to match): shown at the
             # same height as the rebuilds, without a weapon.

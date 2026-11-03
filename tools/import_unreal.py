@@ -143,17 +143,22 @@ def import_character(fbx, destination, mannequin, lods=DEFAULT_LODS):
         # Built from the pack's parts: the pack's own material instance for its texture, shared by
         # every character that wears it.
         # Slot 1 (material "M_<name>_Face"): the character's own face texture on the pack's material.
-        face_material = None
-        face_png = os.path.join(os.path.dirname(fbx), base + "_Face.png")
-        if os.path.exists(face_png):
-            face_texture = next(iter(import_task(face_png, destination, "T_" + base + "_Face")), None)
+        def own_material(suffix):
+            """The character's own texture (<name>_Face.png, <name>_Clothes.png), if exported, on the pack's material."""
+            png = os.path.join(os.path.dirname(fbx), base + suffix + ".png")
+            if not os.path.exists(png):
+                return None
+            texture = next(iter(import_task(png, destination, "T_" + base + suffix)), None)
             tools = unreal.AssetToolsHelpers.get_asset_tools()
-            mi_path = destination + "/MI_" + base + "_Face"
-            face_material = unreal.load_asset(mi_path) if unreal.EditorAssetLibrary.does_asset_exist(mi_path) else \
-                tools.create_asset("MI_" + base + "_Face", destination, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
-            unreal.MaterialEditingLibrary.set_material_instance_parent(face_material, unreal.load_asset(TOON_MATERIAL))
-            unreal.MaterialEditingLibrary.set_material_instance_texture_parameter_value(face_material, "Texture", face_texture)
-            unreal.EditorAssetLibrary.save_loaded_asset(face_material)
+            mi_path = destination + "/MI_" + base + suffix
+            material = unreal.load_asset(mi_path) if unreal.EditorAssetLibrary.does_asset_exist(mi_path) else \
+                tools.create_asset("MI_" + base + suffix, destination, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+            unreal.MaterialEditingLibrary.set_material_instance_parent(material, unreal.load_asset(TOON_MATERIAL))
+            unreal.MaterialEditingLibrary.set_material_instance_texture_parameter_value(material, "Texture", texture)
+            unreal.EditorAssetLibrary.save_loaded_asset(material)
+            return material
+        face_material = own_material("_Face")
+        clothes_material = own_material("_Clothes")
         body_material = kit_material_instance(spec.get("PackTexture", "T_Armies_Standard"))
         militia_material = kit_material_instance(spec.get("MilitiaTexture", "T_Militias_A"))
         ue5_material = kit_material_instance(spec.get("UE5Texture", "T_Soldiers_Olive"))
@@ -161,6 +166,8 @@ def import_character(fbx, destination, mannequin, lods=DEFAULT_LODS):
         def slot_material(name):
             if name.endswith("_Face") and face_material:
                 return face_material
+            if name.endswith("_Clothes") and clothes_material:
+                return clothes_material
             if name.endswith("_UE5"):
                 return ue5_material
             if name.endswith("_Equipment"):

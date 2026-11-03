@@ -30,6 +30,17 @@ public sealed class FacePainter
     /// <summary>Left edge of the garment cloth strip (thobe).</summary>
     public const float GarmentStripU = 0.935f;
 
+    /// <summary>Colour columns across the headwear cloth region, for flight gear and bandages (see <see cref="KitPieces"/>).</summary>
+    public const int SwatchCount = 12;
+
+    /// <summary>A UV inside a swatch; <paramref name="t"/>, 0 to 1, runs from its dark end to its light end.</summary>
+    public static Vector2 Swatch(int index, float t) =>
+        new((index + 0.5f) / SwatchCount * HairStripU, 0.02f + (ClothV - 0.04f) * Math.Clamp(t, 0f, 1f));
+
+    /// <summary>True if the character wears anything coloured from the swatches (not with a turban or keffiyeh, which use that region).</summary>
+    private static bool UsesSwatches(CharacterSpec spec) =>
+        spec.FlightHelmet != LowPolyCharGen.FlightHelmet.None || (spec.FlightGear & (FlightGear.GSuit | FlightGear.LifeVest)) != 0 || spec.Injury.HasFlag(Injury.HeadBandage);
+
     private static readonly Rgb DefaultSkin = Rgb.FromHex("#D9A274");
     private static readonly Rgb DefaultHair = Rgb.FromHex("#4A3222");
 
@@ -125,7 +136,7 @@ public sealed class FacePainter
 
         var paint = new Paint(spec);
         for (var k = 0; k < color.Length; k++)
-            if (has[k]) color[k] = paint.Texel(color[k], pos[k]);
+            if (has[k]) color[k] = paint.Marks(paint.Texel(color[k], pos[k]), pos[k]);
         Pad(color, inside, 24);
         paint.HairStrip(color);
 
@@ -167,7 +178,7 @@ public sealed class FacePainter
         }
     }
 
-    private static Vector3 Sample(TextureImage t, float x, float y)
+    internal static Vector3 Sample(TextureImage t, float x, float y)
     {
         x = Math.Clamp(x - 0.5f, 0, t.Size - 1.001f);
         y = Math.Clamp(y - 0.5f, 0, t.Size - 1.001f);
@@ -284,6 +295,49 @@ public sealed class FacePainter
             return Vector3.Clamp(c, Vector3.Zero, Vector3.One);
         }
 
+        /// <summary>What goes over the finished face: age lines, spectacles, a cut, soot.</summary>
+        public Vector3 Marks(Vector3 c, Vector3 p)
+        {
+            float u = MathF.Abs(p.X), z = p.Z;
+            var k = S((-p.Y - 8f) / 3f) * S((c.X - c.Z - 0.05f) / 0.06f);
+            if (_spec.Age > 0 && k > 0)
+            {
+                var lines = _skin * 0.72f;
+                float a = _spec.Age;
+                var folds = MathF.Max(Stroke(u, z, [new(1.6f, 161f, 0.3f), new(3f, 158f, 0.34f), new(3.9f, 155.2f, 0.2f)], 0.14f),
+                    MathF.Max(Stroke(u, z, [new(0.5f, 172.5f, 0.2f), new(3.5f, 173.1f, 0.22f), new(6f, 172.4f, 0.12f)], 0.1f),
+                    MathF.Max(Stroke(u, z, [new(0.8f, 174.3f, 0.16f), new(3.5f, 174.9f, 0.18f), new(5.5f, 174.3f, 0.1f)], 0.1f),
+                    MathF.Max(Stroke(u, z, [new(6.4f, 166.8f, 0.14f), new(8f, 167.6f, 0.08f)], 0.08f),
+                    Stroke(u, z, [new(2.4f, 164.7f, 0.2f), new(4f, 164.2f, 0.22f), new(5.6f, 164.8f, 0.14f)], 0.1f)))));
+                c = Mix(c, lines, folds * k * a * 0.8f);
+            }
+            if (_spec.Glasses && front3(p))
+            {
+                var frame = new Vector3(0.1f, 0.09f, 0.09f);
+                float lens(float w) => S((w - MathF.Sqrt(((u - 4f) / 2.75f) * ((u - 4f) / 2.75f) + ((z - 166.3f) / 1.85f) * ((z - 166.3f) / 1.85f))) / 0.08f);
+                c = Mix(c, frame, (lens(1f) - lens(0.86f)));
+                c = Mix(c, frame, Stroke(u, z, [new(0, 167f, 0.26f), new(1.3f, 166.8f, 0.26f)], 0.1f));
+                c = Mix(c, frame, Stroke(u, z, [new(6.7f, 166.7f, 0.26f), new(9.5f, 166.4f, 0.22f)], 0.1f));
+            }
+            if (_spec.Injury.HasFlag(Injury.Blood) && k > 0)
+            {
+                var blood = new Vector3(0.36f, 0.03f, 0.03f);
+                var n = GarmentPainter.Noise(p * 0.9f);
+                c = Mix(c, blood, Stroke(u, z, [new(1f, 174.5f, 0.8f), new(1.6f, 170.5f, 0.45f), new(2f, 168.8f, 0.26f), new(2.2f, 165f, 0.14f)], 0.15f) * (0.6f + 0.4f * n) * k);
+                c = Mix(c, _skin * new Vector3(0.62f, 0.5f, 0.62f), Ellipse(u, z, 7f, 161f, 2.4f, 1.8f, 0.9f) * k * 0.5f);   // a bruise on the cheek
+            }
+            if (_spec.Grime > 0)
+            {
+                var n = GarmentPainter.Blotches(p, 11f);
+                c *= 1 - 0.14f * _spec.Grime;
+                var soot = S((n - (0.68f - 0.3f * _spec.Grime)) / 0.12f);
+                c = Mix(c, c * new Vector3(0.42f, 0.38f, 0.35f), soot * (0.35f + 0.5f * _spec.Grime));
+            }
+            return Vector3.Clamp(c, Vector3.Zero, Vector3.One);
+        }
+
+        private static bool front3(Vector3 p) => -p.Y > 11f;
+
         private void Female(ref Vector3 c, float u, float z, float k)
         {
             // The pack's painting is a man's: deep sockets, hard shadows down the nose, a set mouth
@@ -391,6 +445,7 @@ public sealed class FacePainter
             var accent = ToVec(_spec.AccentColor);
             int x1 = (int)(HairStripU * Size), y0 = (int)((1 - ClothV) * Size);
             var keffiyeh = _spec.Hat == HatStyle.Keffiyeh;
+            var swatches = UsesSwatches(_spec) && !_spec.Hijab && _spec.Hat is not (HatStyle.Keffiyeh or HatStyle.Turban);
             static float Line(float t, float width)
             {
                 var f = t - MathF.Floor(t);
@@ -401,7 +456,18 @@ public sealed class FacePainter
                 {
                     float cx = x / (float)x1 * 75f, cy = (y - y0) / (float)(Size - y0) * 45f;
                     Vector3 c;
-                    if (keffiyeh)
+                    if (swatches)
+                    {
+                        // Flat colours, dark at t = 0 to light at t = 1 (t runs up the texture).
+                        var t = Math.Clamp(((1 - (y + 0.5f) / Size) - 0.02f) / (ClothV - 0.04f), 0f, 1f);
+                        c = SwatchColor(Math.Min((int)(x / (float)x1 * SwatchCount), SwatchCount - 1)) * (0.68f + 0.5f * t);
+                    }
+                    else if (_spec.Hijab)
+                    {
+                        // A plain headscarf: soft folds, no check.
+                        c = hat * (0.9f + 0.1f * MathF.Sin(cx * 0.7f + cy * 0.25f));
+                    }
+                    else if (keffiyeh)
                     {
                         // Grid lines every 2 cm both ways, a dot in the middle of each cell, and two
                         // bands near the hem; the weave darkens the white a touch.
@@ -424,6 +490,22 @@ public sealed class FacePainter
                 }
         }
 
+        private Vector3 SwatchColor(int index) => index switch
+        {
+            KitPieces.SwatchShell => ToVec(_spec.HatColor),
+            KitPieces.SwatchShellDark => ToVec(_spec.HatColor) * 0.5f,
+            KitPieces.SwatchVisor => new Vector3(0.1f, 0.11f, 0.13f),
+            KitPieces.SwatchHousing => ToVec(_spec.HatColor) * 0.72f,
+            KitPieces.SwatchMask => new Vector3(0.24f, 0.26f, 0.21f),
+            KitPieces.SwatchRubber => new Vector3(0.07f, 0.07f, 0.07f),
+            KitPieces.SwatchVest => ToVec(_spec.GearColor),
+            KitPieces.SwatchVestDark => ToVec(_spec.GearColor) * 0.6f,
+            KitPieces.SwatchGSuit => ToVec(_spec.TrousersColor) * 0.72f,
+            KitPieces.SwatchBandage => new Vector3(0.9f, 0.88f, 0.84f),
+            KitPieces.SwatchReflective => new Vector3(0.8f, 0.82f, 0.78f),
+            _ => Vector3.One,
+        };
+
         /// <summary>Hair for the hair pieces: the colour with strands running down (v).</summary>
         public void HairStrip(Vector3[] color)
         {
@@ -431,7 +513,7 @@ public sealed class FacePainter
             int hair0 = (int)(HairStripU * Size) + 1, hat0 = (int)(HatStripU * Size), garment0 = (int)(GarmentStripU * Size);
             var hat = ToVec(_spec.HatColor);
             var accent = ToVec(_spec.AccentColor);
-            var cloth = ToVec(_spec.ShirtColor);
+            var cloth = ToVec(_spec.Legs == LegsStyle.Skirt ? _spec.TrousersColor : _spec.ShirtColor);
             var checks = _spec.Hat == HatStyle.Keffiyeh;
             for (var y = 0; y < Size; y++)
                 for (var x = hair0; x < Size; x++)
