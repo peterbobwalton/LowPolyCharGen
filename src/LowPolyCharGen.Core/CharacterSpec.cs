@@ -53,7 +53,7 @@ public enum BeltStyle { None, Plain, Pouches, Utility }
 /// Body = Pack: clothes painted over the pack's fabric shading (see <see cref="Kit.GarmentPainter"/>), in ShirtColor and
 /// TrousersColor, with AccentColor for the tie, scarf or pattern and GearColor for the shirt under a jacket.
 /// </summary>
-public enum Outfit { None, TShirt, StripedTee, Polo, Shirt, RolledShirt, CheckShirt, FloralShirt, Blouse, Suit, SuitOpenNeck, CabinBlazer, CabinWaistcoat, PilotShirt, FlightSuit, RescueSuit }
+public enum Outfit { None, TShirt, StripedTee, Polo, Shirt, RolledShirt, CheckShirt, FloralShirt, Blouse, Suit, SuitOpenNeck, CabinBlazer, CabinWaistcoat, CabinShirt, PilotShirt, PilotJacket, HiVisVest, FlightSuit, RescueSuit }
 /// <summary>Body = Pack: wounds and damage (combine with commas: "Blood,Torn,HeadBandage"). Dirt and soot are <see cref="CharacterSpec.Grime"/>.</summary>
 [Flags] public enum Injury { None = 0, Blood = 1, Torn = 2, HeadBandage = 4, ArmBandage = 8, LegBandage = 16 }
 /// <summary>Body = Pack: a flight helmet (needs a bare head, swapped in if not), in HatColor. Jet: rounded, with OxygenMask; Helo: ear cups and a boom mic.</summary>
@@ -86,8 +86,10 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     private FlightHelmet _flightHelmet = FlightHelmet.None;
     private FlightGear _flightGear = FlightGear.None;
     private Insignia _insignia = Insignia.None;
-    private bool _visor = true, _oxygenMask, _hijab, _glasses;
+    private bool _visor = true, _oxygenMask, _hijab, _glasses, _apron;
     private float _age;
+    private int _rank;
+    private Rgb _apronColor = Rgb.FromHex("#F0F0EC");
     private EarShape _ears = EarShape.Normal;
     private HairStyle _hair = HairStyle.Short;
     private FacialHair _facialHair = FacialHair.None;
@@ -163,6 +165,13 @@ public sealed class CharacterSpec : INotifyPropertyChanged
     public FlightHelmet FlightHelmet { get => _flightHelmet; set => Set(ref _flightHelmet, value); }
     public FlightGear FlightGear { get => _flightGear; set => Set(ref _flightGear, value); }
     public Insignia Insignia { get => _insignia; set => Set(ref _insignia, value); }
+
+    /// <summary>Airline uniforms: gold bars on the epaulettes or rings on the sleeves, 1 to 4 (0 = the outfit's usual: pilots 4, cabin crew 2).</summary>
+    public int Rank { get => _rank; set => Set(ref _rank, Math.Clamp(value, 0, 4)); }
+
+    /// <summary>Body = Pack, with an Outfit: a painted galley apron over the front of the clothes, in <see cref="ApronColor"/>.</summary>
+    public bool Apron { get => _apron; set => Set(ref _apron, value); }
+    public Rgb ApronColor { get => _apronColor; set => Set(ref _apronColor, value); }
 
     /// <summary>Flight helmet: the visor down over the eyes, or raised on the helmet.</summary>
     public bool Visor { get => _visor; set => Set(ref _visor, value); }

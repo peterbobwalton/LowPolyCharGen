@@ -87,8 +87,10 @@ suffix, materials from `M_LPCG_Kit`.
 
 | Item | What |
 |---|---|
-| `LowPolySoldiers_Pack_UE5.8_2026-11-03.zip` (215 MB) | **Latest.** 168 characters in 14 factions: adds IraqiArmy, Civilians, Airline, Aircrew and `A_Unarmed_Idle` |
-| `LowPolySoldiers_Pack_2026-11-03\` (folder) | **Latest, unzipped:** the same build (1,122 files, 283 MB) |
+| `LowPolySoldiers_Pack_UE5.8_2026-11-03_airline.zip` (226 MB) | **Latest.** 178 characters in 14 factions: the full airline crew (16) |
+| `LowPolySoldiers_Pack_2026-11-03_airline\` (folder) | **Latest, unzipped:** the same build (1,172 files, 295 MB) |
+| `LowPolySoldiers_Pack_UE5.8_2026-11-03.zip` (215 MB) | 168 characters: adds IraqiArmy, Civilians, Airline (6), Aircrew and `A_Unarmed_Idle` |
+| `LowPolySoldiers_Pack_2026-11-03\` (folder) | The same build as that zip, unzipped (1,122 files, 283 MB) |
 | `LowPolySoldiers_Pack_UE5.8_2026-10-24_legsfix.zip` (166 MB) | 121 characters in 10 factions, with the legs/boots fix |
 | `LowPolySoldiers_Pack_UE5.8_2026-10-24.zip` (172 MB) | 24 Oct, before the fix: the officers have no legs, the Taliban no legs or shoes |
 | `LowPolySoldiers_Pack_UE5.8.zip` (88 MB) | 23 Oct, the first pack (44 rebuilt prebuilts); kept for reference |
@@ -97,12 +99,16 @@ suffix, materials from `M_LPCG_Kit`.
 
 ## Done on the AMD9800X3D, 3 November 2026 (crash-rescue game: civilians, aircrew, Iraqi Army)
 
-Pete's game has a crashed aircraft to rescue people from. Four new factions in `tools/pack_factions.txt`, 47 characters:
+Pete's game has a crashed aircraft to rescue people from. Four new factions in `tools/pack_factions.txt`, 57 characters:
 
 - **Civilians (17):** passengers in business, everyday, holiday and Middle Eastern dress, with elderly and young adults.
   Four are injured versions (`Civilians_Injured_*`). Unarmed.
-- **Airline (6):** captain, first officer, cabin crew in blazer and waistcoat, one injured. Unarmed. The peaked cap is
-  the UE5 pack's general's cap (`TS_Head_09_general`, `UE5Texture=T_Soldiers_Blue`).
+- **Airline (16, expanded the same day from 6):** one airline: navy (`#1E2C50`), white shirts, red tie or scarf
+  (`#B83A32`), gold wings. Two captains and two first officers (one of each a woman), relief pilot, purser, cabin crew in
+  blazer, waistcoat and shirtsleeves, stewards, a galley attendant in an apron, a dispatcher in hi-vis, and three
+  injured or dishevelled. Unarmed. The peaked cap is the UE5 pack's general's cap (`TS_Head_09_general`,
+  `UE5Texture=T_Soldiers_Blue`). New for them: `Outfit` `CabinShirt`, `PilotJacket`, `HiVisVest`; `Rank` (gold bars or
+  sleeve rings); `Apron` and `ApronColor`. A skirt's top is now at z 94, because at 100 it poked through a white shirt.
 - **Aircrew (13):** fighter pilots (mask, visor up, female, cap), two downed and injured, helicopter pilot, co-pilot,
   door gunner and crew chief, then the rescuers: search-and-rescue winchman, rescue swimmer, paramedic.
 - **IraqiArmy (11):** 1991, olive drab (`T_military_green`) and a lizard-like pattern (`T_gulfwar_B`, the nearest

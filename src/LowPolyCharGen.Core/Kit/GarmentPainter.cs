@@ -391,9 +391,39 @@ public sealed class GarmentPainter
                     }
                     t = Collar(t, u, z, front, 0.88f);
                     break;
-                case Outfit.Suit or Outfit.SuitOpenNeck or Outfit.CabinBlazer:
-                    t = o == Outfit.CabinBlazer ? Mix(t, Gold, MathF.Max(Band(u, 74f, 0.5f), Band(u, 76f, 0.5f))) : Mix(t, dark, Band(u, 79f, 0.2f));
+                case Outfit.Suit or Outfit.SuitOpenNeck or Outfit.CabinBlazer or Outfit.PilotJacket:
+                    if (o is Outfit.CabinBlazer or Outfit.PilotJacket)
+                    {
+                        // Gold rings round the cuff, one per rank, working up the sleeve.
+                        var rings = _spec.Rank > 0 ? _spec.Rank : o == Outfit.PilotJacket ? 4 : 2;
+                        for (var i = 0; i < rings; i++) t = Mix(t, Gold, Band(u, 77f - i * 2.1f, 0.5f));
+                    }
+                    else t = Mix(t, dark, Band(u, 79f, 0.2f));
                     if (!arm) t = Jacket(t, skin, s, x, u, z, front);
+                    break;
+                case Outfit.CabinShirt:
+                    t = Crew(t, skin, u, z, front);
+                    t = Placket(t, s, u, z, front);
+                    t = Mix(t, _shirt * s * 0.75f, Band(u, 79f, 0.25f));
+                    t = Collar(t, u, z, front, 0.88f);
+                    t = _spec.Gender == Gender.Male ? Tie(t, s, u, z, front) : front ? Scarf(t, s, u, z) : t;
+                    if (front && !arm && x > 0) t = Mix(t, Gold, Wings(u, z, 13f, 134.5f));
+                    break;
+                case Outfit.HiVisVest:
+                    t = Crew(t, skin, u, z, front);
+                    t = Mix(t, _shirt * s * 0.75f, Band(u, 79f, 0.25f));
+                    t = Collar(t, u, z, front, 0.88f);
+                    if (!arm)
+                    {
+                        // The vest, open at the neck, with reflective bands round the waist and over the shoulders.
+                        var open = front ? Opening(z, 147f, 124f, 6.5f) : (z > 145f ? 8f : -1f);
+                        if (u >= open && !(z > 148.5f && u < 9f))
+                        {
+                            t = _gear * s;
+                            t = Mix(t, Reflective, MathF.Max(MathF.Max(Band(z, 110f, 1.7f), Band(z, 102f, 1.7f)), Band(u, 11.5f, 1.5f)));
+                            if (front) t = Mix(t, _gear * s * 0.6f, Band(u, 0, 0.16f));
+                        }
+                    }
                     break;
                 case Outfit.CabinWaistcoat:
                     if (arm) t = _gear * s;
@@ -410,7 +440,7 @@ public sealed class GarmentPainter
                         t = Mix(t, _shirt * s * 0.72f, Line(u, z, 8.5f, 128f, 16.5f, 128f, 0.45f));
                         if (x > 0) t = Mix(t, Gold, Wings(u, z, 12.5f, 134.5f));
                     }
-                    t = Epaulette(t, u, z, p.Y);
+                    t = Epaulette(t, u, z, p.Y, _spec.Rank > 0 ? _spec.Rank : 4);
                     break;
                 case Outfit.FlightSuit:
                     if (front && !arm)
@@ -433,6 +463,7 @@ public sealed class GarmentPainter
                     break;
             }
             if (_spec.FlightGear.HasFlag(FlightGear.Harness) && !arm) t = Harness(t, x, u, z, front);
+            if (_spec.Apron && !arm) t = ApronTop(t, s, u, z, front);
             // The neck stays skin, above whatever covers the chest.
             if (skinMask > 0.5f && z > 149.5f) return Mix(t, skin, skinMask);
             return t;
@@ -496,14 +527,9 @@ public sealed class GarmentPainter
                 // The shirt under the jacket, and what's at its neck.
                 var shirt = _gear * s;
                 shirt = Mix(shirt, _gear * s * 0.72f, Band(u, 0, 0.12f));
-                if (_spec.Outfit == Outfit.Suit) shirt = Tie(shirt, 1, u, z, true);
-                else if (_spec.Outfit == Outfit.CabinBlazer)
-                {
-                    // A neck scarf: a knot and two falling ends.
-                    var scarf = S((3.8f + (z - 139f) * 0.1f - u) / 0.3f) * S((z - 131f - u * 0.9f) / 0.3f) * S((147f - z) / 0.3f);
-                    shirt = Mix(shirt, _accent * s, scarf);
-                    shirt = Mix(shirt, _accent * s * 0.65f, Line(u, z, 0, 143f, 3.4f, 141f, 0.3f) * scarf);
-                }
+                if (_spec.Outfit is Outfit.Suit or Outfit.PilotJacket || (_spec.Outfit == Outfit.CabinBlazer && _spec.Gender == Gender.Male))
+                    shirt = Tie(shirt, 1, u, z, true);
+                else if (_spec.Outfit == Outfit.CabinBlazer) shirt = Scarf(shirt, s, u, z);
                 else if (z > 137f && u < (z - 137f) * 0.55f) shirt = skin;
                 return collarSkin ? skin : shirt;
             }
@@ -517,8 +543,28 @@ public sealed class GarmentPainter
             t = Mix(t, _shirt * s * 0.4f, MathF.Max(Dot(u, z, 1.3f, 112f, 0.6f), Dot(u, z, 1.3f, 104.5f, 0.6f)));
             t = Mix(t, _shirt * s * 0.6f, Line(u, z, 9.5f, 102f, 18f, 102f, 0.5f));
             if (x > 0) t = Mix(t, _shirt * s * 0.6f, Line(u, z, 11f, 131f, 18f, 131f, 0.45f));
-            if (_spec.Outfit == Outfit.CabinBlazer && x > 0) t = Mix(t, Gold, Wings(u, z, 14f, 135f));
+            if (_spec.Outfit is Outfit.CabinBlazer or Outfit.PilotJacket && x > 0) t = Mix(t, Gold, Wings(u, z, 14f, 135f));
             return t;
+        }
+
+        /// <summary>A neck scarf: a knot and two falling ends.</summary>
+        private Vector3 Scarf(Vector3 t, float s, float u, float z)
+        {
+            var scarf = S((3.8f + (z - 139f) * 0.1f - u) / 0.3f) * S((z - 131f - u * 0.9f) / 0.3f) * S((147f - z) / 0.3f);
+            t = Mix(t, _accent * s, scarf);
+            return Mix(t, _accent * s * 0.65f, Line(u, z, 0, 143f, 3.4f, 141f, 0.3f) * scarf);
+        }
+
+        /// <summary>The apron's bib, neck straps and waist ties.</summary>
+        private Vector3 ApronTop(Vector3 t, float s, float u, float z, bool front)
+        {
+            var apron = FacePainter.ToVec(_spec.ApronColor) * Math.Clamp(s, 0.75f, 1.05f);
+            if (!front) return Mix(t, apron * 0.9f, MathF.Max(Band(z, 101f, 1f), Line(u, z, 7f, 150f, 12f, 104f, 1.2f)));
+            var width = float.Lerp(15.5f, 8.5f, Math.Clamp((z - 108f) / 16f, 0f, 1f));
+            var bib = S((width - u) / 0.3f) * S((132f - z) / 0.3f);
+            t = Mix(t, apron, MathF.Max(bib, Line(u, z, 7.5f, 132f, 6.2f, 147f, 1.3f)));
+            t = Mix(t, apron * 0.8f, Outline(u, z, 4f, 8f, 110f, 116f, 0.2f));
+            return Mix(t, apron * 0.85f, Band(z, 101f, 1f));
         }
 
         private Vector3 Waistcoat(Vector3 t, float s, float u, float z, bool front)
@@ -541,12 +587,12 @@ public sealed class GarmentPainter
         private static float Wings(float u, float z, float cu, float cz) =>
             MathF.Max(Dot(u, z, cu, cz, 0.7f), MathF.Max(Line(u, z, cu - 3.6f, cz + 0.7f, cu + 3.6f, cz + 0.7f, 0.45f), Line(u, z, cu - 2.5f, cz - 0.1f, cu + 2.5f, cz - 0.1f, 0.35f)));
 
-        private static Vector3 Epaulette(Vector3 t, float u, float z, float y)
+        private static Vector3 Epaulette(Vector3 t, float u, float z, float y, int rank)
         {
             if (u < 13f || u > 31f || MathF.Abs(y) > 5.2f || z < 141f) return t;
             t = Black * 1.6f;
-            foreach (var bar in new[] { 25.5f, 23f, 20.5f, 18f })
-                t = Mix(t, Gold, Band(u, bar, 0.65f));
+            for (var i = 0; i < rank; i++)
+                t = Mix(t, Gold, Band(u, 25.5f - i * 2.5f, 0.65f));
             return t;
         }
 
@@ -584,7 +630,7 @@ public sealed class GarmentPainter
             var t = _trousers * s;
             switch (o)
             {
-                case Outfit.Suit or Outfit.SuitOpenNeck or Outfit.PilotShirt or Outfit.CabinBlazer or Outfit.CabinWaistcoat:
+                case Outfit.Suit or Outfit.SuitOpenNeck or Outfit.PilotShirt or Outfit.PilotJacket or Outfit.CabinBlazer or Outfit.CabinWaistcoat or Outfit.CabinShirt or Outfit.HiVisVest:
                     // A pressed crease down the front of each leg, and a dark belt.
                     if (front && z < 92f) t = Mix(t, _trousers * s * 0.72f, Band(u, 14.5f, 0.16f));
                     t = Mix(t, Black * 2f, S((z - 97f) / 0.3f));
@@ -602,6 +648,13 @@ public sealed class GarmentPainter
                     t = Mix(t, Black * 2f, S((26f - z) / 0.5f));
                     t = Mix(t, _trousers * s * 0.65f, Outline(u, z, 17f, 24f, 63f, 80f));
                     break;
+            }
+            if (_spec.Apron && front && z is > 60f and < 102f)
+            {
+                // The apron's skirt, across both legs, with a darker hem.
+                var apron = FacePainter.ToVec(_spec.ApronColor) * Math.Clamp(s, 0.8f, 1.05f);
+                t = Mix(t, apron, S((23f - u) / 0.3f));
+                t = Mix(t, apron * 0.75f, Band(z, 62f, 0.4f) * S((23f - u) / 0.3f));
             }
             return t;
         }

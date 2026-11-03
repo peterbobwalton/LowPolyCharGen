@@ -71,7 +71,8 @@ public static class KitBuilder
             else if (HairPieces.For(spec, headPart) is { } hair) parts.Add(hair);
             // Low shoes sit under the boots' height: the hem comes down to them.
             if (thobe) parts.Add(KitPieces.ThobeSkirt(legsPart, bottomZ: lowFootwear ? 11f : 16f));
-            if (skirt) parts.Add(KitPieces.ThobeSkirt(legsPart, 100f, SkirtHem));
+            // Its top just tucks under the hem of the body: any higher and it pokes through a light shirt.
+            if (skirt) parts.Add(KitPieces.ThobeSkirt(legsPart, 94f, SkirtHem));
             if (!headdress && spec.Injury.HasFlag(Injury.HeadBandage) && HairPieces.IsBare(headPart)) parts.Add(KitPieces.HeadBandage(headPart));
             var bodyForGear = parts.FirstOrDefault(p => p.Name == spec.PackBody);
             if (spec.FlightGear.HasFlag(FlightGear.LifeVest) && bodyForGear is not null) parts.Add(KitPieces.LifeVest(bodyForGear));
